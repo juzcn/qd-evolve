@@ -22,14 +22,11 @@ class SkillInfo:
 
 
 class SkillLoader:
-    """Universal skill loader.
+    """Skill loader — registers skills as tools with shell-execution handlers.
 
-    Convention (from SKILL.md):
-      python3 scripts/<name>.py '<JSON>'
-
-    Scripts receive arguments as a JSON string in sys.argv[1].
-    SKILL.md tells the LLM what parameters to pass.
-    No manifest.json needed — tools are inferred from scripts/.
+    Each skill script is registered as a tool. The handler runs the script
+    via subprocess, passing arguments as JSON in sys.argv[1] and injecting
+    skill_config as environment variables.
     """
 
     def __init__(self, skills_dir: str | Path, skill_config: dict[str, str] | None = None, registry: ToolRegistry | None = None) -> None:
@@ -48,8 +45,8 @@ class SkillLoader:
             if not child.is_dir():
                 continue
 
-            scripts_dir = child / "scripts"
-            if not scripts_dir.is_dir() or not list(scripts_dir.glob("*.py")):
+            skill_md_path = child / "SKILL.md"
+            if not skill_md_path.exists():
                 continue
 
             name, version = child.name, "0.0.0"
@@ -63,17 +60,15 @@ class SkillLoader:
                     pass
 
             info = SkillInfo(path=child, name=name, version=version)
+            info.skill_md = skill_md_path.read_text(encoding="utf-8")
 
-            skill_md_path = child / "SKILL.md"
-            if skill_md_path.exists():
-                info.skill_md = skill_md_path.read_text(encoding="utf-8")
+            scripts_dir = child / "scripts"
+            if scripts_dir.is_dir():
+                info.scripts = sorted(scripts_dir.glob("*.py"))
 
-            info.scripts = sorted(scripts_dir.glob("*.py"))
-
-            if info.scripts:
-                self._skills.append(info)
-                count += 1
-                logger.info("Skill discovered: {} v{} ({} scripts)", info.name, info.version, len(info.scripts))
+            self._skills.append(info)
+            count += 1
+            logger.info("Skill discovered: {} v{}", info.name, info.version)
 
         return count
 
@@ -81,7 +76,7 @@ class SkillLoader:
         total = 0
         for skill in self._skills:
             for script_path in skill.scripts:
-                tool_name = f"{skill.name}__{script_path.stem}"
+                tool_name = f"{skill.name}__{script_path.stem}".replace("-", "_")
                 description = skill.skill_md or f"[{skill.name}] Run {script_path.stem}"
                 self._registry.register(
                     name=tool_name,
