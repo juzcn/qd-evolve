@@ -100,6 +100,7 @@ class SkillLoader:
         def handler(**kwargs: Any) -> str:
             env = dict(os.environ)
             env.update(config)
+            env["PYTHONIOENCODING"] = "utf-8"
 
             try:
                 args_json = json.dumps(kwargs, ensure_ascii=False)
