@@ -3,8 +3,8 @@
   "default_model": "qianfan-code-latest",
   "log_level": "INFO",
   "default_system_prompt": "You are a helpful AI assistant with access to tools.",
-  "embedding_model": "text-embedding-3-small",
-  "embedding_dimensions": 256,
+  "embedding_model_path": "C:\\OneDrive\\AI\\HuggingFace\\hub\\models--BAAI--bge-m3",
+  "embedding_dimensions": 1024,
   "db_path": "qd_evolve.db",
   "providers": [
     {

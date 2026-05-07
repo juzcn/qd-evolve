@@ -4,10 +4,16 @@ __pycache__/
 build/
 dist/
 wheels/
-*.egg-info
+*.egg-info/
 
 # Virtual environments
 .venv
+
+# IDE
+.vscode/
+
+# Claude Code
+.claude/
 
 # Config and data (contain secrets)
 qd-evolve.json

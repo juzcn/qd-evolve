@@ -60,10 +60,10 @@ class ToolRegistry:
 
     def execute(self, name: str, **kwargs: Any) -> str:
         td = self.get(name)
-        logger.info("Executing tool: {} with args: {}", name, list(kwargs.keys()))
+        logger.info("Tool call: {} | args: {}", name, kwargs)
         try:
             result = td.handler(**kwargs)
-            logger.debug("Tool {} completed", name)
+            logger.info("Tool result: {} | output: {}", name, result[:500])
             return result
         except Exception as e:
             logger.error("Tool {} failed: {}", name, e)

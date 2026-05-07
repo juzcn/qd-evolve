@@ -9,7 +9,6 @@ from loguru import logger
 from pydantic import BaseModel
 
 from qd_evolve.config import Settings
-from qd_evolve.providers import ProviderRegistry
 
 
 class VectorItem(BaseModel):
@@ -23,6 +22,17 @@ class VectorStore:
         self.settings = settings
         self.db_path = Path(settings.db_path)
         self._db: sqlite3.Connection | None = None
+        self._embed_model = None
+
+    @property
+    def embed_model(self):
+        if self._embed_model is None:
+            from sentence_transformers import SentenceTransformer
+            model_path = self.settings.embedding_model_path
+            logger.info("Loading embedding model from {}", model_path)
+            self._embed_model = SentenceTransformer(model_path)
+            logger.info("Embedding model loaded, dim={}", self._embed_model.get_sentence_embedding_dimension())
+        return self._embed_model
 
     @property
     def db(self) -> sqlite3.Connection:
@@ -53,15 +63,8 @@ class VectorStore:
         self.db.commit()
 
     def embed(self, texts: list[str]) -> list[list[float]]:
-        providers = ProviderRegistry(self.settings)
-        prov = providers.get("anthropic")
-        client = prov.create_client()
-        response = client.embeddings.create(
-            model=self.settings.embedding_model,
-            input=texts,
-            dimensions=self.settings.embedding_dimensions,
-        )
-        return [item.embedding for item in response.data]
+        embeddings = self.embed_model.encode(texts, normalize_embeddings=True)
+        return embeddings.tolist()
 
     def add(self, items: list[VectorItem]) -> list[int]:
         texts = [item.content for item in items]

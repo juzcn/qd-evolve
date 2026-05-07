@@ -44,8 +44,8 @@ class Settings(BaseModel):
     default_system_prompt: str = "You are a helpful AI assistant with access to tools."
     default_provider: str = ""
     default_model: str = ""
-    embedding_model: str = "text-embedding-3-small"
-    embedding_dimensions: int = 256
+    embedding_model_path: str = r"C:\OneDrive\AI\HuggingFace\hub\models--BAAI--bge-m3"
+    embedding_dimensions: int = 1024
     db_path: str = "qd_evolve.db"
     providers: list[ProviderConfig] = []
 
