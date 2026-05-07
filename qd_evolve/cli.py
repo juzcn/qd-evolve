@@ -8,6 +8,7 @@ from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.history import InMemoryHistory
 from rich.console import Console
 from rich.markdown import Markdown
+from rich.markup import escape
 from rich.panel import Panel
 from typer import Typer
 
@@ -33,6 +34,7 @@ SLASH_COMMANDS = {
     "/tools": "List available tools",
     "/config": "Show current configuration",
     "/loglevel": "Set log level (e.g. /loglevel DEBUG)",
+    "/models": "Pick a model to switch to",
 }
 
 
@@ -53,13 +55,13 @@ def _resolve_api_key(settings: Settings) -> None:
             settings.providers.append(
                 ProviderConfig(
                     name="anthropic",
-                    api_keys=[key],
+                    api_key=key,
                     models=[ModelConfig(name=settings.default_model)],
                 )
             )
 
 
-def _handle_slash_command(cmd: str, agent: Agent, settings: Settings) -> str | None:
+def _handle_slash_command(cmd: str, agent: Agent, settings: Settings, providers: ProviderRegistry, session: PromptSession) -> str | None:
     parts = cmd.strip("/").split(maxsplit=1)
     name = "/" + parts[0].lower()
     arg = parts[1] if len(parts) > 1 else None
@@ -74,8 +76,8 @@ def _handle_slash_command(cmd: str, agent: Agent, settings: Settings) -> str | N
         return "\n".join(lines)
     if name == "/tools":
         registry = get_registry()
-        lines = [f"  [bold]{n}[/bold] — {registry.get(n).description}" for n in registry.list_names()]
-        return "\n".join(lines)
+        lines = [f"  [bold]{n}[/bold] — {desc}" for n, desc, _ in registry.list_all() if registry.is_enabled(n)]
+        return "\n".join(lines) if lines else "  (no tools loaded)"
     if name == "/config":
         _resolve_api_key(settings)
         lines = [
@@ -85,6 +87,38 @@ def _handle_slash_command(cmd: str, agent: Agent, settings: Settings) -> str | N
             f"  api_key: {'***configured***' if settings.is_configured else '[red]NOT SET[/red]'}",
         ]
         return "\n".join(lines)
+    if name == "/models":
+        all_models = providers.list_all_models()
+        entries: list[tuple[str, str]] = []  # (provider, model)
+        lines = []
+        idx = 1
+        for prov_name, model_names in all_models.items():
+            for m in model_names:
+                marker = " [dim](current)[/]" if prov_name == settings.default_provider and m == settings.default_model else ""
+                lines.append(f"  [bold]{idx}[/bold]. {prov_name}/{m}{marker}")
+                entries.append((prov_name, m))
+                idx += 1
+        lines.append("")
+        lines.append("Enter number to switch, or press Enter to cancel:")
+        console.print("\n".join(lines))
+        try:
+            choice = session.prompt("Model> ").strip()
+        except (EOFError, KeyboardInterrupt):
+            return "Cancelled."
+        if not choice:
+            return "Cancelled."
+        try:
+            n = int(choice)
+            if n < 1 or n > len(entries):
+                return f"Invalid selection: {n}"
+        except ValueError:
+            return f"Invalid input: {choice}"
+        prov_name, model_name = entries[n - 1]
+        settings.default_provider = prov_name
+        settings.default_model = model_name
+        agent._provider_name = prov_name
+        agent._model = model_name
+        return f"Switched to [bold]{prov_name}/{model_name}[/bold]"
     if name == "/loglevel":
         if not arg:
             return f"Current log level: {settings.log_level}"
@@ -107,8 +141,8 @@ def main(
     settings = load_settings()
     setup_logging(settings.log_level)
 
-    import qd_evolve.tools.file_rw  # noqa: F401 — registers tools
-    import qd_evolve.tools.shell  # noqa: F401 — registers tools
+    registry = get_registry()
+    loaded = registry.discover_tools()
 
     _resolve_api_key(settings)
 
@@ -131,9 +165,18 @@ def main(
     providers = ProviderRegistry(settings)
     agent = Agent(settings, registry, providers)
 
+    try:
+        from qd_evolve.vector import VectorStore
+        vs = VectorStore(settings)
+        registry.set_embed_fn(vs.embed)
+        registry.build_tool_embeddings()
+    except Exception:
+        logger.debug("Embedding init skipped (model not available)")
+
     session = PromptSession(history=InMemoryHistory(), completer=SlashCompleter())
 
-    console.print(Panel("qd-evolve agent — type [bold]/help[/] for commands, [bold]/quit[/] to leave", style="blue"))
+    model_info = escape(f"[{settings.default_provider}/{settings.default_model}]")
+    console.print(Panel(f"qd-evolve agent {model_info} — type [bold]/help[/] for commands, [bold]/quit[/] to leave", style="blue"))
 
     while True:
         try:
@@ -146,7 +189,7 @@ def main(
             continue
 
         if user_input.startswith("/"):
-            result = _handle_slash_command(user_input, agent, settings)
+            result = _handle_slash_command(user_input, agent, settings, providers, session)
             if result == "EXIT":
                 console.print("[dim]Goodbye![/]")
                 break

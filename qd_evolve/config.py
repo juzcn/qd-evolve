@@ -32,8 +32,7 @@ class ModelConfig(BaseModel):
 
 class ProviderConfig(BaseModel):
     name: str
-    api_keys: list[str] = []
-    default_api_key: int = 0
+    api_key: str = ""
     base_url: str | None = None
     api: str = "openai-completions"  # openai-completions | openai-response | anthropic
     models: list[ModelConfig] = []
@@ -66,7 +65,7 @@ class Settings(BaseModel):
     @property
     def is_configured(self) -> bool:
         p = self.get_provider()
-        return bool(p and p.api_keys)
+        return bool(p and p.api_key)
 
 
 def load_json(path: Path) -> dict:
@@ -95,7 +94,7 @@ def save_settings(settings: Settings, path: Path | str | None = None) -> None:
     data = settings.model_dump(exclude={"providers"})
     providers_data = []
     for prov in settings.providers:
-        pd = prov.model_dump(exclude={"api_keys"})
+        pd = prov.model_dump(exclude={"api_key"})
         providers_data.append(pd)
     data["providers"] = providers_data
     save_json(data, p)

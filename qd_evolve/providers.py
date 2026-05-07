@@ -18,7 +18,6 @@ API_TYPE_MAP = {
 class Provider:
     def __init__(self, config: ProviderConfig) -> None:
         self.config = config
-        self._key_index = config.default_api_key
 
     @property
     def name(self) -> str:
@@ -26,16 +25,9 @@ class Provider:
 
     @property
     def api_key(self) -> str:
-        if not self.config.api_keys:
-            raise ValueError(f"No API keys configured for provider {self.name}")
-        return self.config.api_keys[self._key_index % len(self.config.api_keys)]
-
-    def rotate_key(self) -> str:
-        if len(self.config.api_keys) <= 1:
-            return self.api_key
-        self._key_index = (self._key_index + 1) % len(self.config.api_keys)
-        logger.debug("Rotated to API key index {} for {}", self._key_index, self.name)
-        return self.api_key
+        if not self.config.api_key:
+            raise ValueError(f"No API key configured for provider {self.name}")
+        return self.config.api_key
 
     @property
     def api_type(self) -> str:

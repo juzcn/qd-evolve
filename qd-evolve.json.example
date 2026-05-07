@@ -9,8 +9,7 @@
   "providers": [
     {
       "name": "baiduqianfancodingplan",
-      "api_keys": ["sk-key1", "sk-key2"],
-      "default_api_key": 0,
+      "api_key": "sk-xxx",
       "base_url": "https://qianfan.baidubce.com/v2/coding",
       "api": "openai-completions",
       "models": [
