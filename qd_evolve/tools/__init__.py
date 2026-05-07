@@ -14,6 +14,7 @@ class ToolDefinition:
     description: str
     input_schema: dict
     handler: Callable
+    category: str = "builtin"
 
 
 def _cosine_similarity(a: list[float], b: list[float]) -> float:
@@ -38,14 +39,16 @@ class ToolRegistry:
         description: str,
         input_schema: dict,
         handler: Callable,
+        category: str = "builtin",
     ) -> None:
         self._tools[name] = ToolDefinition(
             name=name,
             description=description,
             input_schema=input_schema,
             handler=handler,
+            category=category,
         )
-        logger.info("Registered tool: {}", name)
+        logger.info("Registered tool: {} [{}]", name, category)
 
     def tool(self, name: str, description: str, input_schema: dict):
         def decorator(fn: Callable) -> Callable:
@@ -75,6 +78,12 @@ class ToolRegistry:
             (td.name, td.description, td.name not in self._disabled)
             for td in self._tools.values()
         ]
+
+    def list_by_category(self) -> dict[str, list[str]]:
+        cats: dict[str, list[str]] = {}
+        for td in self._tools.values():
+            cats.setdefault(td.category, []).append(td.name)
+        return cats
 
     def enable(self, name: str) -> None:
         self._disabled.discard(name)

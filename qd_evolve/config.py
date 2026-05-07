@@ -55,6 +55,8 @@ class Settings(BaseModel):
     db_path: str = "qd_evolve.db"
     serper_api_key: str = ""
     mcp_servers: list[MCPServerConfig] = []
+    skills_dir: str = "skills"
+    skill_config: dict[str, str] = {}
     providers: list[ProviderConfig] = []
 
     def get_provider(self, name: str | None = None) -> ProviderConfig | None:

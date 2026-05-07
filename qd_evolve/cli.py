@@ -77,7 +77,14 @@ def _handle_slash_command(cmd: str, agent: Agent, settings: Settings, providers:
         return "\n".join(lines)
     if name == "/tools":
         registry = get_registry()
-        lines = [f"  [bold]{n}[/bold] — {desc}" for n, desc, _ in registry.list_all() if registry.is_enabled(n)]
+        by_cat = registry.list_by_category()
+        lines = []
+        for cat, names in by_cat.items():
+            lines.append(f"  [bold]{cat}:[/bold]")
+            for n in names:
+                td = registry.get(n)
+                if td and registry.is_enabled(n):
+                    lines.append(f"    {n} — {td.description[:80]}")
         return "\n".join(lines) if lines else "  (no tools loaded)"
     if name == "/config":
         _resolve_api_key(settings)
@@ -147,6 +154,13 @@ def main(
 
     from qd_evolve.tools._mcp_client import connect_mcp_servers, disconnect_mcp_servers
     mcp_bridges = connect_mcp_servers(settings.mcp_servers)
+
+    from qd_evolve.skills import SkillLoader
+    skill_loader = SkillLoader(settings.skills_dir, settings.skill_config)
+    skill_count = skill_loader.discover()
+    if skill_count > 0:
+        skill_loader.register_tools()
+        settings.default_system_prompt += skill_loader.get_system_prompt_addition()
 
     _resolve_api_key(settings)
 
