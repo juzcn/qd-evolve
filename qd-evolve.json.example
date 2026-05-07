@@ -1,0 +1,34 @@
+{
+  "default_provider": "baiduqianfancodingplan",
+  "default_model": "qianfan-code-latest",
+  "log_level": "INFO",
+  "default_system_prompt": "You are a helpful AI assistant with access to tools.",
+  "embedding_model": "text-embedding-3-small",
+  "embedding_dimensions": 256,
+  "db_path": "qd_evolve.db",
+  "providers": [
+    {
+      "name": "baiduqianfancodingplan",
+      "api_keys": ["sk-key1", "sk-key2"],
+      "default_api_key": 0,
+      "base_url": "https://qianfan.baidubce.com/v2/coding",
+      "api": "openai-completions",
+      "models": [
+        {
+          "id": "qianfan-code-latest",
+          "name": "qianfan-code-latest",
+          "reasoning": false,
+          "input": ["text"],
+          "cost": {
+            "input": 0.0025,
+            "output": 0.01,
+            "cache_read": 0,
+            "cache_write": 0
+          },
+          "context_window": 98304,
+          "max_tokens": 65536
+        }
+      ]
+    }
+  ]
+}

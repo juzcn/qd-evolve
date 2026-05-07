@@ -1,0 +1,24 @@
+[project]
+name = "qd-evolve"
+version = "0.1.0"
+description = "AI agent with tool use, structured logging, and CLI interface"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "anthropic>=0.52.0",
+    "pydantic>=2.11",
+    "typer>=0.15.0",
+    "rich>=14.0.0",
+    "loguru>=0.7.0",
+    "pyyaml>=6.0",
+    "sqlite-vec>=0.1.9",
+    "openai>=2.35.1",
+    "prompt-toolkit>=3.0.52",
+]
+
+[project.scripts]
+qd-evolve = "qd_evolve.cli:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
