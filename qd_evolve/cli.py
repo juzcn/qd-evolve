@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import os
 
 from loguru import logger
@@ -144,7 +145,13 @@ def main(
     registry = get_registry()
     loaded = registry.discover_tools()
 
+    from qd_evolve.tools._mcp_client import connect_mcp_servers, disconnect_mcp_servers
+    mcp_bridges = connect_mcp_servers(settings.mcp_servers)
+
     _resolve_api_key(settings)
+
+    if settings.serper_api_key:
+        os.environ["SERPER_API_KEY"] = settings.serper_api_key
 
     if not settings.is_configured:
         console.print("[red]Error:[/red] No API key configured. Edit qd-evolve.json or set ANTHROPIC_API_KEY env.")
@@ -210,3 +217,5 @@ def main(
         except Exception as e:
             logger.exception("Agent error")
             console.print(f"[red]Error:[/red] {e}")
+
+    disconnect_mcp_servers(mcp_bridges)

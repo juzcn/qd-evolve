@@ -38,6 +38,13 @@ class ProviderConfig(BaseModel):
     models: list[ModelConfig] = []
 
 
+class MCPServerConfig(BaseModel):
+    name: str
+    command: str
+    args: list[str] = []
+    env: dict[str, str] = {}
+
+
 class Settings(BaseModel):
     log_level: str = "INFO"
     default_system_prompt: str = "You are a helpful AI assistant with access to tools."
@@ -46,6 +53,8 @@ class Settings(BaseModel):
     embedding_model_path: str = r"C:\OneDrive\AI\HuggingFace\hub\models--BAAI--bge-m3"
     embedding_dimensions: int = 1024
     db_path: str = "qd_evolve.db"
+    serper_api_key: str = ""
+    mcp_servers: list[MCPServerConfig] = []
     providers: list[ProviderConfig] = []
 
     def get_provider(self, name: str | None = None) -> ProviderConfig | None:

@@ -46,13 +46,14 @@ class Agent:
         while True:
             client = prov.create_client()
             logger.info(
-                "LLM prompt: {} / {} ({}) | {} messages",
+                "LLM prompt: {} / {} ({}) | system={} tools={} messages={}",
                 self._provider_name,
                 self._model,
                 self._api_type,
-                len(self.messages),
+                system_prompt,
+                json.dumps(self.registry.definitions(), ensure_ascii=False),
+                json.dumps(self.messages, ensure_ascii=False),
             )
-            logger.info("LLM prompt messages: {}", self.messages)
 
             if self._api_type == "anthropic":
                 return self._run_anthropic(client, system_prompt, max_tokens)
@@ -63,7 +64,9 @@ class Agent:
             else:
                 raise ValueError(f"Unsupported api_type: {self._api_type}")
 
-    def _run_anthropic(self, client: Any, system_prompt: str, max_tokens: int) -> str:
+    MAX_ITERATIONS = 20
+
+    def _run_anthropic(self, client: Any, system_prompt: str, max_tokens: int, _iter: int = 0) -> str:
         response = client.messages.create(
             model=self._model,
             max_tokens=max_tokens,
@@ -82,9 +85,11 @@ class Agent:
 
         results = self._execute_tools_anthropic(response.content)
         self.messages.append({"role": "user", "content": results})
-        return self._run_anthropic(client, system_prompt, max_tokens)
+        if _iter >= self.MAX_ITERATIONS:
+            return "Max tool iterations reached. Please simplify your request."
+        return self._run_anthropic(client, system_prompt, max_tokens, _iter + 1)
 
-    def _run_openai_completion(self, client: Any, system_prompt: str, max_tokens: int) -> str:
+    def _run_openai_completion(self, client: Any, system_prompt: str, max_tokens: int, _iter: int = 0) -> str:
         openai_messages: list[dict[str, Any]] = [{"role": "system", "content": system_prompt}]
         openai_messages.extend(self.messages)
 
@@ -127,13 +132,15 @@ class Agent:
                     "tool_call_id": tc.id,
                     "content": output,
                 })
-            return self._run_openai_completion(client, system_prompt, max_tokens)
+            if _iter >= self.MAX_ITERATIONS:
+                return "Max tool iterations reached. Please simplify your request."
+            return self._run_openai_completion(client, system_prompt, max_tokens, _iter + 1)
 
         self.messages.append({"role": "assistant", "content": msg.content or ""})
         logger.info("LLM completion: {}", (msg.content or "")[:500])
         return msg.content or ""
 
-    def _run_openai_response(self, client: Any, system_prompt: str, max_tokens: int) -> str:
+    def _run_openai_response(self, client: Any, system_prompt: str, max_tokens: int, _iter: int = 0) -> str:
         response = client.responses.create(
             model=self._model,
             instructions=system_prompt,
