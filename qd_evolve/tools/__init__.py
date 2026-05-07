@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import importlib
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable, TYPE_CHECKING
 
 from loguru import logger
+
+if TYPE_CHECKING:
+    from qd_evolve.toolbox import ToolBox
 
 
 @dataclass
@@ -17,21 +20,14 @@ class ToolDefinition:
     category: str = "builtin"
 
 
-def _cosine_similarity(a: list[float], b: list[float]) -> float:
-    dot = sum(x * y for x, y in zip(a, b))
-    norm_a = sum(x * x for x in a) ** 0.5
-    norm_b = sum(x * x for x in b) ** 0.5
-    if norm_a == 0 or norm_b == 0:
-        return 0.0
-    return dot / (norm_a * norm_b)
-
-
 class ToolRegistry:
     def __init__(self) -> None:
         self._tools: dict[str, ToolDefinition] = {}
         self._disabled: set[str] = set()
-        self._embed_fn: Callable[[list[str]], list[list[float]]] | None = None
-        self._tool_embeddings: dict[str, list[float]] = {}
+        self._toolbox: ToolBox | None = None
+
+    def set_toolbox(self, toolbox: ToolBox) -> None:
+        self._toolbox = toolbox
 
     def register(
         self,
@@ -49,6 +45,8 @@ class ToolRegistry:
             category=category,
         )
         logger.info("Registered tool: {} [{}]", name, category)
+        if self._toolbox:
+            self._toolbox.save_tool(name, description, input_schema, category)
 
     def tool(self, name: str, description: str, input_schema: dict):
         def decorator(fn: Callable) -> Callable:
@@ -87,9 +85,13 @@ class ToolRegistry:
 
     def enable(self, name: str) -> None:
         self._disabled.discard(name)
+        if self._toolbox:
+            self._toolbox.set_enabled(name, True)
 
     def disable(self, name: str) -> None:
         self._disabled.add(name)
+        if self._toolbox:
+            self._toolbox.set_enabled(name, False)
 
     def is_enabled(self, name: str) -> bool:
         return name not in self._disabled
@@ -120,49 +122,57 @@ class ToolRegistry:
                 logger.exception("Failed to load tool module: {}", py.stem)
         return loaded
 
-    def set_embed_fn(self, fn: Callable[[list[str]], list[list[float]]]) -> None:
-        self._embed_fn = fn
+    def load_from_toolbox(self, toolbox: ToolBox) -> int:
+        """Load tools from ToolBox that aren't already in memory.
 
-    def build_tool_embeddings(self) -> None:
-        if not self._embed_fn or not self._tools:
-            return
-        texts = [f"{td.name}: {td.description}" for td in self._tools.values()]
-        embeddings = self._embed_fn(texts)
-        self._tool_embeddings = {
-            td.name: emb for td, emb in zip(self._tools.values(), embeddings)
-        }
-        logger.info("Built embeddings for {} tools", len(self._tool_embeddings))
+        Returns count of newly loaded tools.
+        """
+        count = 0
+        for tool_data in toolbox.load_all():
+            name = tool_data["name"]
+            if name in self._tools:
+                # Already registered this session — sync enabled state
+                if not tool_data["enabled"]:
+                    self._disabled.add(name)
+                continue
+            # Tool not in memory — register with a placeholder handler
+            # that returns an error (e.g. MCP server not running)
+            self._tools[name] = ToolDefinition(
+                name=name,
+                description=tool_data["description"],
+                input_schema=tool_data["input_schema"],
+                handler=_unavailable_handler(name),
+                category=tool_data["category"],
+            )
+            if not tool_data["enabled"]:
+                self._disabled.add(name)
+            count += 1
+            logger.info("Loaded tool from toolbox: {} [{}]", name, tool_data["category"])
+        return count
 
     def search_tools(self, query: str, top_k: int = 5) -> list[tuple[str, str, float]]:
-        results: dict[str, tuple[str, float]] = {}
+        if self._toolbox:
+            results = self._toolbox.search(query, top_k)
+            return [(name, desc, score) for name, desc, _cat, score in results]
 
-        # 1. Exact name match
+        # Fallback: in-memory search (no embeddings)
+        results: dict[str, tuple[str, float]] = {}
+        q_lower = query.lower()
         for name, td in self._tools.items():
             if name == query:
                 results[name] = (td.description, 1.0)
             elif name.startswith(query):
                 results[name] = (td.description, 0.9)
-
-        # 2. Keyword match
-        q_lower = query.lower()
-        for name, td in self._tools.items():
-            if name in results:
-                continue
-            if q_lower in td.description.lower() or q_lower in name.lower():
+            elif q_lower in td.description.lower() or q_lower in name.lower():
                 results[name] = (td.description, 0.8)
-
-        # 3. Semantic match
-        if self._tool_embeddings and self._embed_fn:
-            query_emb = self._embed_fn([query])[0]
-            for name, emb in self._tool_embeddings.items():
-                if name in results:
-                    continue
-                sim = _cosine_similarity(query_emb, emb)
-                if sim > 0.3:
-                    results[name] = (self._tools[name].description, sim)
-
         sorted_results = sorted(results.items(), key=lambda x: x[1][1], reverse=True)
         return [(name, desc, score) for name, (desc, score) in sorted_results[:top_k]]
+
+
+def _unavailable_handler(tool_name: str):
+    def handler(**kwargs: Any) -> str:
+        return f"Tool '{tool_name}' is not available in this session (source offline)."
+    return handler
 
 
 _global_registry = ToolRegistry()
