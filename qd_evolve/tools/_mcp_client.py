@@ -74,6 +74,7 @@ class MCPToolBridge:
                 description=f"[{self._config.name}] {tool.description or tool.name}",
                 input_schema=tool.inputSchema if isinstance(tool.inputSchema, dict) else {"type": "object", "properties": {}},
                 handler=self._make_handler(tool.name),
+                category="mcp",
             )
             self._tool_names.append(prefixed_name)
             logger.info("MCP: registered tool {} -> {}", tool.name, prefixed_name)

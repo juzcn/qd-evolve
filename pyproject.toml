@@ -14,6 +14,8 @@ dependencies = [
     "sqlite-vec>=0.1.9",
     "openai>=2.35.1",
     "prompt-toolkit>=3.0.52",
+    "serper-toolkit>=0.0.13",
+    "requests>=2.33.1",
 ]
 
 [project.scripts]
