@@ -9,7 +9,7 @@ from urllib.parse import urlparse
 
 
 def baidu_search(requestBody: dict):
-    url = "https://qianfan.baidubce.com/v2/ai_search/chat/completions"
+    url = "https://qianfan.baidubce.com/v2/ai_search/web_search"
     url, headers = resolve_sandbox_url(url)
     # 使用POST方法发送JSON数据
     response = requests.post(url, json=requestBody, headers=headers)
@@ -41,7 +41,8 @@ def resolve_sandbox_url(original_url: str) -> Tuple[str, Dict[str, str]]:
             raise ValueError("未设置 API Key，请通过环境变量 BAIDU_API_KEY 设置或使用")
         headers = {
             "Content-Type": "application/json",
-            "X-Appbuilder-Authorization": f"Bearer {api_key}",
+            "Authorization": f"Bearer {api_key}",
+            "X-Appbuilder-From": "openclaw",
         }
         return original_url, headers
 
@@ -110,7 +111,7 @@ if __name__ == "__main__":
                 "role": "user"
             }
         ],
-        "stream": False,
+        "search_source": "baidu_search_v2",
         "resource_type_filter": [{"type": "web", "top_k": count}],
         "search_filter": search_filter
     }

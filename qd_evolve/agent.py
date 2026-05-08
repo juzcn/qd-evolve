@@ -72,7 +72,7 @@ class Agent:
             max_tokens=max_tokens,
             system=system_prompt,
             messages=self.messages,
-            tools=self.registry.definitions(),
+            tools=self.registry.definitions(api_format="anthropic"),
         )
         self._track_tokens_anthropic(response.usage)
 
@@ -93,7 +93,7 @@ class Agent:
         openai_messages: list[dict[str, Any]] = [{"role": "system", "content": system_prompt}]
         openai_messages.extend(self.messages)
 
-        tool_defs = self._openai_tool_definitions()
+        tool_defs = self.registry.definitions()
         kwargs: dict[str, Any] = {
             "model": self._model,
             "messages": openai_messages,
@@ -126,7 +126,7 @@ class Agent:
             })
             for tc in msg.tool_calls:
                 args = json.loads(tc.function.arguments)
-                output = self.registry.execute(tc.function.name, **args)
+                output = self.registry.call(tc.function.name, **args)
                 self.messages.append({
                     "role": "tool",
                     "tool_call_id": tc.id,
@@ -152,7 +152,7 @@ class Agent:
 
         for item in response.output:
             if item.type == "function_call":
-                result = self.registry.execute(item.name, **json.loads(item.arguments))
+                result = self.registry.call(item.name, **json.loads(item.arguments))
                 self.messages.append({"role": "assistant", "content": None, "tool_calls": [item]})
                 self.messages.append({
                     "type": "function_call_output",
@@ -183,7 +183,7 @@ class Agent:
         results: list[dict] = []
         for block in content:
             if block.type == "tool_use":
-                output = self.registry.execute(block.name, **block.input)
+                output = self.registry.call(block.name, **block.input)
                 results.append({
                     "type": "tool_result",
                     "tool_use_id": block.id,
@@ -191,32 +191,7 @@ class Agent:
                 })
         return results
 
-    def _openai_tool_definitions(self) -> list[dict]:
-        defs = self.registry.definitions()
-        return [
-            {
-                "type": "function",
-                "function": {
-                    "name": d["name"],
-                    "description": d["description"],
-                    "parameters": d["input_schema"],
-                },
-            }
-            for d in defs
-        ]
-
-    def _openai_response_tool_definitions(self) -> list[dict]:
-        defs = self.registry.definitions()
-        return [
-            {
-                "type": "function",
-                "name": d["name"],
-                "description": d["description"],
-                "parameters": d["input_schema"],
-            }
-            for d in defs
-        ]
-
+    
     @staticmethod
     def _extract_text(content: list) -> str:
         parts: list[str] = []

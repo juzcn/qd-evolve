@@ -1,15 +1,11 @@
 from __future__ import annotations
 
 import json
-import os
-import subprocess
-import sys
 from pathlib import Path
-from typing import Any
 
 from loguru import logger
 
-from qd_evolve.tools import ToolRegistry, get_registry
+from qd_evolve.tools import get_registry
 
 
 class SkillInfo:
@@ -18,24 +14,18 @@ class SkillInfo:
         self.name = name
         self.version = version
         self.skill_md: str = ""
-        self.scripts: list[Path] = []
 
 
 class SkillLoader:
-    """Universal skill loader.
+    """Skill loader — discovers SKILL.md files and registers them as non-callable tools.
 
-    Convention (from SKILL.md):
-      python3 scripts/<name>.py '<JSON>'
-
-    Scripts receive arguments as a JSON string in sys.argv[1].
-    SKILL.md tells the LLM what parameters to pass.
-    No manifest.json needed — tools are inferred from scripts/.
+    Skills are prompt-only tools: the LLM sees the tool definition (with SKILL.md
+    as the description) and follows the instructions within, using other callable
+    tools to execute. The skill tool itself cannot be invoked.
     """
 
-    def __init__(self, skills_dir: str | Path, skill_config: dict[str, str] | None = None, registry: ToolRegistry | None = None) -> None:
+    def __init__(self, skills_dir: str | Path) -> None:
         self._dir = Path(skills_dir)
-        self._config = skill_config or {}
-        self._registry = registry or get_registry()
         self._skills: list[SkillInfo] = []
 
     def discover(self) -> int:
@@ -45,11 +35,11 @@ class SkillLoader:
 
         count = 0
         for child in sorted(self._dir.iterdir()):
-            if not child.is_dir():
+            if not child.is_dir() or child.name.startswith("_"):
                 continue
 
-            scripts_dir = child / "scripts"
-            if not scripts_dir.is_dir() or not list(scripts_dir.glob("*.py")):
+            skill_md_path = child / "SKILL.md"
+            if not skill_md_path.is_file():
                 continue
 
             name, version = child.name, "0.0.0"
@@ -62,64 +52,50 @@ class SkillLoader:
                 except Exception:
                     pass
 
+            if name == child.name:
+                name = self._parse_frontmatter_name(skill_md_path) or name
+
             info = SkillInfo(path=child, name=name, version=version)
-
-            skill_md_path = child / "SKILL.md"
-            if skill_md_path.exists():
-                info.skill_md = skill_md_path.read_text(encoding="utf-8")
-
-            info.scripts = sorted(scripts_dir.glob("*.py"))
-
-            if info.scripts:
-                self._skills.append(info)
-                count += 1
-                logger.info("Skill discovered: {} v{} ({} scripts)", info.name, info.version, len(info.scripts))
+            info.skill_md = skill_md_path.read_text(encoding="utf-8")
+            self._skills.append(info)
+            count += 1
+            logger.info("Skill discovered: {} v{}", info.name, info.version)
 
         return count
 
+    @staticmethod
+    def _parse_frontmatter_name(skill_md_path: Path) -> str | None:
+        try:
+            text = skill_md_path.read_text(encoding="utf-8")
+            if not text.startswith("---"):
+                return None
+            end = text.find("---", 3)
+            if end < 0:
+                return None
+            for line in text[3:end].splitlines():
+                if line.startswith("name:"):
+                    return line.split(":", 1)[1].strip().strip('"').strip("'")
+        except Exception:
+            pass
+        return None
+
     def register_tools(self) -> int:
-        total = 0
+        """Register all discovered skills as non-callable tools."""
+        registry = get_registry()
         for skill in self._skills:
-            for script_path in skill.scripts:
-                tool_name = f"{skill.name}__{script_path.stem}"
-                description = skill.skill_md or f"[{skill.name}] Run {script_path.stem}"
-                self._registry.register(
-                    name=tool_name,
-                    description=description,
-                    input_schema={"type": "object", "additionalProperties": True},
-                    handler=self._make_handler(script_path),
-                    category="skill",
-                )
-                total += 1
-                logger.info("Skill tool registered: {}", tool_name)
-        return total
-
-    def _make_handler(self, script_path: Path):
-        config = self._config
-
-        def handler(**kwargs: Any) -> str:
-            env = dict(os.environ)
-            env.update(config)
-            env["PYTHONIOENCODING"] = "utf-8"
-
-            try:
-                args_json = json.dumps(kwargs, ensure_ascii=False)
-                cmd = [sys.executable, str(script_path), args_json]
-                result = subprocess.run(cmd, capture_output=True, text=True, timeout=60, env=env, encoding="utf-8")
-
-                output = (result.stdout or "").strip()
-                if result.returncode != 0:
-                    err = (result.stderr or "").strip()
-                    return json.dumps({"error": err or f"Exit code {result.returncode}", "stdout": output}, ensure_ascii=False)
-                return output or "(no output)"
-            except subprocess.TimeoutExpired:
-                return json.dumps({"error": "Skill script timed out"})
-            except Exception as e:
-                return json.dumps({"error": str(e)})
-
-        return handler
+            registry.register(
+                name=skill.name,
+                description=skill.skill_md,
+                input_schema={"type": "object", "additionalProperties": True},
+                handler=None,
+                category="skill",
+                is_callable=False,
+            )
+            logger.info("Skill registered (non-callable): {}", skill.name)
+        return len(self._skills)
 
     def get_system_prompt_addition(self) -> str:
+        """Return all SKILL.md contents for injection into the system prompt."""
         if not self._skills:
             return ""
         parts = [s.skill_md for s in self._skills if s.skill_md]

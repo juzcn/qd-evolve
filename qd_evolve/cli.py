@@ -152,11 +152,12 @@ def main(
     registry = get_registry()
     loaded = registry.discover_tools()
 
-    from qd_evolve.tools._mcp_client import connect_mcp_servers, disconnect_mcp_servers
-    mcp_bridges = connect_mcp_servers(settings.mcp_servers)
+    from qd_evolve.tools._mcp_client import connect_mcp_servers, disconnect_mcp_servers, discover_mcp_servers
+    mcp_configs = discover_mcp_servers()
+    mcp_bridges = connect_mcp_servers(mcp_configs)
 
     from qd_evolve.skills import SkillLoader
-    skill_loader = SkillLoader(settings.skills_dir, settings.skill_config)
+    skill_loader = SkillLoader(settings.skills_dir)
     skill_count = skill_loader.discover()
     if skill_count > 0:
         skill_loader.register_tools()

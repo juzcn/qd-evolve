@@ -3,12 +3,58 @@ from __future__ import annotations
 import asyncio
 import json
 import threading
+from pathlib import Path
 from typing import Any
 
 from loguru import logger
 
 from qd_evolve.config import MCPServerConfig
 from qd_evolve.tools import ToolRegistry, get_registry
+
+MCP_DIR = Path.cwd() / "tools" / "mcp"
+
+
+def discover_mcp_servers() -> list[MCPServerConfig]:
+    """Scan tools/mcp/*.json for MCP server configs and return parsed list."""
+    configs: list[MCPServerConfig] = []
+    if not MCP_DIR.exists():
+        logger.debug("MCP dir {} not found, skipping", MCP_DIR)
+        return configs
+
+    for json_file in sorted(MCP_DIR.glob("*.json")):
+        try:
+            data = json.loads(json_file.read_text(encoding="utf-8"))
+            servers = _extract_servers(data, json_file.stem)
+            for name, srv in servers.items():
+                config = MCPServerConfig(
+                    name=name,
+                    command=srv.get("command", ""),
+                    args=srv.get("args", []),
+                    env=srv.get("env", {}),
+                )
+                configs.append(config)
+                logger.info("MCP: discovered server '{}' from {}", name, json_file.name)
+        except Exception:
+            logger.exception("MCP: failed to parse {}", json_file.name)
+    return configs
+
+
+def _extract_servers(data: dict, fallback_name: str) -> dict[str, dict]:
+    """Extract server entries from various JSON formats."""
+    # Format 1: {"mcpServers": {"name": {...}}}
+    if "mcpServers" in data:
+        return data["mcpServers"]
+
+    # Format 2: {"mcp": {"servers": {"name": {...}}}}
+    if "mcp" in data and isinstance(data["mcp"], dict):
+        if "servers" in data["mcp"]:
+            return data["mcp"]["servers"]
+
+    # Format 3: bare {"command": "...", "args": [...]} — use filename as name
+    if "command" in data:
+        return {fallback_name: data}
+
+    return {}
 
 
 class MCPToolBridge:
