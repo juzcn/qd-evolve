@@ -179,8 +179,3 @@ def connect_mcp_servers(configs: list[MCPServerConfig]) -> list[MCPToolBridge]:
         except Exception as e:
             logger.error("MCP: failed to connect to {}: {}", config.name, e)
     return bridges
-
-
-def disconnect_mcp_servers(bridges: list[MCPToolBridge]) -> None:
-    for bridge in bridges:
-        bridge.disconnect()

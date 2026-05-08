@@ -142,6 +142,11 @@ def chat(
     settings = load_settings()
     setup_logging(settings.log_level)
 
+    # Inject env_vars from config into os.environ
+    import os
+    for key, value in settings.env_vars.items():
+        os.environ[key] = value
+
     if not settings.is_configured:
         console.print("[red]Error:[/red] No API key configured. Edit qd-evolve.json")
         raise SystemExit(1)

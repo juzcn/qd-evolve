@@ -4,7 +4,7 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
-from jinja2 import BaseLoader, Environment, FileSystemLoader, TemplateNotFound
+from jinja2 import BaseLoader, Environment, TemplateNotFound
 from loguru import logger
 
 TEMPLATES_DIR = Path("templates")
