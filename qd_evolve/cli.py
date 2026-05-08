@@ -1,31 +1,28 @@
 from __future__ import annotations
 
-import asyncio
-import os
+from typing import Any
 
+import typer
 from loguru import logger
-from prompt_toolkit import PromptSession
-from prompt_toolkit.completion import Completer, Completion
-from prompt_toolkit.history import InMemoryHistory
 from rich.console import Console
-from rich.markdown import Markdown
 from rich.markup import escape
 from rich.panel import Panel
-from typer import Typer
+from rich.table import Table
 
-from qd_evolve.agent import Agent
-from qd_evolve.config import (
-    ModelConfig,
-    ProviderConfig,
-    Settings,
-    load_settings,
-)
-from qd_evolve.logger import setup_logging
-from qd_evolve.prompts import TemplateStore
+from qd_evolve.config import Settings, load_settings
+from qd_evolve.prompts import PromptTemplateManager
 from qd_evolve.providers import ProviderRegistry
+from qd_evolve.skills import SkillRegistry
 from qd_evolve.tools import get_registry
+from qd_evolve.tools._mcp_client import connect_mcp_servers, discover_mcp_servers
 
-app = Typer(name="qd-evolve", help="AI agent with tool use", invoke_without_command=True)
+try:
+    from importlib.metadata import version as _pkg_version
+    __version__ = _pkg_version("qd-evolve")
+except Exception:
+    __version__ = "0.1.0"
+
+app = typer.Typer(help="qd-evolve AI agent")
 console = Console()
 
 SLASH_COMMANDS = {
@@ -33,204 +30,187 @@ SLASH_COMMANDS = {
     "/reset": "Reset conversation history",
     "/help": "Show available commands",
     "/tools": "List available tools",
+    "/skills": "List loaded skills",
     "/config": "Show current configuration",
     "/loglevel": "Set log level (e.g. /loglevel DEBUG)",
     "/models": "Pick a model to switch to",
 }
 
 
-class SlashCompleter(Completer):
-    def get_completions(self, document, complete_event):
-        text = document.text_before_cursor
-        if not text.startswith("/"):
-            return
-        for cmd, desc in SLASH_COMMANDS.items():
-            if cmd.startswith(text):
-                yield Completion(cmd, start_position=-len(text), display_meta=desc)
+def _read_input() -> str:
+    try:
+        from prompt_toolkit import prompt as pt_prompt
+        from prompt_toolkit.completion import WordCompleter
+
+        completer = WordCompleter(list(SLASH_COMMANDS.keys()), ignore_case=True)
+        return pt_prompt("You> ", completer=completer).strip()
+    except ImportError:
+        return console.input("[bold cyan]You>[/bold cyan] ").strip()
 
 
-def _resolve_api_key(settings: Settings) -> None:
-    if not settings.providers:
-        key = os.environ.get("ANTHROPIC_API_KEY", "")
-        if key:
-            settings.providers.append(
-                ProviderConfig(
-                    name="anthropic",
-                    api_key=key,
-                    models=[ModelConfig(name=settings.default_model)],
-                )
-            )
-
-
-def _handle_slash_command(cmd: str, agent: Agent, settings: Settings, providers: ProviderRegistry, session: PromptSession) -> str | None:
-    parts = cmd.strip("/").split(maxsplit=1)
-    name = "/" + parts[0].lower()
-    arg = parts[1] if len(parts) > 1 else None
-
+def _handle_slash_command(
+    cmd: str,
+    agent: Any,
+    settings: Settings,
+    providers: ProviderRegistry,
+    skill_registry: SkillRegistry,
+) -> str | None:
+    name = cmd.lower().strip()
     if name == "/quit":
-        return "EXIT"
+        return None
     if name == "/reset":
-        agent.reset()
+        agent.messages.clear()
         return "Conversation reset."
     if name == "/help":
-        lines = [f"  [bold]{k}[/bold] — {v}" for k, v in SLASH_COMMANDS.items()]
-        return "\n".join(lines)
+        table = Table(title="Commands", show_header=False)
+        table.add_column("Command", style="bold cyan")
+        table.add_column("Description")
+        for c, d in SLASH_COMMANDS.items():
+            table.add_row(c, d)
+        console.print(table)
+        return ""
     if name == "/tools":
         registry = get_registry()
-        by_cat = registry.list_by_category()
+        by_category = registry.list_by_category()
+        if not by_category:
+            return "  (no tools loaded)"
         lines = []
-        for cat, names in by_cat.items():
+        for cat, tool_names in by_category.items():
             lines.append(f"  [bold]{cat}:[/bold]")
-            for n in names:
+            for n in tool_names:
                 td = registry.get(n)
-                if td and registry.is_enabled(n):
-                    lines.append(f"    {n} — {td.description[:80]}")
-        return "\n".join(lines) if lines else "  (no tools loaded)"
+                desc = (td.description or "")[:80] if td else ""
+                lines.append(f"    [cyan]{n}[/cyan] — {desc}")
+        return "\n".join(lines)
+    if name == "/skills":
+        skills = skill_registry.list_skills()
+        if not skills:
+            return "  (no skills loaded)"
+        lines = []
+        for s in skills:
+            lines.append(f"  [bold]{s.name}[/bold] v{s.version}")
+        return "\n".join(lines)
     if name == "/config":
-        _resolve_api_key(settings)
         lines = [
-            f"  default_provider: {settings.default_provider}",
-            f"  default_model: {settings.default_model}",
-            f"  log_level: {settings.log_level}",
-            f"  api_key: {'***configured***' if settings.is_configured else '[red]NOT SET[/red]'}",
+            f"  Provider: {settings.default_provider}",
+            f"  Model: {settings.default_model}",
+            f"  Log level: {settings.log_level}",
         ]
         return "\n".join(lines)
-    if name == "/models":
-        all_models = providers.list_all_models()
-        entries: list[tuple[str, str]] = []  # (provider, model)
-        lines = []
-        idx = 1
-        for prov_name, model_names in all_models.items():
-            for m in model_names:
-                marker = " [dim](current)[/]" if prov_name == settings.default_provider and m == settings.default_model else ""
-                lines.append(f"  [bold]{idx}[/bold]. {prov_name}/{m}{marker}")
-                entries.append((prov_name, m))
-                idx += 1
-        lines.append("")
-        lines.append("Enter number to switch, or press Enter to cancel:")
-        console.print("\n".join(lines))
-        try:
-            choice = session.prompt("Model> ").strip()
-        except (EOFError, KeyboardInterrupt):
-            return "Cancelled."
-        if not choice:
-            return "Cancelled."
-        try:
-            n = int(choice)
-            if n < 1 or n > len(entries):
-                return f"Invalid selection: {n}"
-        except ValueError:
-            return f"Invalid input: {choice}"
-        prov_name, model_name = entries[n - 1]
-        settings.default_provider = prov_name
-        settings.default_model = model_name
-        agent._provider_name = prov_name
-        agent._model = model_name
-        return f"Switched to [bold]{prov_name}/{model_name}[/bold]"
     if name == "/loglevel":
-        if not arg:
-            return f"Current log level: {settings.log_level}"
-        settings.log_level = arg.upper()
-        setup_logging(settings.log_level)
-        return f"Log level set to: {settings.log_level}"
+        parts = cmd.strip().split(maxsplit=1)
+        if len(parts) < 2:
+            return "  Usage: /loglevel <DEBUG|INFO|WARNING|ERROR>"
+        level = parts[1].upper()
+        logger.remove()
+        from qd_evolve.logger import setup_logging
+        setup_logging(level)
+        return f"  Log level set to {level}"
+    if name == "/models":
+        table = Table(title="Available Models", show_header=True)
+        table.add_column("#", style="dim")
+        table.add_column("Provider", style="bold")
+        table.add_column("Model ID", style="bold cyan")
+        table.add_column("Name")
+        all_models: list[tuple[str, str, str]] = []
+        for p in settings.providers:
+            for m in p.models:
+                all_models.append((p.name, m.id, m.name or m.id))
+        for i, (prov_name, mid, mname) in enumerate(all_models, 1):
+            table.add_row(str(i), prov_name, mid, mname)
+        console.print(table)
+        choice = console.input("[bold]Switch to #:[/bold] ").strip()
+        if choice.isdigit() and 1 <= int(choice) <= len(all_models):
+            prov_name, mid, _ = all_models[int(choice) - 1]
+            settings.default_provider = prov_name
+            settings.default_model = mid
+            return f"  Switched to {prov_name}/{mid} (restart to apply)"
+        return "  Cancelled."
+    return None
 
-    return f"Unknown command: {name}. Type /help for available commands."
 
-
-@app.callback(invoke_without_command=True)
-def main(
-    template: str | None = None,
-    provider: str | None = None,
-    model: str | None = None,
+@app.command()
+def chat(
+    provider: str = typer.Option("", "--provider", "-p", help="Provider name override"),
+    model: str = typer.Option("", "--model", "-m", help="Model name override"),
 ) -> None:
-    """Start an interactive chat session. All config via qd-evolve.json."""
-    # Init logging first so no DEBUG leaks to stderr
-    setup_logging()
+    from qd_evolve.agent import Agent
+    from qd_evolve.logger import setup_logging
+
+    # 1. Config & logging
+    setup_logging("WARNING")
     settings = load_settings()
     setup_logging(settings.log_level)
 
-    registry = get_registry()
-    loaded = registry.discover_tools()
-
-    from qd_evolve.tools._mcp_client import connect_mcp_servers, disconnect_mcp_servers, discover_mcp_servers
-    mcp_configs = discover_mcp_servers()
-    mcp_bridges = connect_mcp_servers(mcp_configs)
-
-    from qd_evolve.skills import SkillLoader
-    skill_loader = SkillLoader(settings.skills_dir)
-    skill_count = skill_loader.discover()
-    if skill_count > 0:
-        skill_loader.register_tools()
-        settings.default_system_prompt += skill_loader.get_system_prompt_addition()
-
-    _resolve_api_key(settings)
-
-    if settings.serper_api_key:
-        os.environ["SERPER_API_KEY"] = settings.serper_api_key
-
     if not settings.is_configured:
-        console.print("[red]Error:[/red] No API key configured. Edit qd-evolve.json or set ANTHROPIC_API_KEY env.")
+        console.print("[red]Error:[/red] No API key configured. Edit qd-evolve.json")
         raise SystemExit(1)
 
-    system_prompt = settings.default_system_prompt
-    if template:
-        store = TemplateStore()
-        try:
-            tpl = store.load(template)
-            system_prompt = tpl.system
-            console.print(f"[dim]Using template: {template}[/]")
-        except FileNotFoundError:
-            console.print(f"[red]Error:[/red] Template '{template}' not found.")
-            raise SystemExit(1)
-
+    # 2. Builtin tools
     registry = get_registry()
+    registry.discover_tools()
+
+    # 3. Skills
+    skill_registry = SkillRegistry(settings.skills_dir)
+    skill_count = skill_registry.discover()
+
+    # 4. MCP servers
+    mcp_configs = discover_mcp_servers()
+    connect_mcp_servers(mcp_configs)
+
+    # 5. System prompt via Jinja2 template
+    template_mgr = PromptTemplateManager()
+    skill_addition = skill_registry.format_for_prompt() if skill_count > 0 else ""
+    system_prompt = template_mgr.render("default", skills=skill_addition)
+
+    # 6. Provider
     providers = ProviderRegistry(settings)
-    agent = Agent(settings, registry, providers)
+    settings.default_system_prompt = system_prompt
 
-    try:
-        from qd_evolve.vector import VectorStore
-        vs = VectorStore(settings)
-        registry.set_embed_fn(vs.embed)
-        registry.build_tool_embeddings()
-    except Exception:
-        logger.debug("Embedding init skipped (model not available)")
-
-    session = PromptSession(history=InMemoryHistory(), completer=SlashCompleter())
+    agent = Agent(settings=settings, registry=registry, providers=providers)
 
     model_info = escape(f"[{settings.default_provider}/{settings.default_model}]")
-    console.print(Panel(f"qd-evolve agent {model_info} — type [bold]/help[/] for commands, [bold]/quit[/] to leave", style="blue"))
+    console.print(Panel(
+        f"qd-evolve v{__version__} {model_info} - /help for commands, /quit to leave",
+        style="bold green",
+    ))
 
     while True:
         try:
-            user_input = session.prompt("You> ").strip()
+            user_input = _read_input()
         except (EOFError, KeyboardInterrupt):
-            console.print("\n[dim]Goodbye![/]")
+            console.print("\n[dim]Goodbye![/dim]")
             break
 
         if not user_input:
             continue
-
         if user_input.startswith("/"):
-            result = _handle_slash_command(user_input, agent, settings, providers, session)
-            if result == "EXIT":
-                console.print("[dim]Goodbye![/]")
+            result = _handle_slash_command(user_input, agent, settings, providers, skill_registry)
+            if result is None:
+                console.print("[dim]Goodbye![/dim]")
                 break
-            console.print(result)
+            if result:
+                console.print(result)
             continue
 
-        try:
-            with console.status("[bold blue]Thinking..."):
-                response = agent.run(user_input, system=system_prompt, provider=provider, model=model)
-            console.print(Panel(Markdown(response), title="Assistant", border_style="cyan"))
-            prov = agent.providers.get(agent._provider_name)
-            model_name = agent._model or settings.default_model
-            ctx = prov.get_context_window(model_name)
-            max_tok = prov.get_max_tokens(model_name)
-            pct_ctx = f" ({agent.total_tokens / ctx * 100:.1f}% of {ctx} context)" if ctx > 0 else ""
-            pct_max = f" ({agent.total_output_tokens / max_tok * 100:.1f}% of {max_tok} max)" if max_tok > 0 else ""
-            console.print(f"[dim]Tokens: {agent.total_input_tokens} in + {agent.total_output_tokens} out = {agent.total_tokens} total{pct_ctx} | output{pct_max}[/]")
-        except Exception as e:
-            logger.exception("Agent error")
-            console.print(f"[red]Error:[/red] {e}")
+        with console.status("[bold green]Thinking..."):
+            try:
+                response = agent.run(user_input)
+            except Exception as e:
+                console.print(f"[red]Error:[/red] {e}")
+                continue
+        console.print(f"[bold]Assistant:[/bold] {response}")
+        prov = providers.get()
+        model_name = agent._model or settings.default_model
+        ctx = prov.get_context_window(model_name)
+        max_tok = prov.get_max_tokens(model_name)
+        last_in = agent.last_input_tokens
+        last_out = agent.last_output_tokens
+        pct_ctx = f" ({last_in / ctx * 100:.1f}% of {ctx} context)" if ctx > 0 else ""
+        pct_max = f" ({last_out / max_tok * 100:.1f}% of {max_tok} max)" if max_tok > 0 else ""
+        console.print(f"[dim]This turn: {last_in} in{pct_ctx} + {last_out} out{pct_max}[/dim]")
+        console.print(f"[dim]Cumulative: {agent.total_input_tokens + agent.total_output_tokens} tokens used[/dim]")
 
-    disconnect_mcp_servers(mcp_bridges)
+
+if __name__ == "__main__":
+    app()

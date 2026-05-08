@@ -21,6 +21,8 @@ class Agent:
         self._api_type: str = "openai_completion"
         self.total_input_tokens: int = 0
         self.total_output_tokens: int = 0
+        self.last_input_tokens: int = 0
+        self.last_output_tokens: int = 0
 
     @property
     def total_tokens(self) -> int:
@@ -126,7 +128,9 @@ class Agent:
             })
             for tc in msg.tool_calls:
                 args = json.loads(tc.function.arguments)
+                logger.info("Tool call: {}({})", tc.function.name, json.dumps(args, ensure_ascii=False))
                 output = self.registry.call(tc.function.name, **args)
+                logger.info("Tool result: {} -> {}", tc.function.name, output[:200])
                 self.messages.append({
                     "role": "tool",
                     "tool_call_id": tc.id,
@@ -152,7 +156,10 @@ class Agent:
 
         for item in response.output:
             if item.type == "function_call":
-                result = self.registry.call(item.name, **json.loads(item.arguments))
+                args = json.loads(item.arguments)
+                logger.info("Tool call: {}({})", item.name, json.dumps(args, ensure_ascii=False))
+                result = self.registry.call(item.name, **args)
+                logger.info("Tool result: {} -> {}", item.name, result[:200])
                 self.messages.append({"role": "assistant", "content": None, "tool_calls": [item]})
                 self.messages.append({
                     "type": "function_call_output",
@@ -165,16 +172,22 @@ class Agent:
         return "\n".join(text_parts)
 
     def _track_tokens_anthropic(self, usage: Any) -> None:
+        self.last_input_tokens = usage.input_tokens
+        self.last_output_tokens = usage.output_tokens
         self.total_input_tokens += usage.input_tokens
         self.total_output_tokens += usage.output_tokens
         logger.info("Token usage: input={}, output={}, total={}", usage.input_tokens, usage.output_tokens, self.total_tokens)
 
     def _track_tokens_openai_completion(self, usage: Any) -> None:
+        self.last_input_tokens = usage.prompt_tokens
+        self.last_output_tokens = usage.completion_tokens
         self.total_input_tokens += usage.prompt_tokens
         self.total_output_tokens += usage.completion_tokens
         logger.info("Token usage: input={}, output={}, total={}", usage.prompt_tokens, usage.completion_tokens, self.total_tokens)
 
     def _track_tokens_openai_response(self, usage: Any) -> None:
+        self.last_input_tokens = usage.input_tokens
+        self.last_output_tokens = usage.output_tokens
         self.total_input_tokens += usage.input_tokens
         self.total_output_tokens += usage.output_tokens
         logger.info("Token usage: input={}, output={}, total={}", usage.input_tokens, usage.output_tokens, self.total_tokens)
@@ -183,7 +196,9 @@ class Agent:
         results: list[dict] = []
         for block in content:
             if block.type == "tool_use":
+                logger.info("Tool call: {}({})", block.name, json.dumps(block.input, ensure_ascii=False))
                 output = self.registry.call(block.name, **block.input)
+                logger.info("Tool result: {} -> {}", block.name, output[:200])
                 results.append({
                     "type": "tool_result",
                     "tool_use_id": block.id,

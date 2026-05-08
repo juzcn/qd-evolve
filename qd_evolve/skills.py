@@ -2,10 +2,9 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 from loguru import logger
-
-from qd_evolve.tools import get_registry
 
 
 class SkillInfo:
@@ -15,13 +14,15 @@ class SkillInfo:
         self.version = version
         self.skill_md: str = ""
 
+    def to_dict(self) -> dict[str, Any]:
+        return {"name": self.name, "version": self.version, "path": str(self.path)}
 
-class SkillLoader:
-    """Skill loader — discovers SKILL.md files and registers them as non-callable tools.
 
-    Skills are prompt-only tools: the LLM sees the tool definition (with SKILL.md
-    as the description) and follows the instructions within, using other callable
-    tools to execute. The skill tool itself cannot be invoked.
+class SkillRegistry:
+    """Discovers SKILL.md files and injects them into the system prompt.
+
+    Skills are NOT tool calls — the LLM reads SKILL.md instructions and
+    uses other callable tools (e.g. run_shell) to execute them.
     """
 
     def __init__(self, skills_dir: str | Path) -> None:
@@ -63,6 +64,25 @@ class SkillLoader:
 
         return count
 
+    def list_skills(self) -> list[SkillInfo]:
+        return list(self._skills)
+
+    def format_for_prompt(self) -> str:
+        """Return skill descriptions (without frontmatter) for system prompt injection."""
+        if not self._skills:
+            return ""
+        parts = [self._strip_frontmatter(s.skill_md) for s in self._skills if s.skill_md]
+        return "\n\n".join(parts) if parts else ""
+
+    def get_system_prompt_addition(self) -> str:
+        """Return all SKILL.md contents (without frontmatter) for injection into the system prompt."""
+        if not self._skills:
+            return ""
+        parts = [self._strip_frontmatter(s.skill_md) for s in self._skills if s.skill_md]
+        if not parts:
+            return ""
+        return "\n\n--- Skills ---\n" + "\n\n".join(parts)
+
     @staticmethod
     def _parse_frontmatter_name(skill_md_path: Path) -> str | None:
         try:
@@ -79,26 +99,12 @@ class SkillLoader:
             pass
         return None
 
-    def register_tools(self) -> int:
-        """Register all discovered skills as non-callable tools."""
-        registry = get_registry()
-        for skill in self._skills:
-            registry.register(
-                name=skill.name,
-                description=skill.skill_md,
-                input_schema={"type": "object", "additionalProperties": True},
-                handler=None,
-                category="skill",
-                is_callable=False,
-            )
-            logger.info("Skill registered (non-callable): {}", skill.name)
-        return len(self._skills)
-
-    def get_system_prompt_addition(self) -> str:
-        """Return all SKILL.md contents for injection into the system prompt."""
-        if not self._skills:
-            return ""
-        parts = [s.skill_md for s in self._skills if s.skill_md]
-        if not parts:
-            return ""
-        return "\n\n--- Skills ---\n" + "\n\n".join(parts)
+    @staticmethod
+    def _strip_frontmatter(text: str) -> str:
+        """Remove YAML frontmatter (--- ... ---) from SKILL.md content."""
+        if not text.startswith("---"):
+            return text
+        end = text.find("---", 3)
+        if end < 0:
+            return text
+        return text[end + 3:].lstrip("\n")
