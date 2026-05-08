@@ -105,11 +105,11 @@ class SkillLoader:
             try:
                 args_json = json.dumps(kwargs, ensure_ascii=False)
                 cmd = [sys.executable, str(script_path), args_json]
-                result = subprocess.run(cmd, capture_output=True, text=True, timeout=60, env=env)
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=60, env=env, encoding="utf-8")
 
-                output = result.stdout.strip()
+                output = (result.stdout or "").strip()
                 if result.returncode != 0:
-                    err = result.stderr.strip()
+                    err = (result.stderr or "").strip()
                     return json.dumps({"error": err or f"Exit code {result.returncode}", "stdout": output}, ensure_ascii=False)
                 return output or "(no output)"
             except subprocess.TimeoutExpired:
