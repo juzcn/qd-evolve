@@ -232,7 +232,10 @@ def chat(
             continue
 
         status = console.status("[bold green]Thinking...")
-        agent.set_status_callback(lambda text: status.update(f"[bold green]{text}"))
+        def _on_status(text: str) -> None:
+            status.update(f"[bold green]{text}")
+            status._live.update(status.renderable, refresh=True)
+        agent.set_status_callback(_on_status)
         with status:
             try:
                 response = agent.run(user_input)
