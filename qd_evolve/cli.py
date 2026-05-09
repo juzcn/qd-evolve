@@ -9,9 +9,12 @@ from typing import Any
 import typer
 from loguru import logger
 from rich.console import Console
+from rich.live import Live
 from rich.markup import escape
 from rich.panel import Panel
+from rich.spinner import Spinner
 from rich.table import Table
+from rich.text import Text
 
 from qd_evolve.config import Settings, load_settings
 from qd_evolve.prompts import PromptTemplateManager
@@ -231,12 +234,11 @@ def chat(
                 console.print(result)
             continue
 
-        status = console.status("[bold green]Thinking...")
+        spinner = Spinner("dots", text=Text("Thinking...", style="bold green"))
         def _on_status(text: str) -> None:
-            status.update(f"[bold green]{text}")
-            status._live.update(status.renderable, refresh=True)
+            spinner.update(text=Text(text, style="bold green"))
         agent.set_status_callback(_on_status)
-        with status:
+        with Live(spinner, console=console, transient=True):
             try:
                 response = agent.run(user_input)
             except Exception as e:
