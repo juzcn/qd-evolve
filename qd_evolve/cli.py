@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import platform
+import shutil
+import sys
+from pathlib import Path
 from typing import Any
 
 import typer
@@ -35,6 +39,22 @@ SLASH_COMMANDS = {
     "/loglevel": "Set log level (e.g. /loglevel DEBUG)",
     "/models": "Pick a model to switch to",
 }
+
+
+def _detect_python_cmd() -> str:
+    """Detect a working python command by actually running it."""
+    import subprocess
+    for cmd in (sys.executable, "python3", "python"):
+        try:
+            result = subprocess.run(
+                [cmd, "--version"],
+                capture_output=True, text=True, timeout=5,
+            )
+            if result.returncode == 0:
+                return cmd
+        except Exception:
+            continue
+    return "python"
 
 
 def _read_input() -> str:
@@ -156,17 +176,31 @@ def chat(
     registry.discover_tools()
 
     # 3. Skills
-    skill_registry = SkillRegistry(settings.skills_dir)
-    skill_count = skill_registry.discover()
+    skill_registry = SkillRegistry()
+    skill_registry.discover_skills(settings.skills_dir)
 
     # 4. MCP servers
     mcp_configs = discover_mcp_servers()
     connect_mcp_servers(mcp_configs)
 
-    # 5. System prompt via Jinja2 template
+    # 5. Inject skill_registry into skill_loader tool
+    from qd_evolve.tools.skill_loader import set_skill_registry
+    set_skill_registry(skill_registry)
+
+    # 6. System prompt via Jinja2 template
+    python_cmd = _detect_python_cmd()
     template_mgr = PromptTemplateManager()
-    skill_addition = skill_registry.format_for_prompt() if skill_count > 0 else ""
-    system_prompt = template_mgr.render("default", skills=skill_addition)
+    skill_addition = skill_registry.format_for_prompt()
+    tools_summary = registry.format_tools_summary()
+    system_prompt = template_mgr.render(
+        "default",
+        skills=skill_addition,
+        tools_summary=tools_summary,
+        os_name=platform.system(),
+        python_cmd=python_cmd,
+        cwd=str(Path.cwd()),
+        skills_dir=str(Path(settings.skills_dir).resolve()),
+    )
 
     # 6. Provider
     providers = ProviderRegistry(settings)
