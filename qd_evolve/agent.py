@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, Callable
 
 from loguru import logger
 
@@ -27,6 +27,14 @@ class Agent:
         self.last_input_tokens: int = 0
         self.last_output_tokens: int = 0
         self.iteration: int = 0
+        self._on_status: Callable[[str], None] | None = None
+
+    def set_status_callback(self, cb: Callable[[str], None]) -> None:
+        self._on_status = cb
+
+    def _update_status(self, text: str) -> None:
+        if self._on_status:
+            self._on_status(text)
 
     @property
     def total_tokens(self) -> int:
@@ -52,6 +60,7 @@ class Agent:
 
         while True:
             self.iteration += 1
+            self._update_status(f"Thinking... (iteration {self.iteration})")
             client = prov.create_client()
             active = self._active_tools | self._always_active
             logger.info(
@@ -136,6 +145,7 @@ class Agent:
             for tc in msg.tool_calls:
                 args = json.loads(tc.function.arguments)
                 logger.info("Tool call: {}({})", tc.function.name, json.dumps(args, ensure_ascii=False))
+                self._update_status(f"Running tool: {tc.function.name} (iteration {self.iteration})")
                 output = self.registry.call(tc.function.name, **args)
                 logger.info("Tool result: {} -> {}", tc.function.name, output[:200])
                 self._activate_tool(tc.function.name, args)
@@ -166,6 +176,7 @@ class Agent:
             if item.type == "function_call":
                 args = json.loads(item.arguments)
                 logger.info("Tool call: {}({})", item.name, json.dumps(args, ensure_ascii=False))
+                self._update_status(f"Running tool: {item.name} (iteration {self.iteration})")
                 result = self.registry.call(item.name, **args)
                 logger.info("Tool result: {} -> {}", item.name, result[:200])
                 self._activate_tool(item.name, args)
@@ -224,6 +235,7 @@ class Agent:
         for block in content:
             if block.type == "tool_use":
                 logger.info("Tool call: {}({})", block.name, json.dumps(block.input, ensure_ascii=False))
+                self._update_status(f"Running tool: {block.name} (iteration {self.iteration})")
                 output = self.registry.call(block.name, **block.input)
                 logger.info("Tool result: {} -> {}", block.name, output[:200])
                 # Activate tool after call
