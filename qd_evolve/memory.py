@@ -64,8 +64,8 @@ class MemoryStore:
         self._embedding_model_path = embedding_model_path
         self._embedding_dim = embedding_dim
         self._session_id = datetime.now().isoformat(timespec="seconds")
-        self._embedder: Embedder | None = None
         self._db = sqlite3.connect(str(self._db_path))
+        self._embedder = _create_embedder(embedding_model_path)
         self._init_db()
         logger.info("MemoryStore initialized: db={}, session_id={}, dim={}", self._db_path, self._session_id, self._embedding_dim)
 
@@ -104,8 +104,6 @@ class MemoryStore:
         return self._session_id
 
     def _encode(self, text: str) -> np.ndarray:
-        if self._embedder is None:
-            self._embedder = _create_embedder(self._embedding_model_path)
         return self._embedder.encode(text)
 
     def save(self, user_msg: str, assistant_msg: str) -> int:
@@ -441,11 +439,10 @@ class MemoryStore:
         return sorted(results.values(), key=lambda e: e.distance if e.distance is not None else 999)
 
     def close(self) -> None:
-        if self._embedder is not None and isinstance(self._embedder, LlamaCppEmbedder):
+        if isinstance(self._embedder, LlamaCppEmbedder):
             try:
                 self._embedder._llm.close()
             except Exception:
                 pass
-            self._embedder = None
         self._db.close()
         logger.info("MemoryStore closed")
