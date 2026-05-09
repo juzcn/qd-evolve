@@ -18,5 +18,5 @@ wheels/
 
 # Config and data (contain secrets)
 qd-evolve.json
-qd_evolve.db
+memory.db
 logs/

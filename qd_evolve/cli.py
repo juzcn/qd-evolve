@@ -17,6 +17,7 @@ from rich.table import Table
 from rich.text import Text
 
 from qd_evolve.config import Settings, load_settings
+from qd_evolve.memory import MemoryStore
 from qd_evolve.prompts import PromptTemplateManager
 from qd_evolve.providers import ProviderRegistry
 from qd_evolve.skills import SkillRegistry
@@ -41,6 +42,7 @@ SLASH_COMMANDS = {
     "/config": "Show current configuration",
     "/loglevel": "Set log level (e.g. /loglevel DEBUG)",
     "/models": "Pick a model to switch to",
+    "/memory": "List saved memories",
 }
 
 
@@ -77,6 +79,7 @@ def _handle_slash_command(
     settings: Settings,
     providers: ProviderRegistry,
     skill_registry: SkillRegistry,
+    memory: MemoryStore | None = None,
 ) -> str | None:
     name = cmd.lower().strip()
     if name == "/quit":
@@ -94,19 +97,16 @@ def _handle_slash_command(
         return ""
     if name == "/tools":
         registry = get_registry()
-        by_category = registry.list_by_category()
-        if not by_category:
+        tools = registry.list_tools()
+        if not tools:
             return "  (no tools loaded)"
         lines = []
-        for cat, tool_names in by_category.items():
-            lines.append(f"  [bold]{cat}:[/bold]")
-            for n in tool_names:
-                td = registry.get(n)
-                desc = (td.description or "")[:80] if td else ""
-                lines.append(f"    [cyan]{n}[/cyan] — {desc}")
+        for td in tools:
+            desc = (td.description or "")[:80]
+            lines.append(f"  [cyan]{td.name}[/cyan] — {desc}")
         return "\n".join(lines)
     if name == "/skills":
-        skills = skill_registry.list_skills()
+        skills = skill_registry.get_all_skills()
         if not skills:
             return "  (no skills loaded)"
         lines = []
@@ -149,6 +149,22 @@ def _handle_slash_command(
             settings.default_model = mid
             return f"  Switched to {prov_name}/{mid} (restart to apply)"
         return "  Cancelled."
+    if name == "/memory":
+        if memory is None:
+            return "  Memory store not initialized"
+        entries = memory.list_all()
+        if not entries:
+            return "  (no memories saved)"
+        table = Table(title="Memories", show_header=True)
+        table.add_column("#", style="dim")
+        table.add_column("Key", style="bold")
+        table.add_column("Session", style="dim")
+        table.add_column("User", style="cyan")
+        table.add_column("Assistant")
+        for e in entries:
+            table.add_row(str(e.id), e.key, e.session_id, e.user_msg, e.assistant_msg)
+        console.print(table)
+        return ""
     return None
 
 
@@ -208,7 +224,14 @@ def chat(
     providers = ProviderRegistry(settings)
     settings.default_system_prompt = system_prompt
 
-    agent = Agent(settings=settings, registry=registry, providers=providers)
+    # 7. Memory
+    memory = MemoryStore(settings.memory_db, settings.embedding_model, settings.embedding_dim)
+
+    # 8. Inject memory store into recall_memory tool
+    from qd_evolve.tools.recall_memory import set_memory_store
+    set_memory_store(memory)
+
+    agent = Agent(settings=settings, registry=registry, providers=providers, memory=memory)
 
     model_info = escape(f"[{settings.default_provider}/{settings.default_model}]")
     console.print(Panel(
@@ -226,7 +249,7 @@ def chat(
         if not user_input:
             continue
         if user_input.startswith("/"):
-            result = _handle_slash_command(user_input, agent, settings, providers, skill_registry)
+            result = _handle_slash_command(user_input, agent, settings, providers, skill_registry, memory)
             if result is None:
                 console.print("[dim]Goodbye![/dim]")
                 break
@@ -255,6 +278,8 @@ def chat(
         pct_max = f" ({last_out / max_tok * 100:.1f}% of {max_tok} max)" if max_tok > 0 else ""
         console.print(f"[dim]This turn: {last_in} in{pct_ctx} + {last_out} out{pct_max}[/dim]")
         console.print(f"[dim]Cumulative: {agent.total_input_tokens + agent.total_output_tokens} tokens used[/dim]")
+
+    memory.close()
 
 
 if __name__ == "__main__":

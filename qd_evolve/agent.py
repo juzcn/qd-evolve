@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Callable
+from typing import TYPE_CHECKING, Any, Callable
 
 from loguru import logger
 
@@ -9,15 +9,19 @@ from qd_evolve.config import Settings
 from qd_evolve.providers import ProviderRegistry
 from qd_evolve.tools import ToolRegistry
 
+if TYPE_CHECKING:
+    from qd_evolve.memory import MemoryStore
+
 
 class Agent:
-    def __init__(self, settings: Settings, registry: ToolRegistry, providers: ProviderRegistry) -> None:
+    def __init__(self, settings: Settings, registry: ToolRegistry, providers: ProviderRegistry, memory: MemoryStore | None = None) -> None:
         self.settings = settings
         self.registry = registry
         self._active_tools: set[str] = set()
         # load_tool_detail and load_skill_detail are always active (need full schema)
-        self._always_active: set[str] = {"load_tool_detail", "load_skill_detail"}
+        self._always_active: set[str] = {"load_tool_detail", "load_skill_detail", "recall_memory"}
         self.providers = providers
+        self.memory = memory
         self.messages: list[dict[str, Any]] = []
         self._provider_name: str | None = None
         self._model: str | None = None
@@ -73,13 +77,17 @@ class Agent:
             )
 
             if self._api_type == "anthropic":
-                return self._run_anthropic(client, system_prompt, max_tokens)
+                result = self._run_anthropic(client, system_prompt, max_tokens)
             elif self._api_type == "openai_completion":
-                return self._run_openai_completion(client, system_prompt, max_tokens)
+                result = self._run_openai_completion(client, system_prompt, max_tokens)
             elif self._api_type == "openai_response":
-                return self._run_openai_response(client, system_prompt, max_tokens)
+                result = self._run_openai_response(client, system_prompt, max_tokens)
             else:
                 raise ValueError(f"Unsupported api_type: {self._api_type}")
+
+            if self.memory:
+                self.memory.save(user_input, result)
+            return result
 
     MAX_ITERATIONS = 20
 

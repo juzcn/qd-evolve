@@ -53,6 +53,9 @@ class Settings(BaseModel):
     skills_dir: str = "skills"
     env_vars: dict[str, str] = {}
     providers: list[ProviderConfig] = []
+    memory_db: str = "memory.db"
+    embedding_model: str = "BAAI/bge-m3"
+    embedding_dim: int = 1024
 
     def get_provider(self, name: str | None = None) -> ProviderConfig | None:
         target = name or self.default_provider

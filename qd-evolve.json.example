@@ -4,6 +4,9 @@
   "log_level": "INFO",
   "default_system_prompt": "You are a helpful AI assistant with access to tools.",
   "skills_dir": "tools/skills",
+  "memory_db": "memory.db",
+  "embedding_model": "BAAI/bge-m3",
+  "embedding_dim": 1024,
   "env_vars": {
     "SERPER_API_KEY": "sk-xxx",
     "BAIDU_API_KEY": "sk-xxx"
