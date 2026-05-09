@@ -1,3 +1,5 @@
+"""Tool registry — discovers, registers, and manages callable tools."""
+
 from __future__ import annotations
 
 import importlib
@@ -5,136 +7,130 @@ from pathlib import Path
 from typing import Any, Callable
 
 from loguru import logger
+from pydantic import BaseModel
 
 
-class ToolDef:
-    __slots__ = ("name", "description", "input_schema", "handler", "category", "is_callable")
-
-    def __init__(
-        self,
-        name: str,
-        description: str,
-        input_schema: dict,
-        handler: Callable[..., str] | None = None,
-        category: str = "builtin",
-        is_callable: bool = True,
-    ) -> None:
-        self.name = name
-        self.description = description
-        self.input_schema = input_schema
-        self.handler = handler
-        self.category = category
-        self.is_callable = is_callable
+class ToolDef(BaseModel):
+    name: str
+    description: str
+    handler: Callable[..., str]
+    input_schema: dict[str, Any] = {}
+    enabled: bool = True
 
 
 class ToolRegistry:
+    """Registry of callable tools for the agent loop."""
+
     def __init__(self) -> None:
         self._tools: dict[str, ToolDef] = {}
-        self._disabled: set[str] = set()
 
     def register(
         self,
         name: str,
         description: str,
-        input_schema: dict,
-        handler: Callable[..., str] | None = None,
-        category: str = "builtin",
-        is_callable: bool = True,
+        handler: Callable[..., str],
+        input_schema: dict[str, Any] | None = None,
     ) -> None:
         self._tools[name] = ToolDef(
             name=name,
             description=description,
-            input_schema=input_schema,
             handler=handler,
-            category=category,
-            is_callable=is_callable,
+            input_schema=input_schema or {"type": "object", "properties": {}},
         )
-        logger.debug("Tool registered: {} [{}] callable={}", name, category, is_callable)
+        logger.debug(f"Registered tool: {name}")
 
-    def tool(self, name: str | None = None, description: str = "", category: str = "builtin", is_callable: bool = True):
-        def decorator(fn: Callable[..., str]) -> Callable[..., str]:
-            tname = name or fn.__name__
-            self.register(
-                name=tname,
-                description=description or fn.__doc__ or "",
-                input_schema={"type": "object", "additionalProperties": True},
-                handler=fn,
-                category=category,
-                is_callable=is_callable,
-            )
-            return fn
-        return decorator
+    def call(self, tool_name: str, **kwargs: Any) -> str:
+        td = self._tools.get(tool_name)
+        if td is None:
+            return f"Error: Tool '{tool_name}' not found"
+        if not td.enabled:
+            return f"Error: Tool '{tool_name}' is disabled"
+        try:
+            return td.handler(**kwargs)
+        except Exception as e:
+            logger.error(f"Tool '{tool_name}' error: {e}")
+            return f"Error executing tool '{tool_name}': {e}"
 
     def get(self, name: str) -> ToolDef | None:
         return self._tools.get(name)
 
-    def enable(self, name: str) -> None:
-        self._disabled.discard(name)
-
-    def disable(self, name: str) -> None:
-        self._disabled.add(name)
-
-    def is_enabled(self, name: str) -> bool:
-        return name not in self._disabled
-
-    def definitions(self, callable_only: bool = True, api_format: str = "openai") -> list[dict]:
-        """Return tool definitions for the API.
-
-        callable_only=True: only tools the LLM can call (sent to API).
-        callable_only=False: all tools including prompt-only skills.
-        api_format: "openai" for OpenAI/Responses API, "anthropic" for Messages API.
-        """
-        result = []
-        for name, td in self._tools.items():
-            if name in self._disabled:
-                continue
-            if callable_only and not td.is_callable:
-                continue
-            if api_format == "anthropic":
-                result.append({
-                    "name": td.name,
-                    "description": td.description,
-                    "input_schema": td.input_schema,
-                })
-            else:
-                result.append({
-                    "type": "function",
-                    "function": {
-                        "name": td.name,
-                        "description": td.description,
-                        "parameters": td.input_schema,
-                    },
-                })
-        return result
-
-    def list_by_category(self) -> dict[str, list[str]]:
-        result: dict[str, list[str]] = {}
-        for name, td in self._tools.items():
-            if name in self._disabled:
-                continue
-            result.setdefault(td.category, []).append(name)
-        return result
-
-    def call(self, name: str, **kwargs: Any) -> str:
+    def get_detail(self, name: str) -> dict[str, Any] | None:
+        """Return full tool definition (name, description, input_schema) or None."""
         td = self._tools.get(name)
         if td is None:
-            return f"Error: unknown tool '{name}'"
-        if not td.is_callable or td.handler is None:
-            return f"Error: tool '{name}' is not callable"
-        return td.handler(**kwargs)
+            return None
+        return {
+            "name": td.name,
+            "description": td.description,
+            "input_schema": td.input_schema,
+        }
+
+    def list_tools(self) -> list[ToolDef]:
+        return list(self._tools.values())
+
+    def definitions(self, api_format: str = "openai", active_tools: set[str] | None = None) -> list[dict[str, Any]]:
+        """Build tool definitions for API calls.
+
+        Args:
+            api_format: "openai", "openai-response", or "anthropic"
+            active_tools: Set of tool names that should get full definitions.
+                         If None, all tools get full definitions (backward compat).
+                         If provided, non-active tools get summary-only (no input_schema).
+        """
+        result = []
+        for td in self._tools.values():
+            if not td.enabled:
+                continue
+            is_active = active_tools is None or td.name in active_tools
+            if api_format == "anthropic":
+                defn: dict[str, Any] = {
+                    "name": td.name,
+                    "description": td.description,
+                }
+                if is_active:
+                    defn["input_schema"] = td.input_schema
+                result.append(defn)
+            elif api_format == "openai-response":
+                defn = {
+                    "type": "function",
+                    "name": td.name,
+                    "description": td.description,
+                    "parameters": td.input_schema if is_active else {"type": "object", "properties": {}},
+                }
+                result.append(defn)
+            else:  # openai-completions
+                func: dict[str, Any] = {
+                    "name": td.name,
+                    "description": td.description,
+                }
+                if is_active:
+                    func["parameters"] = td.input_schema
+                result.append({"type": "function", "function": func})
+        return result
+
+    def format_tools_summary(self) -> str:
+        """Format all tools as a summary list for the system prompt."""
+        lines = []
+        for td in self._tools.values():
+            if not td.enabled:
+                continue
+            lines.append(f"- {td.name}: {td.description}")
+        return "\n".join(lines)
 
     def discover_tools(self) -> None:
+        """Auto-discover tools from .py files in this directory."""
         tools_dir = Path(__file__).parent
         for py_file in sorted(tools_dir.glob("*.py")):
-            if py_file.name.startswith("_"):
+            if py_file.name.startswith("_") or py_file.name == "__init__.py":
                 continue
             module_name = f"qd_evolve.tools.{py_file.stem}"
             try:
                 importlib.import_module(module_name)
-            except Exception:
-                logger.exception("Failed to import tool module: {}", module_name)
+            except Exception as e:
+                logger.error(f"Failed to load tool module {module_name}: {e}")
 
 
+# Module-level singleton
 _registry: ToolRegistry | None = None
 
 
@@ -142,4 +138,5 @@ def get_registry() -> ToolRegistry:
     global _registry
     if _registry is None:
         _registry = ToolRegistry()
+        _registry.discover_tools()
     return _registry

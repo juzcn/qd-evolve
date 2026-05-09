@@ -14,6 +14,9 @@ class Agent:
     def __init__(self, settings: Settings, registry: ToolRegistry, providers: ProviderRegistry) -> None:
         self.settings = settings
         self.registry = registry
+        self._active_tools: set[str] = set()
+        # load_tool_detail and load_skill_detail are always active (need full schema)
+        self._always_active: set[str] = {"load_tool_detail", "load_skill_detail"}
         self.providers = providers
         self.messages: list[dict[str, Any]] = []
         self._provider_name: str | None = None
@@ -74,7 +77,7 @@ class Agent:
             max_tokens=max_tokens,
             system=system_prompt,
             messages=self.messages,
-            tools=self.registry.definitions(api_format="anthropic"),
+            tools=self.registry.definitions(api_format="anthropic", active_tools=self._active_tools | self._always_active),
         )
         self._track_tokens_anthropic(response.usage)
 
@@ -95,7 +98,7 @@ class Agent:
         openai_messages: list[dict[str, Any]] = [{"role": "system", "content": system_prompt}]
         openai_messages.extend(self.messages)
 
-        tool_defs = self.registry.definitions()
+        tool_defs = self.registry.definitions("openai", active_tools=self._active_tools | self._always_active)
         kwargs: dict[str, Any] = {
             "model": self._model,
             "messages": openai_messages,
@@ -150,7 +153,7 @@ class Agent:
             instructions=system_prompt,
             input=self.messages,
             max_output_tokens=max_tokens,
-            tools=self._openai_response_tool_definitions(),
+            tools=self.registry.definitions("openai-response", active_tools=self._active_tools | self._always_active),
         )
         self._track_tokens_openai_response(response.usage)
 
@@ -160,6 +163,7 @@ class Agent:
                 logger.info("Tool call: {}({})", item.name, json.dumps(args, ensure_ascii=False))
                 result = self.registry.call(item.name, **args)
                 logger.info("Tool result: {} -> {}", item.name, result[:200])
+                self._activate_tool(item.name, args)
                 self.messages.append({"role": "assistant", "content": None, "tool_calls": [item]})
                 self.messages.append({
                     "type": "function_call_output",
@@ -192,6 +196,24 @@ class Agent:
         self.total_output_tokens += usage.output_tokens
         logger.info("Token usage: input={}, output={}, total={}", usage.input_tokens, usage.output_tokens, self.total_tokens)
 
+    def _activate_tool(self, tool_name: str) -> None:
+        """When load_tool_detail is called, activate that tool for full schema in subsequent turns."""
+        if tool_name == "load_tool_detail":
+            # The argument to load_tool_detail is the tool name to activate
+            # We need to extract it from the last tool call
+            pass
+        else:
+            self._active_tools.add(tool_name)
+
+    def _activate_tool(self, tool_name: str, tool_args: dict) -> None:
+        """After a tool call, activate tools as needed for full schema in subsequent turns."""
+        self._active_tools.add(tool_name)
+        if tool_name == "load_tool_detail":
+            target = tool_args.get("name", "")
+            if target:
+                self._active_tools.add(target)
+                logger.debug(f"Activated tool: {target}")
+
     def _execute_tools_anthropic(self, content: list) -> list[dict]:
         results: list[dict] = []
         for block in content:
@@ -199,6 +221,8 @@ class Agent:
                 logger.info("Tool call: {}({})", block.name, json.dumps(block.input, ensure_ascii=False))
                 output = self.registry.call(block.name, **block.input)
                 logger.info("Tool result: {} -> {}", block.name, output[:200])
+                # Activate tool after call
+                self._activate_tool(block.name, block.input)
                 results.append({
                     "type": "tool_result",
                     "tool_use_id": block.id,
