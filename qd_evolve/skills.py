@@ -1,123 +1,95 @@
+"""Skill registry — discovers and manages SKILL.md-based skills."""
+
 from __future__ import annotations
 
 import json
-import os
-import subprocess
-import sys
 from pathlib import Path
 from typing import Any
 
 from loguru import logger
-
-from qd_evolve.tools import ToolRegistry, get_registry
-
-
-class SkillInfo:
-    def __init__(self, path: Path, name: str, version: str = "0.0.0") -> None:
-        self.path = path
-        self.name = name
-        self.version = version
-        self.skill_md: str = ""
-        self.scripts: list[Path] = []
+from pydantic import BaseModel
 
 
-class SkillLoader:
-    """Skill loader — registers skills as tools with shell-execution handlers.
+class SkillInfo(BaseModel):
+    name: str
+    content: str
+    summary: str = ""
+    version: str = ""
+    slug: str = ""
 
-    Each skill script is registered as a tool. The handler runs the script
-    via subprocess, passing arguments as JSON in sys.argv[1] and injecting
-    skill_config as environment variables.
-    """
+    def format_for_prompt(self) -> str:
+        return f"- {self.slug or self.name}: {self.summary or self.content.split(chr(10))[0][:120]}"
 
-    def __init__(self, skills_dir: str | Path, skill_config: dict[str, str] | None = None, registry: ToolRegistry | None = None) -> None:
-        self._dir = Path(skills_dir)
-        self._config = skill_config or {}
-        self._registry = registry or get_registry()
-        self._skills: list[SkillInfo] = []
 
-    def discover(self) -> int:
-        if not self._dir.is_dir():
-            logger.warning("Skills directory not found: {}", self._dir)
-            return 0
+class SkillRegistry:
+    """Discovers skills from directories containing SKILL.md files."""
 
-        count = 0
-        for child in sorted(self._dir.iterdir()):
-            if not child.is_dir():
+    def __init__(self) -> None:
+        self._skills: dict[str, SkillInfo] = {}
+
+    def discover_skills(self, skills_dir: str | Path) -> None:
+        skills_path = Path(skills_dir)
+        if not skills_path.is_dir():
+            logger.warning(f"Skills directory not found: {skills_path}")
+            return
+
+        for skill_dir in skills_path.iterdir():
+            if not skill_dir.is_dir():
+                continue
+            skill_md = skill_dir / "SKILL.md"
+            if not skill_md.is_file():
                 continue
 
-            skill_md_path = child / "SKILL.md"
-            if not skill_md_path.exists():
+            content = skill_md.read_text(encoding="utf-8").strip()
+            if not content:
                 continue
 
-            name, version = child.name, "0.0.0"
-            meta_path = child / "_meta.json"
-            if meta_path.exists():
+            meta_path = skill_dir / "_meta.json"
+            version = ""
+            slug = skill_dir.name
+            summary = ""
+
+            if meta_path.is_file():
                 try:
                     meta = json.loads(meta_path.read_text(encoding="utf-8"))
-                    name = meta.get("slug", name)
-                    version = meta.get("version", version)
-                except Exception:
-                    pass
+                    version = meta.get("version", "")
+                    slug = meta.get("slug", slug)
+                    summary = meta.get("description", "")
+                except (json.JSONDecodeError, OSError):
+                    logger.warning(f"Failed to parse _meta.json for skill: {skill_dir.name}")
 
-            info = SkillInfo(path=child, name=name, version=version)
-            info.skill_md = skill_md_path.read_text(encoding="utf-8")
+            # Fallback: first non-empty line of content as summary
+            if not summary:
+                for line in content.splitlines():
+                    stripped = line.strip().lstrip("#").strip()
+                    if stripped:
+                        summary = stripped[:120]
+                        break
 
-            scripts_dir = child / "scripts"
-            if scripts_dir.is_dir():
-                info.scripts = sorted(scripts_dir.glob("*.py"))
+            skill = SkillInfo(
+                name=skill_dir.name,
+                content=content,
+                summary=summary,
+                version=version,
+                slug=slug,
+            )
+            self._skills[slug] = skill
+            logger.debug(f"Discovered skill: {slug}")
 
-            self._skills.append(info)
-            count += 1
-            logger.info("Skill discovered: {} v{}", info.name, info.version)
+    def get_all_skills(self) -> list[SkillInfo]:
+        return list(self._skills.values())
 
-        return count
+    def get_detail(self, name: str) -> str | None:
+        """Return full SKILL.md content for a skill, or None if not found."""
+        skill = self._skills.get(name)
+        return skill.content if skill else None
 
-    def register_tools(self) -> int:
-        total = 0
-        for skill in self._skills:
-            for script_path in skill.scripts:
-                tool_name = f"{skill.name}__{script_path.stem}".replace("-", "_")
-                description = skill.skill_md or f"[{skill.name}] Run {script_path.stem}"
-                self._registry.register(
-                    name=tool_name,
-                    description=description,
-                    input_schema={"type": "object", "additionalProperties": True},
-                    handler=self._make_handler(script_path),
-                    category="skill",
-                )
-                total += 1
-                logger.info("Skill tool registered: {}", tool_name)
-        return total
-
-    def _make_handler(self, script_path: Path):
-        config = self._config
-
-        def handler(**kwargs: Any) -> str:
-            env = dict(os.environ)
-            env.update(config)
-            env["PYTHONIOENCODING"] = "utf-8"
-
-            try:
-                args_json = json.dumps(kwargs, ensure_ascii=False)
-                cmd = [sys.executable, str(script_path), args_json]
-                result = subprocess.run(cmd, capture_output=True, text=True, timeout=60, env=env)
-
-                output = result.stdout.strip()
-                if result.returncode != 0:
-                    err = result.stderr.strip()
-                    return json.dumps({"error": err or f"Exit code {result.returncode}", "stdout": output}, ensure_ascii=False)
-                return output or "(no output)"
-            except subprocess.TimeoutExpired:
-                return json.dumps({"error": "Skill script timed out"})
-            except Exception as e:
-                return json.dumps({"error": str(e)})
-
-        return handler
-
-    def get_system_prompt_addition(self) -> str:
+    def format_for_prompt(self) -> str:
+        """Format all skills as a summary list for the system prompt."""
         if not self._skills:
             return ""
-        parts = [s.skill_md for s in self._skills if s.skill_md]
-        if not parts:
-            return ""
-        return "\n\n--- Skills ---\n" + "\n\n".join(parts)
+        lines = [s.format_for_prompt() for s in self._skills.values()]
+        return "\n".join(lines)
+
+    def load_skills(self, skills_dir: str | Path) -> None:
+        self.discover_skills(skills_dir)

@@ -29,16 +29,21 @@ registry.register(
 
 
 def _run_shell(command: str, timeout: int = 30) -> str:
+    import os
+    env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
     try:
         result = subprocess.run(
             command,
             shell=True,
             capture_output=True,
             timeout=timeout,
+            encoding="utf-8",
+            errors="replace",
+            env=env,
         )
-        output = result.stdout.decode("utf-8", errors="replace")
+        output = result.stdout or ""
         if result.stderr:
-            output += f"\nSTDERR:\n{result.stderr.decode('utf-8', errors='replace')}"
+            output += f"\nSTDERR:\n{result.stderr}"
         if result.returncode != 0:
             output += f"\nExit code: {result.returncode}"
         return output.strip() or "(no output)"

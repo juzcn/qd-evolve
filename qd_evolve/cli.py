@@ -1,304 +1,261 @@
 from __future__ import annotations
 
+import platform
+import shutil
 import sys
-from typing import Optional
+from pathlib import Path
+from typing import Any
 
+import typer
 from loguru import logger
-from prompt_toolkit.completion import WordCompleter
-from prompt_toolkit.history import InMemoryHistory
-from prompt_toolkit.shortcuts import PromptSession
 from rich.console import Console
-from typer import Typer
+from rich.live import Live
+from rich.markup import escape
+from rich.panel import Panel
+from rich.spinner import Spinner
+from rich.table import Table
+from rich.text import Text
 
-from qd_evolve.config import load_settings
-from qd_evolve.logger import setup_logging
+from qd_evolve.config import Settings, load_settings
+from qd_evolve.prompts import PromptTemplateManager
 from qd_evolve.providers import ProviderRegistry
+from qd_evolve.skills import SkillRegistry
 from qd_evolve.tools import get_registry
+from qd_evolve.tools._mcp_client import connect_mcp_servers, discover_mcp_servers
 
-tools_app = Typer(name="tools", help="Manage the persistent toolbox")
-mcp_app = Typer(name="mcp", help="Manage MCP servers in the toolbox")
+try:
+    from importlib.metadata import version as _pkg_version
+    __version__ = _pkg_version("qd-evolve")
+except Exception:
+    __version__ = "0.1.0"
 
-app = Typer(name="qd-evolve", help="AI agent with tool use")
-app.add_typer(tools_app, name="tools")
-tools_app.add_typer(mcp_app, name="mcp")
+app = typer.Typer(help="qd-evolve AI agent")
 console = Console()
 
-
-@app.command("chat")
-@app.command("run", hidden=True)
-def chat_cmd(
-    template: Optional[str] = None,
-    provider: Optional[str] = None,
-    model: Optional[str] = None,
-) -> None:
-    """Start an interactive chat session."""
-    _run_chat(template, provider, model)
-
-
-@tools_app.command("list")
-def tools_list() -> None:
-    """List all tools from the persistent toolbox."""
-    setup_logging()
-    settings = load_settings()
-    setup_logging("WARNING")
-
-    from qd_evolve.toolbox import ToolBox
-    toolbox = ToolBox(settings)
-    all_tools = toolbox.load_all()
-    toolbox.close()
-
-    if not all_tools:
-        console.print("[dim]No tools in toolbox.[/]")
-        return
-
-    by_cat: dict[str, list[dict]] = {}
-    for t in all_tools:
-        by_cat.setdefault(t["category"], []).append(t)
-
-    for cat, tools in sorted(by_cat.items()):
-        console.print(f"[bold]{cat}:[/bold]")
-        for t in tools:
-            status = "" if t["enabled"] else " [dim](disabled)[/]"
-            console.print(f"  {t['name']} — {t['description'][:80]}{status}")
-        console.print()
+SLASH_COMMANDS = {
+    "/quit": "Quit the session",
+    "/reset": "Reset conversation history",
+    "/help": "Show available commands",
+    "/tools": "List available tools",
+    "/skills": "List loaded skills",
+    "/config": "Show current configuration",
+    "/loglevel": "Set log level (e.g. /loglevel DEBUG)",
+    "/models": "Pick a model to switch to",
+}
 
 
-@mcp_app.command("add")
-def mcp_add(mcp_path: str) -> None:
-    """Add an MCP server from a JSON config file."""
-    import json as _json
-    from pathlib import Path as _Path
+def _detect_python_cmd() -> str:
+    """Detect a working python command by actually running it."""
+    import subprocess
+    for cmd in (sys.executable, "python3", "python"):
+        try:
+            result = subprocess.run(
+                [cmd, "--version"],
+                capture_output=True, text=True, timeout=5,
+            )
+            if result.returncode == 0:
+                return cmd
+        except Exception:
+            continue
+    return "python"
 
-    path = _Path(mcp_path)
-    if not path.exists():
-        console.print(f"[red]Error:[/] File not found: {mcp_path}")
-        raise SystemExit(1)
 
+def _read_input() -> str:
     try:
-        data = _json.loads(path.read_text(encoding="utf-8"))
-    except Exception as e:
-        console.print(f"[red]Error:[/] Invalid JSON: {e}")
-        raise SystemExit(1)
+        from prompt_toolkit import prompt as pt_prompt
+        from prompt_toolkit.completion import WordCompleter
 
-    # Support both flat {"name": ..., "command": ..., "args": ...}
-    # and nested {"mcpServers": {"name": {"command": ..., "args": ...}}}
-    names: list[str] = []
-    if "mcpServers" in data:
-        names = list(data["mcpServers"].keys())
-    elif "name" in data:
-        names = [data["name"]]
-    else:
-        console.print("[red]Error:[/] JSON must have a 'name' field or 'mcpServers' key")
-        raise SystemExit(1)
-
-    setup_logging()
-    settings = load_settings()
-    setup_logging("WARNING")
-
-    from qd_evolve.toolbox import ToolBox
-    toolbox = ToolBox(settings)
-    resolved = str(path.resolve())
-    for srv_name in names:
-        toolbox.add_mcp_server(srv_name, resolved)
-        console.print(f"[green]Added MCP server:[/] {srv_name} ({resolved})")
-    toolbox.close()
+        completer = WordCompleter(list(SLASH_COMMANDS.keys()), ignore_case=True, sentence=True)
+        return pt_prompt("You> ", completer=completer).strip()
+    except ImportError:
+        return console.input("[bold cyan]You>[/bold cyan] ").strip()
 
 
-@mcp_app.command("list")
-def mcp_list() -> None:
-    """List registered MCP servers."""
-    setup_logging()
-    settings = load_settings()
-    setup_logging("WARNING")
+def _handle_slash_command(
+    cmd: str,
+    agent: Any,
+    settings: Settings,
+    providers: ProviderRegistry,
+    skill_registry: SkillRegistry,
+) -> str | None:
+    name = cmd.lower().strip()
+    if name == "/quit":
+        return None
+    if name == "/reset":
+        agent.messages.clear()
+        return "Conversation reset."
+    if name == "/help":
+        table = Table(title="Commands", show_header=False)
+        table.add_column("Command", style="bold cyan")
+        table.add_column("Description")
+        for c, d in SLASH_COMMANDS.items():
+            table.add_row(c, d)
+        console.print(table)
+        return ""
+    if name == "/tools":
+        registry = get_registry()
+        by_category = registry.list_by_category()
+        if not by_category:
+            return "  (no tools loaded)"
+        lines = []
+        for cat, tool_names in by_category.items():
+            lines.append(f"  [bold]{cat}:[/bold]")
+            for n in tool_names:
+                td = registry.get(n)
+                desc = (td.description or "")[:80] if td else ""
+                lines.append(f"    [cyan]{n}[/cyan] — {desc}")
+        return "\n".join(lines)
+    if name == "/skills":
+        skills = skill_registry.list_skills()
+        if not skills:
+            return "  (no skills loaded)"
+        lines = []
+        for s in skills:
+            lines.append(f"  [bold]{s.name}[/bold] v{s.version}")
+        return "\n".join(lines)
+    if name == "/config":
+        lines = [
+            f"  Provider: {settings.default_provider}",
+            f"  Model: {settings.default_model}",
+            f"  Log level: {settings.log_level}",
+        ]
+        return "\n".join(lines)
+    if name == "/loglevel":
+        parts = cmd.strip().split(maxsplit=1)
+        if len(parts) < 2:
+            return "  Usage: /loglevel <DEBUG|INFO|WARNING|ERROR>"
+        level = parts[1].upper()
+        logger.remove()
+        from qd_evolve.logger import setup_logging
+        setup_logging(level)
+        return f"  Log level set to {level}"
+    if name == "/models":
+        table = Table(title="Available Models", show_header=True)
+        table.add_column("#", style="dim")
+        table.add_column("Provider", style="bold")
+        table.add_column("Model ID", style="bold cyan")
+        table.add_column("Name")
+        all_models: list[tuple[str, str, str]] = []
+        for p in settings.providers:
+            for m in p.models:
+                all_models.append((p.name, m.id, m.name or m.id))
+        for i, (prov_name, mid, mname) in enumerate(all_models, 1):
+            table.add_row(str(i), prov_name, mid, mname)
+        console.print(table)
+        choice = console.input("[bold]Switch to #:[/bold] ").strip()
+        if choice.isdigit() and 1 <= int(choice) <= len(all_models):
+            prov_name, mid, _ = all_models[int(choice) - 1]
+            settings.default_provider = prov_name
+            settings.default_model = mid
+            return f"  Switched to {prov_name}/{mid} (restart to apply)"
+        return "  Cancelled."
+    return None
 
-    from qd_evolve.toolbox import ToolBox
-    toolbox = ToolBox(settings)
-    servers = toolbox.list_mcp_servers()
-    toolbox.close()
 
-    if not servers:
-        console.print("[dim]No MCP servers registered.[/]")
-        return
-
-    for name, config_path in servers:
-        console.print(f"  [bold]{name}[/bold] — {config_path}")
-
-
-class SlashCompleter(WordCompleter):
-    def __init__(self) -> None:
-        super().__init__(
-            words=["/help", "/tools", "/quit", "/clear", "/model", "/provider", "/enable", "/disable"],
-            ignore_case=True,
-            sentence=True,
-        )
-
-
-def _run_chat(
-    template: str | None = None,
-    provider: str | None = None,
-    model: str | None = None,
+@app.command()
+def chat(
+    provider: str = typer.Option("", "--provider", "-p", help="Provider name override"),
+    model: str = typer.Option("", "--model", "-m", help="Model name override"),
 ) -> None:
-    setup_logging()
+    from qd_evolve.agent import Agent
+    from qd_evolve.logger import setup_logging
+
+    # 1. Config & logging
+    setup_logging("WARNING")
     settings = load_settings()
+    setup_logging(settings.log_level)
 
-    if template:
-        from qd_evolve.prompts import PromptManager
-        pm = PromptManager(settings)
-        t = pm.get(template)
-        if t:
-            settings.default_system_prompt = t.get("system", settings.default_system_prompt)
-    if provider:
-        settings.default_provider = provider
-    if model:
-        settings.default_model = model
+    # Inject env_vars from config into os.environ
+    import os
+    for key, value in settings.env_vars.items():
+        os.environ[key] = value
 
+    if not settings.is_configured:
+        console.print("[red]Error:[/red] No API key configured. Edit qd-evolve.json")
+        raise SystemExit(1)
+
+    # 2. Builtin tools
     registry = get_registry()
 
-    # Init ToolBox (sqlite-vec persistence)
-    from qd_evolve.toolbox import ToolBox
-    toolbox = ToolBox(settings)
-    registry.set_toolbox(toolbox)
+    # 3. Skills
+    skill_registry = SkillRegistry()
+    skill_registry.discover_skills(settings.skills_dir)
 
-    # Try to set up embeddings for ToolBox
-    try:
-        from qd_evolve.vector import VectorStore
-        vs = VectorStore(settings)
-        toolbox.set_embed_fn(vs.embed)
-    except Exception:
-        logger.debug("Embedding init skipped (model not available)")
+    # 4. MCP servers
+    mcp_configs = discover_mcp_servers()
+    connect_mcp_servers(mcp_configs)
 
-    # Discover and register builtin tools
-    loaded = registry.discover_tools()
+    # 5. Inject skill_registry into skill_loader tool
+    from qd_evolve.tools.skill_loader import set_skill_registry
+    set_skill_registry(skill_registry)
 
-    # Connect MCP servers (from config + from toolbox)
-    from qd_evolve.tools._mcp_client import connect_mcp_servers, disconnect_mcp_servers
-    from qd_evolve.config import MCPServerConfig
-    mcp_configs = list(settings.mcp_servers)
-    for s in toolbox.load_mcp_servers():
-        mcp_configs.append(MCPServerConfig(name=s["name"], command=s["command"], args=s.get("args", [])))
-    mcp_bridges = connect_mcp_servers(mcp_configs)
-
-    # Load skills
-    from qd_evolve.skills import SkillLoader
-    skill_loader = SkillLoader(settings.skills_dir, settings.skill_config)
-    skill_count = skill_loader.discover()
-    if skill_count > 0:
-        skill_loader.register_tools()
-        settings.default_system_prompt += skill_loader.get_system_prompt_addition()
-
-    # Load previously persisted tools not yet in memory
-    restored = registry.load_from_toolbox(toolbox)
-    if restored:
-        logger.info("Restored {} tools from toolbox", restored)
-
-    providers = ProviderRegistry(settings)
-    from qd_evolve.agent import Agent
-    agent = Agent(settings, registry, providers)
-
-    session = PromptSession(history=InMemoryHistory(), completer=SlashCompleter())
-
-    console.print(
-        f"[bold green]qd-evolve agent[/] [{settings.default_provider}/{settings.default_model}]"
-        f" — type /help for commands, /quit to leave"
+    # 6. System prompt via Jinja2 template
+    python_cmd = _detect_python_cmd()
+    template_mgr = PromptTemplateManager()
+    skill_addition = skill_registry.format_for_prompt()
+    tools_summary = registry.format_tools_summary()
+    system_prompt = template_mgr.render(
+        "default",
+        skills=skill_addition,
+        tools_summary=tools_summary,
+        os_name=platform.system(),
+        python_cmd=python_cmd,
+        cwd=str(Path.cwd()),
+        skills_dir=str(Path(settings.skills_dir).resolve()),
     )
+
+    # 6. Provider
+    providers = ProviderRegistry(settings)
+    settings.default_system_prompt = system_prompt
+
+    agent = Agent(settings=settings, registry=registry, providers=providers)
+
+    model_info = escape(f"[{settings.default_provider}/{settings.default_model}]")
+    console.print(Panel(
+        f"qd-evolve v{__version__} {model_info} - /help for commands, /quit to leave",
+        style="bold green",
+    ))
 
     while True:
         try:
-            user_input = session.prompt("You> ").strip()
+            user_input = _read_input()
         except (EOFError, KeyboardInterrupt):
+            console.print("\n[dim]Goodbye![/dim]")
             break
 
         if not user_input:
             continue
-
         if user_input.startswith("/"):
-            result = _handle_slash(user_input, settings, registry, providers, agent)
+            result = _handle_slash_command(user_input, agent, settings, providers, skill_registry)
             if result is None:
+                console.print("[dim]Goodbye![/dim]")
                 break
             if result:
                 console.print(result)
             continue
 
-        try:
-            response = agent.run(user_input)
-            console.print(f"\n[bold cyan]Assistant:[/]\n{response}\n")
-        except Exception as e:
-            logger.exception("Agent error")
-            console.print(f"[red]Error:[/] {e}")
-
-    # Cleanup
-    try:
-        disconnect_mcp_servers(mcp_bridges)
-    except Exception:
-        pass
-    toolbox.close()
-
-
-def _handle_slash(
-    name: str,
-    settings,
-    registry,
-    providers,
-    agent,
-) -> str | None:
-    if name == "/quit":
-        return None
-
-    if name == "/help":
-        return (
-            "  /help    — Show this help\n"
-            "  /tools   — List available tools\n"
-            "  /quit    — Exit\n"
-            "  /clear   — Clear conversation\n"
-            "  /model   — Show current model\n"
-            "  /provider — Show current provider\n"
-            "  /enable <tool>  — Enable a tool\n"
-            "  /disable <tool> — Disable a tool"
-        )
-
-    if name == "/tools":
-        by_cat = registry.list_by_category()
-        lines = []
-        for cat, names in by_cat.items():
-            lines.append(f"  [bold]{cat}:[/bold]")
-            for n in names:
-                td = registry.get(n)
-                if td and registry.is_enabled(n):
-                    lines.append(f"    {n} — {td.description[:80]}")
-                elif td:
-                    lines.append(f"    {n} — {td.description[:80]} [dim](disabled)[/]")
-        return "\n".join(lines) if lines else "  (no tools loaded)"
-
-    if name == "/clear":
-        agent.clear()
-        return "Conversation cleared."
-
-    if name == "/model":
-        return f"  {settings.default_provider}/{settings.default_model}"
-
-    if name == "/provider":
-        return f"  {settings.default_provider}"
-
-    if name.startswith("/enable "):
-        tool_name = name[8:].strip()
-        registry.enable(tool_name)
-        return f"  Enabled: {tool_name}"
-
-    if name.startswith("/disable "):
-        tool_name = name[9:].strip()
-        registry.disable(tool_name)
-        return f"  Disabled: {tool_name}"
-
-    return f"  Unknown command: {name}"
-
-
-def main() -> None:
-    """Entry point — default to chat if no subcommand given."""
-    if len(sys.argv) <= 1 or sys.argv[1].startswith("-"):
-        # No subcommand — inject 'chat' so typer routes to chat_cmd
-        sys.argv = [sys.argv[0], "chat"] + sys.argv[1:]
-    app()
+        spinner = Spinner("dots", text=Text("Thinking...", style="bold green"))
+        def _on_status(text: str) -> None:
+            spinner.update(text=Text(text, style="bold green"))
+        agent.set_status_callback(_on_status)
+        with Live(spinner, console=console, transient=True):
+            try:
+                response = agent.run(user_input)
+            except Exception as e:
+                console.print(f"[red]Error:[/red] {e}")
+                continue
+        console.print(f"[bold]Assistant:[/bold] {response}")
+        prov = providers.get()
+        model_name = agent._model or settings.default_model
+        ctx = prov.get_context_window(model_name)
+        max_tok = prov.get_max_tokens(model_name)
+        last_in = agent.last_input_tokens
+        last_out = agent.last_output_tokens
+        pct_ctx = f" ({last_in / ctx * 100:.1f}% of {ctx} context)" if ctx > 0 else ""
+        pct_max = f" ({last_out / max_tok * 100:.1f}% of {max_tok} max)" if max_tok > 0 else ""
+        console.print(f"[dim]This turn: {last_in} in{pct_ctx} + {last_out} out{pct_max}[/dim]")
+        console.print(f"[dim]Cumulative: {agent.total_input_tokens + agent.total_output_tokens} tokens used[/dim]")
 
 
 if __name__ == "__main__":
-    main()
+    app()
