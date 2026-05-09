@@ -135,6 +135,7 @@ class Agent:
                 logger.info("Tool call: {}({})", tc.function.name, json.dumps(args, ensure_ascii=False))
                 output = self.registry.call(tc.function.name, **args)
                 logger.info("Tool result: {} -> {}", tc.function.name, output[:200])
+                self._activate_tool(tc.function.name, args)
                 self.messages.append({
                     "role": "tool",
                     "tool_call_id": tc.id,
