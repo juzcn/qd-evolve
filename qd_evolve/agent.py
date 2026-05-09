@@ -26,6 +26,7 @@ class Agent:
         self.total_output_tokens: int = 0
         self.last_input_tokens: int = 0
         self.last_output_tokens: int = 0
+        self.iteration: int = 0
 
     @property
     def total_tokens(self) -> int:
@@ -42,6 +43,7 @@ class Agent:
         self._model = model or self.settings.default_model
         system_prompt = system or self.settings.default_system_prompt
         self.messages.append({"role": "user", "content": user_input})
+        self.iteration = 0
         logger.info("User input: {}", user_input)
 
         prov = self.providers.get(self._provider_name)
@@ -49,6 +51,7 @@ class Agent:
         self._api_type = prov.get_api_type(self._model)
 
         while True:
+            self.iteration += 1
             client = prov.create_client()
             active = self._active_tools | self._always_active
             logger.info(

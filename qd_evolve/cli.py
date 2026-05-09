@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import threading
+
 import platform
 import shutil
 import sys
@@ -231,12 +233,27 @@ def chat(
                 console.print(result)
             continue
 
-        with console.status("[bold green]Thinking..."):
+        status = console.status("[bold green]Thinking...")
+        stop_event = threading.Event()
+        def _update_status() -> None:
+            last_iter = 0
+            while not stop_event.is_set():
+                it = agent.iteration
+                if it != last_iter:
+                    last_iter = it
+                    status.update(f"[bold green]Thinking... (iteration {it})")
+                stop_event.wait(0.3)
+        t = threading.Thread(target=_update_status, daemon=True)
+        with status:
+            t.start()
             try:
                 response = agent.run(user_input)
             except Exception as e:
                 console.print(f"[red]Error:[/red] {e}")
                 continue
+            finally:
+                stop_event.set()
+                t.join(timeout=1)
         console.print(f"[bold]Assistant:[/bold] {response}")
         prov = providers.get()
         model_name = agent._model or settings.default_model
