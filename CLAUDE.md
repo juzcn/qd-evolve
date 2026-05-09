@@ -21,3 +21,4 @@
 - **Per-turn token stats.** Track input/output tokens and context window usage each turn.
 - **Config is read once at startup.** No runtime config changes — edit `qd-evolve.json` and restart.
 - **File paths relative to CWD.** Tools never hardcode paths; everything resolves against current working directory.
+- **Don't auto push.** Commit is fine, but never push to remote unless the user explicitly asks.
