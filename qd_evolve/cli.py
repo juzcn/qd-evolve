@@ -97,19 +97,16 @@ def _handle_slash_command(
         return ""
     if name == "/tools":
         registry = get_registry()
-        by_category = registry.list_by_category()
-        if not by_category:
+        tools = registry.list_tools()
+        if not tools:
             return "  (no tools loaded)"
         lines = []
-        for cat, tool_names in by_category.items():
-            lines.append(f"  [bold]{cat}:[/bold]")
-            for n in tool_names:
-                td = registry.get(n)
-                desc = (td.description or "")[:80] if td else ""
-                lines.append(f"    [cyan]{n}[/cyan] — {desc}")
+        for td in tools:
+            desc = (td.description or "")[:80]
+            lines.append(f"  [cyan]{td.name}[/cyan] — {desc}")
         return "\n".join(lines)
     if name == "/skills":
-        skills = skill_registry.list_skills()
+        skills = skill_registry.get_all_skills()
         if not skills:
             return "  (no skills loaded)"
         lines = []
@@ -230,6 +227,10 @@ def chat(
     # 7. Memory
     memory = MemoryStore(settings.memory_db, settings.embedding_model, settings.embedding_dim)
 
+    # 8. Inject memory store into recall_memory tool
+    from qd_evolve.tools.recall_memory import set_memory_store
+    set_memory_store(memory)
+
     agent = Agent(settings=settings, registry=registry, providers=providers, memory=memory)
 
     model_info = escape(f"[{settings.default_provider}/{settings.default_model}]")
@@ -277,6 +278,8 @@ def chat(
         pct_max = f" ({last_out / max_tok * 100:.1f}% of {max_tok} max)" if max_tok > 0 else ""
         console.print(f"[dim]This turn: {last_in} in{pct_ctx} + {last_out} out{pct_max}[/dim]")
         console.print(f"[dim]Cumulative: {agent.total_input_tokens + agent.total_output_tokens} tokens used[/dim]")
+
+    memory.close()
 
 
 if __name__ == "__main__":

@@ -12,6 +12,9 @@ Multi-provider AI agent with tool use, skills, MCP integration, and CLI interfac
 - **Jinja2 prompt templates** — `.j2` files in `templates/`, with builtin fallbacks in `qd_evolve/_templates/`
 - **Per-turn token stats** — Input/output token tracking with context window usage percentage
 - **Cumulative token tracking** — Running total of tokens used across the session
+- **Persistent memory** — SQLite + sqlite-vec for cross-session memory with semantic (BGE-M3) + keyword hybrid search
+- **Memory recall tool** — `recall_memory` tool for LLM to search past conversations by query, keywords, and time range
+- **Dual embedder support** — sentence-transformers or llama-cpp-python (auto-detected by `.gguf` extension)
 - **Env vars injection** — Define `env_vars` in config to inject API keys into environment at startup
 - **Structured logging** — loguru with file rotation to `logs/` directory
 - **Rich CLI** — Interactive prompt with spinner status, slash commands, and tab completion
@@ -72,10 +75,11 @@ qd-evolve -m model-name      # override model
 | `/help` | Show available commands |
 | `/quit` | Quit the session |
 | `/reset` | Reset conversation history |
-| `/tools` | List available tools (grouped by category) |
+| `/tools` | List available tools |
 | `/skills` | List loaded skills |
 | `/config` | Show current configuration |
 | `/models` | Switch model interactively |
+| `/memory` | List saved memories |
 | `/loglevel` | Set log level (e.g. `/loglevel DEBUG`) |
 
 ## Builtin Tools

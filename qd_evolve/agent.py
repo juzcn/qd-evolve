@@ -19,7 +19,7 @@ class Agent:
         self.registry = registry
         self._active_tools: set[str] = set()
         # load_tool_detail and load_skill_detail are always active (need full schema)
-        self._always_active: set[str] = {"load_tool_detail", "load_skill_detail"}
+        self._always_active: set[str] = {"load_tool_detail", "load_skill_detail", "recall_memory"}
         self.providers = providers
         self.memory = memory
         self.messages: list[dict[str, Any]] = []
