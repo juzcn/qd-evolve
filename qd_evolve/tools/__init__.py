@@ -73,38 +73,37 @@ class ToolRegistry:
 
         Args:
             api_format: "openai", "openai-response", or "anthropic"
-            active_tools: Set of tool names that should get full definitions.
-                         If None, all tools get full definitions (backward compat).
-                         If provided, non-active tools get summary-only (no input_schema).
+            active_tools: Set of tool names to include.
+                         If None, all tools are included (backward compat).
+                         If provided, only active tools are included in API definitions.
         """
         result = []
         for td in self._tools.values():
             if not td.enabled:
                 continue
-            is_active = active_tools is None or td.name in active_tools
+            if active_tools is not None and td.name not in active_tools:
+                continue
             if api_format == "anthropic":
                 defn: dict[str, Any] = {
                     "name": td.name,
                     "description": td.description,
+                    "input_schema": td.input_schema,
                 }
-                if is_active:
-                    defn["input_schema"] = td.input_schema
                 result.append(defn)
             elif api_format == "openai-response":
                 defn = {
                     "type": "function",
                     "name": td.name,
                     "description": td.description,
-                    "parameters": td.input_schema if is_active else {"type": "object", "properties": {}},
+                    "parameters": td.input_schema,
                 }
                 result.append(defn)
             else:  # openai-completions
                 func: dict[str, Any] = {
                     "name": td.name,
                     "description": td.description,
+                    "parameters": td.input_schema,
                 }
-                if is_active:
-                    func["parameters"] = td.input_schema
                 result.append({"type": "function", "function": func})
         return result
 

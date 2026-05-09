@@ -50,13 +50,14 @@ class Agent:
 
         while True:
             client = prov.create_client()
+            active = self._active_tools | self._always_active
             logger.info(
                 "LLM prompt: {} / {} ({}) | system={} tools={} messages={}",
                 self._provider_name,
                 self._model,
                 self._api_type,
                 system_prompt,
-                json.dumps(self.registry.definitions(), ensure_ascii=False),
+                json.dumps(self.registry.definitions(api_format=self._api_type if self._api_type != "openai_completion" else "openai", active_tools=active), ensure_ascii=False),
                 json.dumps(self.messages, ensure_ascii=False),
             )
 

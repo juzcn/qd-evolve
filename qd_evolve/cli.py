@@ -173,7 +173,6 @@ def chat(
 
     # 2. Builtin tools
     registry = get_registry()
-    registry.discover_tools()
 
     # 3. Skills
     skill_registry = SkillRegistry()
