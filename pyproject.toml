@@ -17,6 +17,9 @@ dependencies = [
     "prompt-toolkit>=3.0.52",
     "serper-toolkit>=0.0.13",
     "requests>=2.33.1",
+    "sentence-transformers>=5.4.1",
+    "numpy>=2.4.4",
+    "llama-cpp-python>=0.3.22",
 ]
 
 [project.scripts]

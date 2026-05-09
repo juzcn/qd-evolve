@@ -17,6 +17,7 @@ from rich.table import Table
 from rich.text import Text
 
 from qd_evolve.config import Settings, load_settings
+from qd_evolve.memory import MemoryStore
 from qd_evolve.prompts import PromptTemplateManager
 from qd_evolve.providers import ProviderRegistry
 from qd_evolve.skills import SkillRegistry
@@ -41,6 +42,7 @@ SLASH_COMMANDS = {
     "/config": "Show current configuration",
     "/loglevel": "Set log level (e.g. /loglevel DEBUG)",
     "/models": "Pick a model to switch to",
+    "/memory": "List saved memories",
 }
 
 
@@ -77,6 +79,7 @@ def _handle_slash_command(
     settings: Settings,
     providers: ProviderRegistry,
     skill_registry: SkillRegistry,
+    memory: MemoryStore | None = None,
 ) -> str | None:
     name = cmd.lower().strip()
     if name == "/quit":
@@ -149,6 +152,22 @@ def _handle_slash_command(
             settings.default_model = mid
             return f"  Switched to {prov_name}/{mid} (restart to apply)"
         return "  Cancelled."
+    if name == "/memory":
+        if memory is None:
+            return "  Memory store not initialized"
+        entries = memory.list_all()
+        if not entries:
+            return "  (no memories saved)"
+        table = Table(title="Memories", show_header=True)
+        table.add_column("#", style="dim")
+        table.add_column("Key", style="bold")
+        table.add_column("Session", style="dim")
+        table.add_column("User", style="cyan")
+        table.add_column("Assistant")
+        for e in entries:
+            table.add_row(str(e.id), e.key, e.session_id, e.user_msg, e.assistant_msg)
+        console.print(table)
+        return ""
     return None
 
 
@@ -208,7 +227,10 @@ def chat(
     providers = ProviderRegistry(settings)
     settings.default_system_prompt = system_prompt
 
-    agent = Agent(settings=settings, registry=registry, providers=providers)
+    # 7. Memory
+    memory = MemoryStore(settings.memory_db, settings.embedding_model, settings.embedding_dim)
+
+    agent = Agent(settings=settings, registry=registry, providers=providers, memory=memory)
 
     model_info = escape(f"[{settings.default_provider}/{settings.default_model}]")
     console.print(Panel(
@@ -226,7 +248,7 @@ def chat(
         if not user_input:
             continue
         if user_input.startswith("/"):
-            result = _handle_slash_command(user_input, agent, settings, providers, skill_registry)
+            result = _handle_slash_command(user_input, agent, settings, providers, skill_registry, memory)
             if result is None:
                 console.print("[dim]Goodbye![/dim]")
                 break
