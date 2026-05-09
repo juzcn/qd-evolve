@@ -62,7 +62,7 @@ def _read_input() -> str:
         from prompt_toolkit import prompt as pt_prompt
         from prompt_toolkit.completion import WordCompleter
 
-        completer = WordCompleter(list(SLASH_COMMANDS.keys()), ignore_case=True)
+        completer = WordCompleter(list(SLASH_COMMANDS.keys()), ignore_case=True, sentence=True)
         return pt_prompt("You> ", completer=completer).strip()
     except ImportError:
         return console.input("[bold cyan]You>[/bold cyan] ").strip()
