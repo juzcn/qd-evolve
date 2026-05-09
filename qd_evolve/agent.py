@@ -34,7 +34,7 @@ class Agent:
 
     def _update_status(self, text: str) -> None:
         if self._on_status:
-            self._on_status(text)
+            self._on_status(f"[#{self.iteration}] {text}")
 
     @property
     def total_tokens(self) -> int:
@@ -60,7 +60,7 @@ class Agent:
 
         while True:
             self.iteration += 1
-            self._update_status(f"Thinking... (iteration {self.iteration})")
+            self._update_status("Calling LLM API...")
             client = prov.create_client()
             active = self._active_tools | self._always_active
             logger.info(
@@ -106,7 +106,7 @@ class Agent:
         if _iter >= self.MAX_ITERATIONS:
             return "Max tool iterations reached. Please simplify your request."
         self.iteration += 1
-        self._update_status(f"Thinking... (iteration {self.iteration})")
+        self._update_status("Calling LLM API...")
         return self._run_anthropic(client, system_prompt, max_tokens, _iter + 1)
 
     def _run_openai_completion(self, client: Any, system_prompt: str, max_tokens: int, _iter: int = 0) -> str:
@@ -147,7 +147,8 @@ class Agent:
             for tc in msg.tool_calls:
                 args = json.loads(tc.function.arguments)
                 logger.info("Tool call: {}({})", tc.function.name, json.dumps(args, ensure_ascii=False))
-                self._update_status(f"Running tool: {tc.function.name} (iteration {self.iteration})")
+                args_brief = json.dumps(args, ensure_ascii=False)[:60]
+                self._update_status(f"Tool: {tc.function.name}({args_brief})")
                 output = self.registry.call(tc.function.name, **args)
                 logger.info("Tool result: {} -> {}", tc.function.name, output[:200])
                 self._activate_tool(tc.function.name, args)
@@ -159,7 +160,7 @@ class Agent:
             if _iter >= self.MAX_ITERATIONS:
                 return "Max tool iterations reached. Please simplify your request."
             self.iteration += 1
-            self._update_status(f"Thinking... (iteration {self.iteration})")
+            self._update_status("Calling LLM API...")
             return self._run_openai_completion(client, system_prompt, max_tokens, _iter + 1)
 
         self.messages.append({"role": "assistant", "content": msg.content or ""})
@@ -180,7 +181,8 @@ class Agent:
             if item.type == "function_call":
                 args = json.loads(item.arguments)
                 logger.info("Tool call: {}({})", item.name, json.dumps(args, ensure_ascii=False))
-                self._update_status(f"Running tool: {item.name} (iteration {self.iteration})")
+                args_brief = json.dumps(args, ensure_ascii=False)[:60]
+                self._update_status(f"Tool: {item.name}({args_brief})")
                 result = self.registry.call(item.name, **args)
                 logger.info("Tool result: {} -> {}", item.name, result[:200])
                 self._activate_tool(item.name, args)
@@ -191,7 +193,7 @@ class Agent:
                     "output": result,
                 })
                 self.iteration += 1
-                self._update_status(f"Thinking... (iteration {self.iteration})")
+                self._update_status("Calling LLM API...")
                 return self._run_openai_response(client, system_prompt, max_tokens)
 
         text_parts = [item.content[0].text for item in response.output if item.type == "message"]
@@ -241,7 +243,8 @@ class Agent:
         for block in content:
             if block.type == "tool_use":
                 logger.info("Tool call: {}({})", block.name, json.dumps(block.input, ensure_ascii=False))
-                self._update_status(f"Running tool: {block.name} (iteration {self.iteration})")
+                args_brief = json.dumps(block.input, ensure_ascii=False)[:60]
+                self._update_status(f"Tool: {block.name}({args_brief})")
                 output = self.registry.call(block.name, **block.input)
                 logger.info("Tool result: {} -> {}", block.name, output[:200])
                 # Activate tool after call
