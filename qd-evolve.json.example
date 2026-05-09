@@ -3,9 +3,11 @@
   "default_model": "qianfan-code-latest",
   "log_level": "INFO",
   "default_system_prompt": "You are a helpful AI assistant with access to tools.",
-  "embedding_model_path": "C:\\OneDrive\\AI\\HuggingFace\\hub\\models--BAAI--bge-m3",
-  "embedding_dimensions": 1024,
-  "db_path": "qd_evolve.db",
+  "skills_dir": "tools/skills",
+  "env_vars": {
+    "SERPER_API_KEY": "sk-xxx",
+    "BAIDU_API_KEY": "sk-xxx"
+  },
   "providers": [
     {
       "name": "baiduqianfancodingplan",
@@ -26,6 +28,28 @@
           },
           "context_window": 98304,
           "max_tokens": 65536
+        }
+      ]
+    },
+    {
+      "name": "astroncodingplan",
+      "api_key": "sk-xxx:sk-xxx",
+      "base_url": "https://maas-coding-api.cn-huabei-1.xf-yun.com/v2",
+      "api": "openai-completions",
+      "models": [
+        {
+          "id": "astron-code-latest",
+          "name": "astron-code-latest",
+          "reasoning": false,
+          "input": ["text"],
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cache_read": 0,
+            "cache_write": 0
+          },
+          "context_window": 92160,
+          "max_tokens": 32768
         }
       ]
     }
