@@ -105,6 +105,8 @@ class Agent:
         self.messages.append({"role": "user", "content": results})
         if _iter >= self.MAX_ITERATIONS:
             return "Max tool iterations reached. Please simplify your request."
+        self.iteration += 1
+        self._update_status(f"Thinking... (iteration {self.iteration})")
         return self._run_anthropic(client, system_prompt, max_tokens, _iter + 1)
 
     def _run_openai_completion(self, client: Any, system_prompt: str, max_tokens: int, _iter: int = 0) -> str:
@@ -156,6 +158,8 @@ class Agent:
                 })
             if _iter >= self.MAX_ITERATIONS:
                 return "Max tool iterations reached. Please simplify your request."
+            self.iteration += 1
+            self._update_status(f"Thinking... (iteration {self.iteration})")
             return self._run_openai_completion(client, system_prompt, max_tokens, _iter + 1)
 
         self.messages.append({"role": "assistant", "content": msg.content or ""})
@@ -186,6 +190,8 @@ class Agent:
                     "call_id": item.call_id,
                     "output": result,
                 })
+                self.iteration += 1
+                self._update_status(f"Thinking... (iteration {self.iteration})")
                 return self._run_openai_response(client, system_prompt, max_tokens)
 
         text_parts = [item.content[0].text for item in response.output if item.type == "message"]
