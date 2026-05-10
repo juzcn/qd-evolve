@@ -1,0 +1,5 @@
+{
+  "slug": "cli-register",
+  "description": "Register CLI tools by analyzing --help output and generating yaml definitions",
+  "version": "1.0"
+}

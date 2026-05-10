@@ -147,6 +147,12 @@ class MCPToolBridge:
     def disconnect(self) -> None:
         if not self._loop:
             return
+        # Unregister tools from ToolRegistry
+        registry = get_registry()
+        for tool_name in self._tool_names:
+            registry.unregister(tool_name)
+        self._tool_names.clear()
+        # Stop the event loop and disconnect
         try:
             future = asyncio.run_coroutine_threadsafe(self._async_disconnect(), self._loop)
             future.result(timeout=10)
@@ -178,3 +184,35 @@ def connect_mcp_servers(configs: list[MCPServerConfig]) -> list[MCPToolBridge]:
         except Exception as e:
             logger.error("MCP: failed to connect to {}: {}", config.name, e)
     return bridges
+
+
+def reload_mcp_servers(
+    configs: list[MCPServerConfig],
+    existing_bridges: list[MCPToolBridge],
+) -> list[MCPToolBridge]:
+    """Connect new MCP servers, disconnect removed ones. Keep existing ones unchanged."""
+    current_names = {c.name for c in configs}
+    kept_bridges: list[MCPToolBridge] = []
+
+    # Disconnect servers that are no longer in configs
+    for bridge in existing_bridges:
+        if bridge._config.name in current_names:
+            kept_bridges.append(bridge)
+        else:
+            logger.info("MCP: disconnecting removed server {}", bridge._config.name)
+            bridge.disconnect()
+
+    # Connect new servers
+    connected_names = {b._config.name for b in kept_bridges}
+    for config in configs:
+        if config.name in connected_names:
+            continue
+        try:
+            bridge = MCPToolBridge(config)
+            bridge.connect()
+            kept_bridges.append(bridge)
+            logger.info("MCP: connected new server {}", config.name)
+        except Exception as e:
+            logger.error("MCP: failed to connect to {}: {}", config.name, e)
+
+    return kept_bridges

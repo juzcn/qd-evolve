@@ -8,16 +8,18 @@
 - **Multi-provider, multi-model.** Each provider has an api_key, base_url, api type, and multiple models with full metadata.
 - **Three API types supported.** `openai-completions`, `openai-response`, `anthropic`. Set at provider level via `api` field.
 - **Logging is structured.** loguru with file rotation. No print statements for debugging.
-- **CLI is minimal.** Just `qd-evolve` to start chat, with `--provider`, `--model` options.
+- **CLI is minimal.** Just `qd-evolve` to start chat. No CLI options for provider/model — edit `qd-evolve.json` or use `/models` at runtime.
 - **Agent loop is simple and explicit.** Call API → check stop_reason → execute tools → append results → repeat.
 - **Type everything.** Python 3.13 with full type annotations. pydantic models for all data boundaries.
 
 ## Design Decisions
 
-- **Tools are auto-discovered.** Builtin tools from `qd_evolve/tools/`, MCP tools from `tools/mcp/*.json`. No manual registration.
+- **Tools are auto-discovered.** Builtin tools from `qd_evolve/tools/`, MCP tools from `tools/mcp/*.json`, CLI tools from `tools/cli/*.yaml`. No manual registration.
 - **On-demand tool loading.** Tools start with name+description only. The LLM calls `load_tool_detail` to get the full schema, then the tool is activated for subsequent turns. This reduces prompt size.
-- **Always-active tools.** `load_tool_detail`, `load_skill_detail`, and `recall_memory` are always active — no need to load their schema first.
+- **Always-active tools.** Configured via `active_tools` in `qd-evolve.json`. By default: `load_tool_detail`, `load_skill_detail`, `load_cli_detail`, and `recall_memory` — no need to load their schema first.
 - **Skills are non-callable.** SKILL.md files injected into system prompt as summaries — the LLM calls `load_skill_detail` to get full instructions and uses callable tools to execute.
+- **Active skills.** Configured via `active_skills` in `qd-evolve.json`. Active skills have their full content injected into the system prompt instead of just a summary line.
+- **CLI tools are non-callable definitions.** YAML files in `tools/cli/` describe CLI commands (name, command, help_summary, examples). The LLM calls `load_cli_detail` to get usage info, then executes via `run_shell`. Active CLI tools are configured via `active_cli_tools`.
 - **MCP tools prefixed.** Registered as `{server_name}__{tool_name}` to avoid naming collisions.
 - **Templates are Jinja2.** User templates in `templates/` override builtin fallbacks in `qd_evolve/_templates/`. System prompt is rendered from template and passed to Agent at startup.
 - **Per-turn and cumulative token stats.** Track input/output tokens and context window usage each turn, plus running session total.
@@ -26,6 +28,7 @@
 - **Auto recall.** Before each LLM call, user input is used as query to automatically retrieve relevant past conversations from MemoryStore. Results are injected into a dedicated memory section in the system prompt, with deduplication via `RecalledMemoryRegistry` (keyed by memory id). All recall queries exclude the current session. Configurable via `auto_recall` (on/off) and `auto_recall_top_k`.
 - **Embedder selection by config.** `embeddings_backends` section in `qd-evolve.json` defines named backends with `backend` field (`sentence-transformers` or `llama-cpp-python`). `memory_search.default_embeddings_backend` selects which to use. No file-suffix auto-detection.
 - **Env vars from config.** `env_vars` in `qd-evolve.json` are injected into `os.environ` at startup, so tools can access API keys without .env files.
-- **Config is read once at startup.** No runtime config changes — edit `qd-evolve.json` and restart.
+- **Config is read once at startup.** No runtime config changes — edit `qd-evolve.json` and restart. However, registries (skills, CLI tools, MCP) are reloaded after each conversation turn to pick up new files without restart.
 - **File paths relative to CWD.** Tools never hardcode paths; everything resolves against current working directory.
+- **Shell encoding.** `run_shell` uses `locale.getpreferredencoding()` to decode subprocess output, handling Windows GBK/cp936 correctly.
 - **Don't auto push.** Commit is fine, but never push to remote unless the user explicitly asks.

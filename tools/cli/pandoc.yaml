@@ -1,0 +1,37 @@
+name: pandoc
+command: pandoc
+description: "Universal document converter - converts between Markdown, HTML, PDF, DOCX, EPUB and many other formats"
+help_summary: |
+  pandoc [OPTIONS] [FILES]
+  
+  Input/Output:
+    -f FORMAT, --from=FORMAT     Specify input format
+    -t FORMAT, --to=FORMAT       Specify output format
+    -o FILE, --output=FILE       Write output to FILE instead of stdout
+    -s, --standalone             Produce standalone output (with header/footer)
+  
+  Document Structure:
+    --toc, --table-of-contents   Include table of contents
+    --toc-depth=NUMBER           Depth of TOC sections (default: 3)
+    -N, --number-sections        Number section headings
+    --template=FILE              Use custom template
+  
+  Metadata:
+    -M KEY[:VALUE], --metadata=KEY[:VALUE    Set metadata field
+    -V KEY[:VALUE], --variable=KEY[:VALUE    Set template variable
+  
+  PDF Options:
+    --pdf-engine=PROGRAM        Use specified program to produce PDF
+    --pdf-engine-opt=STRING     Add additional options for PDF engine
+  
+  Other:
+    --list-input-formats        List supported input formats
+    --list-output-formats       List supported output formats
+    -v, --version               Show version
+    -h, --help                  Show this help
+
+examples:
+  - "pandoc input.md -o output.pdf"
+  - "pandoc README.md -o README.html"
+  - "pandoc document.docx -o document.pdf"
+  - "pandoc input.md -s -o output.html --toc"

@@ -18,7 +18,7 @@ def _load_skill_detail(name: str) -> str:
         return "Error: skill registry not initialized"
     detail = _skill_registry.get_detail(name)
     if detail is None:
-        return f"Error: skill '{name}' not found. Available: {', '.join(s.slug or s.name for s in _skill_registry.get_all_skills())}"
+        return f"Error: skill '{name}' not found. Available: {', '.join(s.name for s in _skill_registry.get_all_skills())}"
     return detail
 
 

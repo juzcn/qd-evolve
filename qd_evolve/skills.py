@@ -15,10 +15,13 @@ class SkillInfo(BaseModel):
     content: str
     summary: str = ""
     version: str = ""
-    slug: str = ""
+    active: bool = False
 
     def format_for_prompt(self) -> str:
-        return f"- {self.slug or self.name}: {self.summary or self.content.split(chr(10))[0][:120]}"
+        return f"- {self.name}: {self.summary or self.content.split(chr(10))[0][:120]}"
+
+    def format_active_for_prompt(self) -> str:
+        return f"### {self.name}\n{self.content}"
 
 
 class SkillRegistry:
@@ -26,14 +29,25 @@ class SkillRegistry:
 
     def __init__(self) -> None:
         self._skills: dict[str, SkillInfo] = {}
+        self._skills_dir: Path | None = None
+        self._active_skills: set[str] = set()
 
-    def discover_skills(self, skills_dir: str | Path) -> None:
-        skills_path = Path(skills_dir)
-        if not skills_path.is_dir():
-            logger.warning(f"Skills directory not found: {skills_path}")
+    def discover_skills(self, skills_dir: str | Path, active_skills: list[str] | None = None) -> None:
+        self._skills_dir = Path(skills_dir)
+        self._active_skills = set(active_skills or [])
+        self._load()
+
+    def reload(self) -> None:
+        """Re-scan skill directories. Called after a new skill is added."""
+        self._load()
+
+    def _load(self) -> None:
+        self._skills.clear()
+        if self._skills_dir is None or not self._skills_dir.is_dir():
+            logger.warning(f"Skills directory not found: {self._skills_dir}")
             return
 
-        for skill_dir in skills_path.iterdir():
+        for skill_dir in self._skills_dir.iterdir():
             if not skill_dir.is_dir():
                 continue
             skill_md = skill_dir / "SKILL.md"
@@ -44,17 +58,18 @@ class SkillRegistry:
             if not content:
                 continue
 
-            meta_path = skill_dir / "_meta.json"
-            version = ""
             slug = skill_dir.name
             summary = ""
+            version = ""
 
+            # Read _meta.json if present
+            meta_path = skill_dir / "_meta.json"
             if meta_path.is_file():
                 try:
                     meta = json.loads(meta_path.read_text(encoding="utf-8"))
-                    version = meta.get("version", "")
                     slug = meta.get("slug", slug)
                     summary = meta.get("description", "")
+                    version = meta.get("version", "")
                 except (json.JSONDecodeError, OSError):
                     logger.warning(f"Failed to parse _meta.json for skill: {skill_dir.name}")
 
@@ -66,12 +81,13 @@ class SkillRegistry:
                         summary = stripped[:120]
                         break
 
+            active = slug in self._active_skills or skill_dir.name in self._active_skills
             skill = SkillInfo(
-                name=skill_dir.name,
+                name=slug,
                 content=content,
                 summary=summary,
                 version=version,
-                slug=slug,
+                active=active,
             )
             self._skills[slug] = skill
             logger.debug(f"Discovered skill: {slug}")
@@ -88,7 +104,12 @@ class SkillRegistry:
         """Format all skills as a summary list for the system prompt."""
         if not self._skills:
             return ""
-        lines = [s.format_for_prompt() for s in self._skills.values()]
+        lines = []
+        for s in self._skills.values():
+            if s.active:
+                lines.append(s.format_active_for_prompt())
+            else:
+                lines.append(s.format_for_prompt())
         return "\n".join(lines)
 
     def load_skills(self, skills_dir: str | Path) -> None:
