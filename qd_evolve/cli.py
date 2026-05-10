@@ -42,6 +42,7 @@ SLASH_COMMANDS = {
     "/models": "Pick a model to switch to",
     "/memory": "List saved memories",
     "/cli": "List registered CLI tools",
+    "/status": "Show runtime status (loaded tools, skills, CLI)",
     "/help": "Show available commands",
 }
 
@@ -148,6 +149,48 @@ def _handle_slash_command(
             settings.default_model = mname
             return f"  Switched to {prov_name}/{mname} (restart to apply)"
         return "  Cancelled."
+    if name == "/status":
+        table = Table(title="Runtime Status", show_header=True)
+        table.add_column("Category", style="bold")
+        table.add_column("Item", style="cyan")
+        table.add_column("State", style="dim")
+
+        # Provider / Model
+        prov_name = agent._provider_name or settings.default_provider
+        model_name = agent._model or settings.default_model
+        table.add_row("Provider", f"{prov_name}/{model_name}", "current")
+
+        # Preloaded tools
+        for t in sorted(agent._always_active):
+            table.add_row("Tool (preload)", t, "active")
+
+        # Runtime activated tools
+        for t in sorted(agent._active_tools - agent._always_active):
+            table.add_row("Tool (loaded)", t, "active")
+
+        # Loaded skills
+        for s in sorted(agent._loaded_skills):
+            table.add_row("Skill (loaded)", s, "injected")
+
+        # Preload skills (from config, not yet loaded into agent)
+        for s in settings.preload_skills:
+            if s not in agent._loaded_skills:
+                table.add_row("Skill (preload)", s, "active")
+
+        # Loaded CLI tools
+        for c in sorted(agent._loaded_cli):
+            table.add_row("CLI (loaded)", c, "injected")
+
+        # Preload CLI tools (from config, not yet loaded into agent)
+        for c in settings.preload_cli:
+            if c not in agent._loaded_cli:
+                table.add_row("CLI (preload)", c, "active")
+
+        # Token stats
+        table.add_row("Tokens", f"in={agent.total_input_tokens} out={agent.total_output_tokens}", "cumulative")
+
+        console.print(table)
+        return ""
     if name == "/memory":
         if memory is None:
             return "  Memory store not initialized"
