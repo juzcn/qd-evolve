@@ -95,8 +95,6 @@ class Agent:
                 self.memory.save(user_input, result)
             return result
 
-    MAX_ITERATIONS = 20
-
     def _compress_messages(self) -> None:
         prov = self.providers.get(self._provider_name)
         context_window = prov.get_context_window(self._model)
@@ -193,7 +191,7 @@ class Agent:
 
         results = self._execute_tools_anthropic(response.content)
         self.messages.append({"role": "user", "content": results})
-        if _iter >= self.MAX_ITERATIONS:
+        if _iter >= self.settings.max_iterations:
             return "Max tool iterations reached. Please simplify your request."
         self.iteration += 1
         return self._run_anthropic(client, system_prompt, max_tokens, _iter + 1)
@@ -246,7 +244,7 @@ class Agent:
                     "tool_call_id": tc.id,
                     "content": output,
                 })
-            if _iter >= self.MAX_ITERATIONS:
+            if _iter >= self.settings.max_iterations:
                 return "Max tool iterations reached. Please simplify your request."
             self.iteration += 1
             return self._run_openai_completion(client, system_prompt, max_tokens, _iter + 1)

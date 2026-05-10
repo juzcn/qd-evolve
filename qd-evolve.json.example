@@ -11,6 +11,9 @@
   "target_threshold": 0.5,
   "auto_recall": true,
   "auto_recall_top_k": 5,
+  "max_iterations": 20,
+  "llama_n_ctx": 8192,
+  "llama_n_batch": 512,
   "env_vars": {
     "SERPER_API_KEY": "sk-xxx",
     "BAIDU_API_KEY": "sk-xxx"

@@ -60,6 +60,9 @@ class Settings(BaseModel):
     target_threshold: float = 0.5
     auto_recall: bool = True
     auto_recall_top_k: int = 5
+    max_iterations: int = 20
+    llama_n_ctx: int = 8192
+    llama_n_batch: int = 512
 
     def get_provider(self, name: str | None = None) -> ProviderConfig | None:
         target = name or self.default_provider

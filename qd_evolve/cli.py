@@ -225,7 +225,7 @@ def chat(
     settings.default_system_prompt = system_prompt
 
     # 7. Memory
-    memory = MemoryStore(settings.memory_db, settings.embedding_model, settings.embedding_dim)
+    memory = MemoryStore(settings.memory_db, settings.embedding_model, settings.embedding_dim, settings.llama_n_ctx, settings.llama_n_batch)
 
     # 8. Inject memory store into recall_memory tool
     from qd_evolve.tools.recall_memory import set_memory_store
