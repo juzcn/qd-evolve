@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import platform
-import shutil
 import sys
 from pathlib import Path
 from typing import Any
@@ -36,12 +35,13 @@ console = Console()
 
 SLASH_COMMANDS = {
     "/quit": "Quit the session",
-    "/reset": "Reset conversation history",
     "/tools": "List available tools",
     "/skills": "List available skills",
     "/models": "Pick a model to switch to",
-    "/memory": "List saved memories",
     "/cli": "List registered CLI tools",
+    "/status": "Show runtime status (loaded tools, skills, CLI)",
+    "/memory": "List saved memories",
+    "/reset": "Reset conversation history",
     "/help": "Show available commands",
 }
 
@@ -148,6 +148,33 @@ def _handle_slash_command(
             settings.default_model = mname
             return f"  Switched to {prov_name}/{mname} (restart to apply)"
         return "  Cancelled."
+    if name == "/status":
+        prov_name = agent._provider_name or settings.default_provider
+        model_name = agent._model or settings.default_model
+        lines = [f"  [bold]Provider:[/bold] {prov_name}/{model_name}"]
+
+        preload_tools = sorted(agent._always_active)
+        loaded_tools = sorted(agent._active_tools - agent._always_active)
+        if preload_tools:
+            lines.append(f"  [bold]Tool (preload):[/bold] {', '.join(preload_tools)}")
+        if loaded_tools:
+            lines.append(f"  [bold]Tool (loaded):[/bold] {', '.join(loaded_tools)}")
+
+        preload_skills = sorted(agent._preload_skills)
+        loaded_skills = sorted(s for s in agent._loaded_skills if s not in agent._preload_skills)
+        if preload_skills:
+            lines.append(f"  [bold]Skill (preload):[/bold] {', '.join(preload_skills)}")
+        if loaded_skills:
+            lines.append(f"  [bold]Skill (loaded):[/bold] {', '.join(loaded_skills)}")
+
+        preload_cli = sorted(agent._preload_cli)
+        loaded_cli = sorted(c for c in agent._loaded_cli if c not in agent._preload_cli)
+        if preload_cli:
+            lines.append(f"  [bold]CLI (preload):[/bold] {', '.join(preload_cli)}")
+        if loaded_cli:
+            lines.append(f"  [bold]CLI (loaded):[/bold] {', '.join(loaded_cli)}")
+
+        return "\n".join(lines)
     if name == "/memory":
         if memory is None:
             return "  Memory store not initialized"
@@ -201,7 +228,7 @@ def chat() -> None:
 
     # 3. Skills
     skill_registry = SkillRegistry()
-    skill_registry.discover_skills(settings.skills_dir, active_skills=settings.active_skills)
+    skill_registry.discover_skills(settings.skills_dir, preload_skills=settings.preload_skills)
 
     # 4. CLI tools
     cli_registry = CLIRegistry()
@@ -220,16 +247,12 @@ def chat() -> None:
     # 7. System prompt via Jinja2 template
     python_cmd = _detect_python_cmd()
     template_mgr = PromptTemplateManager()
-    skill_addition = skill_registry.format_for_prompt()
-    active_skills_content = skill_registry.get_active_skills_content()
-    cli_tools_summary = cli_registry.format_for_prompt()
-    tools_summary = registry.format_tools_summary()
 
-    # Build loaded content for active skills/CLI/tools
+    # Build loaded content for preload skills/CLI/tools
     import json as _json
     loaded_skill_names: set[str] = set()
     loaded_cli_names: set[str] = set()
-    loaded_tool_names: set[str] = set(settings.active_tools)
+    loaded_tool_names: set[str] = set(settings.preload_tools)
 
     active_skills_parts = []
     for s in skill_registry.get_all_skills():
@@ -240,7 +263,7 @@ def chat() -> None:
 
     active_cli_parts = []
     for t in cli_registry.list_tools():
-        if t.name in settings.active_cli_tools:
+        if t.name in settings.preload_cli:
             detail = cli_registry.get_detail(t.name)
             if detail:
                 active_cli_parts.append(_json.dumps(detail, ensure_ascii=False))
@@ -251,14 +274,6 @@ def chat() -> None:
     unloaded_skills = skill_registry.format_for_prompt(loaded=loaded_skill_names)
     unloaded_cli = cli_registry.format_for_prompt(loaded=loaded_cli_names)
     unloaded_tools = registry.format_tools_summary(loaded=loaded_tool_names)
-
-    # Build loaded tool schemas for active tools
-    loaded_tool_parts = []
-    for tool_name in settings.active_tools:
-        detail = registry.get_detail(tool_name)
-        if detail:
-            loaded_tool_parts.append(_json.dumps(detail, ensure_ascii=False))
-    active_tools_content = "\n".join(loaded_tool_parts)
 
     system_prompt = template_mgr.render(
         "default",
@@ -295,7 +310,7 @@ def chat() -> None:
         if s.active and s.content:
             agent._loaded_skills[s.name] = s.content
     for t in cli_registry.list_tools():
-        if t.name in settings.active_cli_tools:
+        if t.name in settings.preload_cli:
             detail = cli_registry.get_detail(t.name)
             if detail:
                 agent._loaded_cli[t.name] = _json.dumps(detail, ensure_ascii=False)

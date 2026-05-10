@@ -64,9 +64,9 @@ class Settings(BaseModel):
     default_model: str = ""
     skills_dir: str = "skills"
     cli_tools_dir: str = "tools/cli"
-    active_skills: list[str] = []
-    active_tools: list[str] = []
-    active_cli_tools: list[str] = []
+    preload_skills: list[str] = []
+    preload_tools: list[str] = []
+    preload_cli: list[str] = []
     memory_db: str = "memory.db"
     embeddings_backends: dict[str, EmbeddingsBackend] = {"default": EmbeddingsBackend()}
     memory_search: MemorySearchConfig = MemorySearchConfig()
@@ -104,15 +104,3 @@ def load_settings(path: Path | str | None = None) -> Settings:
         return Settings.model_validate(data)
     logger.debug("Config file {} not found, using defaults", p)
     return Settings()
-
-
-def save_settings(settings: Settings, path: Path | str | None = None) -> None:
-    p = Path(path) if path else CONFIG_PATH
-    data = settings.model_dump(exclude={"providers"})
-    providers_data = []
-    for prov in settings.providers:
-        pd = prov.model_dump(exclude={"api_key"})
-        providers_data.append(pd)
-    data["providers"] = providers_data
-    save_json(data, p)
-    logger.info("Saved config to {}", p)

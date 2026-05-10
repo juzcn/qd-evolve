@@ -154,64 +154,6 @@ class MemoryStore:
         logger.debug("Saved memory id={}, key={}", memory_id, key)
         return memory_id
 
-    def search(self, query: str, limit: int = 5) -> list[MemoryEntry]:
-        results: dict[int, MemoryEntry] = {}
-
-        # Semantic search
-        try:
-            query_vec = self._encode(query)
-            rows = self._db.execute("""
-                SELECT m.id, m.key, m.session_id, m.user_msg, m.assistant_msg, m.content,
-                       m.accessed_at, m.access_count, v.distance
-                FROM memory_vec v
-                JOIN memories m ON m.id = v.rowid
-                WHERE v.embedding MATCH ? AND k = ?
-                  AND m.session_id != ?
-                ORDER BY v.distance
-                LIMIT ?
-            """, (query_vec, limit, self._session_id, limit)).fetchall()
-
-            for row in rows:
-                entry = MemoryEntry(
-                    id=row[0], key=row[1], session_id=row[2], user_msg=row[3],
-                    assistant_msg=row[4], content=row[5], accessed_at=row[6],
-                    access_count=row[7], distance=row[8],
-                )
-                results[entry.id] = entry
-        except Exception as e:
-            logger.warning("Semantic search failed: {}", e)
-
-        # Keyword search
-        like_pattern = f"%{query}%"
-        rows = self._db.execute("""
-            SELECT id, key, session_id, user_msg, assistant_msg, content, accessed_at, access_count
-            FROM memories
-            WHERE content LIKE ?
-              AND session_id != ?
-            ORDER BY key DESC
-            LIMIT ?
-        """, (like_pattern, self._session_id, limit)).fetchall()
-
-        for row in rows:
-            if row[0] not in results:
-                entry = MemoryEntry(
-                    id=row[0], key=row[1], session_id=row[2], user_msg=row[3],
-                    assistant_msg=row[4], content=row[5], accessed_at=row[6],
-                    access_count=row[7],
-                )
-                results[entry.id] = entry
-
-        # Update access stats
-        now = datetime.now().isoformat(timespec="seconds")
-        for mid in results:
-            self._db.execute(
-                "UPDATE memories SET accessed_at = ?, access_count = access_count + 1 WHERE id = ?",
-                (now, mid),
-            )
-        self._db.commit()
-
-        return sorted(results.values(), key=lambda e: e.distance if e.distance is not None else 999)
-
     def search_by_time(
         self, start: str | None = None, end: str | None = None, limit: int = 20
     ) -> list[MemoryEntry]:
