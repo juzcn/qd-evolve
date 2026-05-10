@@ -56,6 +56,8 @@ class Settings(BaseModel):
     memory_db: str = "memory.db"
     embedding_model: str = "BAAI/bge-m3"
     embedding_dim: int = 1024
+    compress_threshold: float = 0.7
+    target_threshold: float = 0.5
 
     def get_provider(self, name: str | None = None) -> ProviderConfig | None:
         target = name or self.default_provider

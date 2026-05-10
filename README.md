@@ -13,6 +13,7 @@ Multi-provider AI agent with tool use, skills, MCP integration, and CLI interfac
 - **Per-turn token stats** — Input/output token tracking with context window usage percentage
 - **Cumulative token tracking** — Running total of tokens used across the session
 - **Persistent memory** — SQLite + sqlite-vec for cross-session memory with semantic (BGE-M3) + keyword hybrid search
+- **Context compression** — Automatic Q/A pair removal when tokens exceed threshold, with configurable compress/target ratios and session switching
 - **Memory recall tool** — `recall_memory` tool for LLM to search past conversations by query, keywords, and time range
 - **Dual embedder support** — sentence-transformers or llama-cpp-python (auto-detected by `.gguf` extension)
 - **Env vars injection** — Define `env_vars` in config to inject API keys into environment at startup
@@ -56,7 +57,9 @@ Create `qd-evolve.json` in the project root (see `qd-evolve.json.example`):
         }
       ]
     }
-  ]
+  ],
+  "compress_threshold": 0.7,
+  "target_threshold": 0.5
 }
 ```
 
@@ -157,6 +160,8 @@ All config via `qd-evolve.json`. Key fields:
 | `default_system_prompt` | Fallback system prompt |
 | `skills_dir` | Skills directory path (default: `skills`) |
 | `env_vars` | Environment variables to inject at startup |
+| `compress_threshold` | Token ratio to trigger context compression (default: 0.7) |
+| `target_threshold` | Token ratio to compress down to (default: 0.5) |
 | `providers[]` | Provider list with api_key, base_url, api type, models |
 
 Provider `api` field: `openai-completions` | `openai-response` | `anthropic`

@@ -22,6 +22,7 @@
 - **Templates are Jinja2.** User templates in `templates/` override builtin fallbacks in `qd_evolve/_templates/`.
 - **Per-turn and cumulative token stats.** Track input/output tokens and context window usage each turn, plus running session total.
 - **Persistent memory.** SQLite + sqlite-vec for cross-session memory storage. Each user+assistant message pair is auto-saved with BGE-M3 embedding. Supports semantic + keyword hybrid search, time-range filtering, and session exclusion.
+- **Context compression.** When input tokens exceed `compress_threshold` (default 70%) of context window, old Q/A pairs are removed from the message list until tokens drop below `target_threshold` (default 50%). A new memory session is created after compression so recall_memory can distinguish pre/post compression context.
 - **Embedder auto-detection.** `.gguf` files use llama-cpp-python, other paths use sentence-transformers. `embedding_dim` configured in `qd-evolve.json`.
 - **Env vars from config.** `env_vars` in `qd-evolve.json` are injected into `os.environ` at startup, so tools can access API keys without .env files.
 - **Config is read once at startup.** No runtime config changes — edit `qd-evolve.json` and restart.

@@ -86,10 +86,58 @@ class Agent:
                 raise ValueError(f"Unsupported api_type: {self._api_type}")
 
             if self.memory:
+                self._compress_messages()
                 self.memory.save(user_input, result)
             return result
 
     MAX_ITERATIONS = 20
+
+    def _compress_messages(self) -> None:
+        prov = self.providers.get(self._provider_name)
+        context_window = prov.get_context_window(self._model)
+        if context_window <= 0:
+            return
+
+        compress_threshold = self.settings.compress_threshold
+        target_threshold = self.settings.target_threshold
+        current_ratio = self.last_input_tokens / context_window
+
+        if current_ratio <= compress_threshold:
+            return
+
+        target_tokens = int(context_window * target_threshold)
+        total_chars = sum(len(str(m.get("content", ""))) for m in self.messages)
+        if total_chars == 0:
+            return
+
+        chars_per_token = total_chars / self.last_input_tokens
+        removed = 0
+
+        while self.messages and self.last_input_tokens > target_tokens:
+            # Remove user message
+            if self.messages and self.messages[0].get("role") == "user":
+                self.messages.pop(0)
+                removed += 1
+            # Remove assistant message (may include tool_calls)
+            if self.messages and self.messages[0].get("role") == "assistant":
+                self.messages.pop(0)
+                removed += 1
+            # Remove tool result if present
+            while self.messages and self.messages[0].get("role") == "tool":
+                self.messages.pop(0)
+                removed += 1
+
+            # Re-estimate tokens based on remaining chars
+            remaining_chars = sum(len(str(m.get("content", ""))) for m in self.messages)
+            self.last_input_tokens = int(remaining_chars / chars_per_token)
+
+        if self.memory:
+            self.memory.new_session()
+
+        logger.info(
+            "Context compressed: removed {} messages, {} -> {} tokens (target={})",
+            removed, int(current_ratio * context_window), self.last_input_tokens, target_tokens,
+        )
 
     def _run_anthropic(self, client: Any, system_prompt: str, max_tokens: int, _iter: int = 0) -> str:
         response = client.messages.create(

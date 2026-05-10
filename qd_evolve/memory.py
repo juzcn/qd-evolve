@@ -103,6 +103,11 @@ class MemoryStore:
     def session_id(self) -> str:
         return self._session_id
 
+    def new_session(self) -> str:
+        self._session_id = datetime.now().isoformat(timespec="seconds")
+        logger.info("New memory session: {}", self._session_id)
+        return self._session_id
+
     def _encode(self, text: str) -> np.ndarray:
         return self._embedder.encode(text)
 
