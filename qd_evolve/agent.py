@@ -242,6 +242,7 @@ class Agent:
         openai_messages.extend(self.messages)
 
         tool_defs = self.registry.definitions("openai", active_tools=self._active_tools | self._always_active)
+        logger.info("Tool defs for API (count={}): {}", len(tool_defs), json.dumps(tool_defs, ensure_ascii=False, indent=2))
         kwargs: dict[str, Any] = {
             "model": self._model,
             "messages": openai_messages,
