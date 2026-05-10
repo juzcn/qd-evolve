@@ -62,7 +62,7 @@ class Settings(BaseModel):
     providers: list[ProviderConfig] = []
     default_provider: str = ""
     default_model: str = ""
-    skills_dir: str = "skills"
+    skills_dir: str = "tools/skills"
     cli_tools_dir: str = "tools/cli"
     preload_skills: list[str] = []
     preload_tools: list[str] = []

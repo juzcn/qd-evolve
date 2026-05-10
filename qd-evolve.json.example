@@ -50,8 +50,6 @@
   ],
   "default_provider": "baiduqianfancodingplan",
   "default_model": "qianfan-code-latest",
-  "skills_dir": "tools/skills",
-  "memory_db": "memory.db",
   "embeddings_backends": {
     "bge-m3-local": {
       "model_path": "BAAI/bge-m3",
