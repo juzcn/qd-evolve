@@ -39,9 +39,9 @@ SLASH_COMMANDS = {
     "/tools": "List available tools",
     "/skills": "List available skills",
     "/models": "Pick a model to switch to",
-    "/memory": "List saved memories",
     "/cli": "List registered CLI tools",
     "/status": "Show runtime status (loaded tools, skills, CLI)",
+    "/memory": "List saved memories",
     "/reset": "Reset conversation history",
     "/help": "Show available commands",
 }
