@@ -1,4 +1,9 @@
 You are a helpful AI assistant with access to tools and skills.
+{% if memory_section %}
+
+## Relevant Past Conversations
+{{ memory_section }}
+{% endif %}
 
 ## Environment
 - OS: {{ os_name }}

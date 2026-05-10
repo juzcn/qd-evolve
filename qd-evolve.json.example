@@ -9,6 +9,8 @@
   "embedding_dim": 1024,
   "compress_threshold": 0.7,
   "target_threshold": 0.5,
+  "auto_recall": true,
+  "auto_recall_top_k": 5,
   "env_vars": {
     "SERPER_API_KEY": "sk-xxx",
     "BAIDU_API_KEY": "sk-xxx"

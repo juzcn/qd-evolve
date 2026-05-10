@@ -14,6 +14,7 @@ Multi-provider AI agent with tool use, skills, MCP integration, and CLI interfac
 - **Cumulative token tracking** — Running total of tokens used across the session
 - **Persistent memory** — SQLite + sqlite-vec for cross-session memory with semantic (BGE-M3) + keyword hybrid search
 - **Context compression** — Automatic Q/A pair removal when tokens exceed threshold, with configurable compress/target ratios and session switching
+- **Auto recall** — Automatically retrieves relevant past conversations from memory before each LLM call, injected into system prompt with deduplication via RecalledMemoryRegistry
 - **Memory recall tool** — `recall_memory` tool for LLM to search past conversations by query, keywords, and time range
 - **Dual embedder support** — sentence-transformers or llama-cpp-python (auto-detected by `.gguf` extension)
 - **Env vars injection** — Define `env_vars` in config to inject API keys into environment at startup
@@ -162,6 +163,8 @@ All config via `qd-evolve.json`. Key fields:
 | `env_vars` | Environment variables to inject at startup |
 | `compress_threshold` | Token ratio to trigger context compression (default: 0.7) |
 | `target_threshold` | Token ratio to compress down to (default: 0.5) |
+| `auto_recall` | Enable automatic memory recall before each LLM call (default: true) |
+| `auto_recall_top_k` | Number of memory entries to retrieve per auto recall (default: 5) |
 | `providers[]` | Provider list with api_key, base_url, api type, models |
 
 Provider `api` field: `openai-completions` | `openai-response` | `anthropic`

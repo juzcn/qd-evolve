@@ -26,6 +26,32 @@ class MemoryEntry(BaseModel):
     distance: float | None = None
 
 
+class RecalledMemoryRegistry:
+    """Tracks auto-recalled memory entries to deduplicate across turns."""
+
+    def __init__(self) -> None:
+        self._entries: dict[int, MemoryEntry] = {}
+
+    def add(self, entries: list[MemoryEntry]) -> list[MemoryEntry]:
+        """Add entries, returning only those not already present (deduped)."""
+        new = [e for e in entries if e.id not in self._entries]
+        for e in new:
+            self._entries[e.id] = e
+        return new
+
+    def format_section(self) -> str:
+        """Format all recalled entries as a memory section string."""
+        if not self._entries:
+            return ""
+        lines = []
+        for e in self._entries.values():
+            lines.append(f"- [{e.key}] user: {e.user_msg} | assistant: {e.assistant_msg}")
+        return "\n".join(lines)
+
+    def clear(self) -> None:
+        self._entries.clear()
+
+
 class Embedder(Protocol):
     def encode(self, text: str) -> np.ndarray: ...
 
@@ -141,11 +167,11 @@ class MemoryStore:
                        m.accessed_at, m.access_count, v.distance
                 FROM memory_vec v
                 JOIN memories m ON m.id = v.rowid
-                WHERE v.embedding MATCH ?
+                WHERE v.embedding MATCH ? AND k = ?
                   AND m.session_id != ?
                 ORDER BY v.distance
                 LIMIT ?
-            """, (query_vec, self._session_id, limit)).fetchall()
+            """, (query_vec, limit, self._session_id, limit)).fetchall()
 
             for row in rows:
                 entry = MemoryEntry(
@@ -348,7 +374,7 @@ class MemoryStore:
                     clauses.append("m.key < ?")
                     params.append(end)
                 where = " AND ".join(clauses)
-                params.extend([query_vec, limit])
+                params.extend([query_vec, limit, limit])
 
                 rows = self._db.execute(f"""
                     SELECT m.id, m.key, m.session_id, m.user_msg, m.assistant_msg, m.content,
@@ -356,7 +382,7 @@ class MemoryStore:
                     FROM memory_vec v
                     JOIN memories m ON m.id = v.rowid
                     WHERE {where}
-                      AND v.embedding MATCH ?
+                      AND v.embedding MATCH ? AND k = ?
                     ORDER BY v.distance
                     LIMIT ?
                 """, params).fetchall()

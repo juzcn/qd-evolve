@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any, Callable
 from loguru import logger
 
 from qd_evolve.config import Settings
+from qd_evolve.memory import RecalledMemoryRegistry
 from qd_evolve.providers import ProviderRegistry
 from qd_evolve.tools import ToolRegistry
 
@@ -32,6 +33,7 @@ class Agent:
         self.last_output_tokens: int = 0
         self.iteration: int = 0
         self._on_status: Callable[[str], None] | None = None
+        self._recalled = RecalledMemoryRegistry()
 
     def set_status_callback(self, cb: Callable[[str], None]) -> None:
         self._on_status = cb
@@ -57,6 +59,9 @@ class Agent:
         self.messages.append({"role": "user", "content": user_input})
         self.iteration = 0
         logger.info("User input: {}", user_input)
+
+        # Auto recall: inject relevant memory into system prompt
+        system_prompt = self._auto_recall(user_input, system_prompt)
 
         prov = self.providers.get(self._provider_name)
         max_tokens = prov.get_max_tokens(self._model)
@@ -138,6 +143,36 @@ class Agent:
             "Context compressed: removed {} messages, {} -> {} tokens (target={})",
             removed, int(current_ratio * context_window), self.last_input_tokens, target_tokens,
         )
+
+    def _auto_recall(self, user_input: str, system_prompt: str) -> str:
+        if not self.memory or not self.settings.auto_recall:
+            return system_prompt
+
+        entries = self.memory.recall(query=user_input, limit=self.settings.auto_recall_top_k)
+        new_entries = self._recalled.add(entries)
+        if not new_entries:
+            return system_prompt
+
+        logger.info("Auto-recalled {} new memory entries for query: {}", len(new_entries), user_input[:50])
+
+        # Rebuild entire memory section from registry
+        memory_text = self._recalled.format_section()
+        marker = "\n## Relevant Past Conversations\n"
+        next_section = "\n## "
+        idx = system_prompt.find(marker)
+        if idx >= 0:
+            end = system_prompt.find(next_section, idx + len(marker))
+            if end < 0:
+                end = len(system_prompt)
+            system_prompt = system_prompt[:idx] + marker + memory_text + "\n" + system_prompt[end:]
+        else:
+            first = system_prompt.find(next_section)
+            if first >= 0:
+                system_prompt = system_prompt[:first] + marker + memory_text + "\n" + system_prompt[first:]
+            else:
+                system_prompt += marker + memory_text + "\n"
+
+        return system_prompt
 
     def _run_anthropic(self, client: Any, system_prompt: str, max_tokens: int, _iter: int = 0) -> str:
         response = client.messages.create(
@@ -319,5 +354,6 @@ class Agent:
 
     def reset(self) -> None:
         self.messages.clear()
+        self._recalled.clear()
         self.total_input_tokens = 0
         self.total_output_tokens = 0
