@@ -37,6 +37,8 @@ class Agent:
         self._recalled = RecalledMemoryRegistry()
         self._loaded_skills: dict[str, str] = {}
         self._loaded_cli: dict[str, str] = {}
+        self._preload_skills: set[str] = set(settings.preload_skills)
+        self._preload_cli: set[str] = set(settings.preload_cli)
 
     def set_status_callback(self, cb: Callable[[str], None]) -> None:
         self._on_status = cb

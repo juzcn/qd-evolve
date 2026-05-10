@@ -168,23 +168,23 @@ def _handle_slash_command(
         for t in sorted(agent._active_tools - agent._always_active):
             table.add_row("Tool (loaded)", t, "active")
 
-        # Loaded skills
+        # Preloaded skills
+        for s in sorted(agent._preload_skills):
+            table.add_row("Skill (preload)", s, "active")
+
+        # Runtime loaded skills
         for s in sorted(agent._loaded_skills):
-            table.add_row("Skill (loaded)", s, "injected")
+            if s not in agent._preload_skills:
+                table.add_row("Skill (loaded)", s, "injected")
 
-        # Preload skills (from config, not yet loaded into agent)
-        for s in settings.preload_skills:
-            if s not in agent._loaded_skills:
-                table.add_row("Skill (preload)", s, "active")
+        # Preloaded CLI tools
+        for c in sorted(agent._preload_cli):
+            table.add_row("CLI (preload)", c, "active")
 
-        # Loaded CLI tools
+        # Runtime loaded CLI tools
         for c in sorted(agent._loaded_cli):
-            table.add_row("CLI (loaded)", c, "injected")
-
-        # Preload CLI tools (from config, not yet loaded into agent)
-        for c in settings.preload_cli:
-            if c not in agent._loaded_cli:
-                table.add_row("CLI (preload)", c, "active")
+            if c not in agent._preload_cli:
+                table.add_row("CLI (loaded)", c, "injected")
 
         console.print(table)
         return ""
