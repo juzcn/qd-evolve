@@ -29,7 +29,10 @@ registry.register(
 
 
 def _run_shell(command: str, timeout: int = 30) -> str:
+    import locale
     import os
+
+    preferred = locale.getpreferredencoding(False)
     env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
     try:
         result = subprocess.run(
@@ -37,7 +40,7 @@ def _run_shell(command: str, timeout: int = 30) -> str:
             shell=True,
             capture_output=True,
             timeout=timeout,
-            encoding="utf-8",
+            encoding=preferred,
             errors="replace",
             env=env,
         )

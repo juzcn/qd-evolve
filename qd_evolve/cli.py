@@ -17,12 +17,13 @@ from rich.table import Table
 from rich.text import Text
 
 from qd_evolve.config import Settings, load_settings
+from qd_evolve.cli_tools import CLIRegistry
 from qd_evolve.memory import MemoryStore
 from qd_evolve.prompts import PromptTemplateManager
 from qd_evolve.providers import ProviderRegistry
 from qd_evolve.skills import SkillRegistry
 from qd_evolve.tools import get_registry
-from qd_evolve.tools._mcp_client import connect_mcp_servers, discover_mcp_servers
+from qd_evolve.tools._mcp_client import connect_mcp_servers, discover_mcp_servers, reload_mcp_servers
 
 try:
     from importlib.metadata import version as _pkg_version
@@ -36,13 +37,12 @@ console = Console()
 SLASH_COMMANDS = {
     "/quit": "Quit the session",
     "/reset": "Reset conversation history",
-    "/help": "Show available commands",
     "/tools": "List available tools",
-    "/skills": "List loaded skills",
-    "/config": "Show current configuration",
-    "/loglevel": "Set log level (e.g. /loglevel DEBUG)",
+    "/skills": "List available skills",
     "/models": "Pick a model to switch to",
     "/memory": "List saved memories",
+    "/cli": "List registered CLI tools",
+    "/help": "Show available commands",
 }
 
 
@@ -62,13 +62,22 @@ def _detect_python_cmd() -> str:
     return "python"
 
 
-def _read_input() -> str:
-    try:
-        from prompt_toolkit import prompt as pt_prompt
-        from prompt_toolkit.completion import WordCompleter
+def _make_prompt_session() -> "PromptSession":
+    from prompt_toolkit import PromptSession
+    from prompt_toolkit.completion import WordCompleter
 
-        completer = WordCompleter(list(SLASH_COMMANDS.keys()), ignore_case=True, sentence=True)
-        return pt_prompt("You> ", completer=completer).strip()
+    completer = WordCompleter(
+        list(SLASH_COMMANDS.keys()),
+        ignore_case=True,
+        sentence=True,
+        meta_dict=SLASH_COMMANDS,
+    )
+    return PromptSession("You> ", completer=completer)
+
+
+def _read_input(session: "PromptSession") -> str:
+    try:
+        return session.prompt().strip()
     except ImportError:
         return console.input("[bold cyan]You>[/bold cyan] ").strip()
 
@@ -79,13 +88,14 @@ def _handle_slash_command(
     settings: Settings,
     providers: ProviderRegistry,
     skill_registry: SkillRegistry,
+    cli_registry: CLIRegistry,
     memory: MemoryStore | None = None,
 ) -> str | None:
     name = cmd.lower().strip()
     if name == "/quit":
         return None
     if name == "/reset":
-        agent.messages.clear()
+        agent.reset()
         return "Conversation reset."
     if name == "/help":
         table = Table(title="Commands", show_header=False)
@@ -106,48 +116,37 @@ def _handle_slash_command(
             lines.append(f"  [cyan]{td.name}[/cyan] — {desc}")
         return "\n".join(lines)
     if name == "/skills":
+        skill_registry.reload()
         skills = skill_registry.get_all_skills()
         if not skills:
             return "  (no skills loaded)"
         lines = []
         for s in skills:
-            lines.append(f"  [bold]{s.name}[/bold] v{s.version}")
+            lines.append(f"  [bold]{s.name}[/bold]{' v'+s.version if s.version else ''} — {s.summary[:60] if s.summary else ''}")
         return "\n".join(lines)
-    if name == "/config":
-        lines = [
-            f"  Provider: {settings.default_provider}",
-            f"  Model: {settings.default_model}",
-            f"  Log level: {settings.log_level}",
-        ]
-        return "\n".join(lines)
-    if name == "/loglevel":
-        parts = cmd.strip().split(maxsplit=1)
-        if len(parts) < 2:
-            return "  Usage: /loglevel <DEBUG|INFO|WARNING|ERROR>"
-        level = parts[1].upper()
-        logger.remove()
-        from qd_evolve.logger import setup_logging
-        setup_logging(level)
-        return f"  Log level set to {level}"
     if name == "/models":
         table = Table(title="Available Models", show_header=True)
         table.add_column("#", style="dim")
         table.add_column("Provider", style="bold")
-        table.add_column("Model ID", style="bold cyan")
-        table.add_column("Name")
-        all_models: list[tuple[str, str, str]] = []
+        table.add_column("Model", style="bold cyan")
+        all_models: list[tuple[str, str]] = []
         for p in settings.providers:
             for m in p.models:
-                all_models.append((p.name, m.id, m.name or m.id))
-        for i, (prov_name, mid, mname) in enumerate(all_models, 1):
-            table.add_row(str(i), prov_name, mid, mname)
+                all_models.append((p.name, m.name))
+        for i, (prov_name, mname) in enumerate(all_models, 1):
+            table.add_row(str(i), prov_name, mname)
         console.print(table)
-        choice = console.input("[bold]Switch to #:[/bold] ").strip()
+        try:
+            from prompt_toolkit import PromptSession
+            model_session = PromptSession("Switch to #: ")
+            choice = model_session.prompt().strip()
+        except (EOFError, KeyboardInterrupt):
+            return "  Cancelled."
         if choice.isdigit() and 1 <= int(choice) <= len(all_models):
-            prov_name, mid, _ = all_models[int(choice) - 1]
+            prov_name, mname = all_models[int(choice) - 1]
             settings.default_provider = prov_name
-            settings.default_model = mid
-            return f"  Switched to {prov_name}/{mid} (restart to apply)"
+            settings.default_model = mname
+            return f"  Switched to {prov_name}/{mname} (restart to apply)"
         return "  Cancelled."
     if name == "/memory":
         if memory is None:
@@ -165,14 +164,21 @@ def _handle_slash_command(
             table.add_row(str(e.id), e.key, e.session_id, e.user_msg, e.assistant_msg)
         console.print(table)
         return ""
+    if name == "/cli":
+        cli_registry.reload()
+        tools = cli_registry.list_tools()
+        if not tools:
+            return "  (no CLI tools registered)"
+        lines = []
+        for t in tools:
+            desc = t.description or t.command
+            lines.append(f"  [cyan]{t.name}[/cyan] — {desc}")
+        return "\n".join(lines)
     return None
 
 
 @app.command()
-def chat(
-    provider: str = typer.Option("", "--provider", "-p", help="Provider name override"),
-    model: str = typer.Option("", "--model", "-m", help="Model name override"),
-) -> None:
+def chat() -> None:
     from qd_evolve.agent import Agent
     from qd_evolve.logger import setup_logging
 
@@ -195,43 +201,104 @@ def chat(
 
     # 3. Skills
     skill_registry = SkillRegistry()
-    skill_registry.discover_skills(settings.skills_dir)
+    skill_registry.discover_skills(settings.skills_dir, active_skills=settings.active_skills)
 
-    # 4. MCP servers
+    # 4. CLI tools
+    cli_registry = CLIRegistry()
+    cli_registry.discover(settings.cli_tools_dir)
+
+    # 5. MCP servers
     mcp_configs = discover_mcp_servers()
-    connect_mcp_servers(mcp_configs)
+    mcp_bridges = connect_mcp_servers(mcp_configs)
 
-    # 5. Inject skill_registry into skill_loader tool
+    # 6. Inject registries into loader tools
     from qd_evolve.tools.skill_loader import set_skill_registry
     set_skill_registry(skill_registry)
+    from qd_evolve.tools.cli_loader import set_cli_registry
+    set_cli_registry(cli_registry)
 
-    # 6. System prompt via Jinja2 template
+    # 7. System prompt via Jinja2 template
     python_cmd = _detect_python_cmd()
     template_mgr = PromptTemplateManager()
     skill_addition = skill_registry.format_for_prompt()
+    active_skills_content = skill_registry.get_active_skills_content()
+    cli_tools_summary = cli_registry.format_for_prompt()
     tools_summary = registry.format_tools_summary()
+
+    # Build loaded content for active skills/CLI/tools
+    import json as _json
+    loaded_skill_names: set[str] = set()
+    loaded_cli_names: set[str] = set()
+    loaded_tool_names: set[str] = set(settings.active_tools)
+
+    active_skills_parts = []
+    for s in skill_registry.get_all_skills():
+        if s.active and s.content:
+            active_skills_parts.append(f"### {s.name}\n{s.content}")
+            loaded_skill_names.add(s.name)
+    active_skills_content = "\n".join(active_skills_parts)
+
+    active_cli_parts = []
+    for t in cli_registry.list_tools():
+        if t.name in settings.active_cli_tools:
+            detail = cli_registry.get_detail(t.name)
+            if detail:
+                active_cli_parts.append(_json.dumps(detail, ensure_ascii=False))
+                loaded_cli_names.add(t.name)
+    active_cli_content = "\n".join(active_cli_parts)
+
+    # Unloaded summaries exclude already-loaded items
+    unloaded_skills = skill_registry.format_for_prompt(loaded=loaded_skill_names)
+    unloaded_cli = cli_registry.format_for_prompt(loaded=loaded_cli_names)
+    unloaded_tools = registry.format_tools_summary(loaded=loaded_tool_names)
+
+    # Build loaded tool schemas for active tools
+    loaded_tool_parts = []
+    for tool_name in settings.active_tools:
+        detail = registry.get_detail(tool_name)
+        if detail:
+            loaded_tool_parts.append(_json.dumps(detail, ensure_ascii=False))
+    active_tools_content = "\n".join(loaded_tool_parts)
+
     system_prompt = template_mgr.render(
         "default",
-        skills=skill_addition,
-        tools_summary=tools_summary,
+        unloaded_skills=unloaded_skills,
+        unloaded_cli=unloaded_cli,
+        unloaded_tools=unloaded_tools,
+        loaded_skills=active_skills_content,
+        loaded_cli=active_cli_content,
         os_name=platform.system(),
         python_cmd=python_cmd,
         cwd=str(Path.cwd()),
         skills_dir=str(Path(settings.skills_dir).resolve()),
     )
 
-    # 6. Provider
+    # 8. Provider
     providers = ProviderRegistry(settings)
-    settings.default_system_prompt = system_prompt
 
-    # 7. Memory
-    memory = MemoryStore(settings.memory_db, settings.embedding_model, settings.embedding_dim)
+    # 9. Memory
+    backend_name = settings.memory_search.default_embeddings_backend
+    backend = settings.embeddings_backends.get(backend_name)
+    if backend is None:
+        console.print(f"[red]Error:[/red] Embeddings backend '{backend_name}' not found in config")
+        raise SystemExit(1)
+    memory = MemoryStore(settings.memory_db, backend)
 
-    # 8. Inject memory store into recall_memory tool
+    # 10. Inject memory store into recall_memory tool
     from qd_evolve.tools.recall_memory import set_memory_store
     set_memory_store(memory)
 
-    agent = Agent(settings=settings, registry=registry, providers=providers, memory=memory)
+    agent = Agent(settings=settings, registry=registry, providers=providers, memory=memory, default_system_prompt=system_prompt)
+
+    # Initialize agent's loaded_skills/loaded_cli with active content for on-demand append
+    for s in skill_registry.get_all_skills():
+        if s.active and s.content:
+            agent._loaded_skills[s.name] = s.content
+    for t in cli_registry.list_tools():
+        if t.name in settings.active_cli_tools:
+            detail = cli_registry.get_detail(t.name)
+            if detail:
+                agent._loaded_cli[t.name] = _json.dumps(detail, ensure_ascii=False)
 
     model_info = escape(f"[{settings.default_provider}/{settings.default_model}]")
     console.print(Panel(
@@ -239,9 +306,11 @@ def chat(
         style="bold green",
     ))
 
+    input_session = _make_prompt_session()
+
     while True:
         try:
-            user_input = _read_input()
+            user_input = _read_input(input_session)
         except (EOFError, KeyboardInterrupt):
             console.print("\n[dim]Goodbye![/dim]")
             break
@@ -249,7 +318,7 @@ def chat(
         if not user_input:
             continue
         if user_input.startswith("/"):
-            result = _handle_slash_command(user_input, agent, settings, providers, skill_registry, memory)
+            result = _handle_slash_command(user_input, agent, settings, providers, skill_registry, cli_registry, memory)
             if result is None:
                 console.print("[dim]Goodbye![/dim]")
                 break
@@ -264,6 +333,14 @@ def chat(
         with Live(spinner, console=console, transient=True):
             try:
                 response = agent.run(user_input)
+
+                # Reload registries to pick up any new tools/skills/cli added during this turn
+                skill_registry.reload()
+                cli_registry.reload()
+                mcp_bridges = reload_mcp_servers(discover_mcp_servers(), mcp_bridges)
+            except KeyboardInterrupt:
+                console.print("\n[dim]Interrupted.[/dim]")
+                continue
             except Exception as e:
                 console.print(f"[red]Error:[/red] {e}")
                 continue

@@ -22,7 +22,7 @@ def setup_logging(level: str = "INFO") -> None:
     )
     logger.add(
         str(log_file),
-        level="DEBUG",
+        level=level,
         rotation="10 MB",
         retention="7 days",
         encoding="utf-8",

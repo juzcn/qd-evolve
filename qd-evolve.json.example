@@ -1,12 +1,5 @@
 {
-  "default_provider": "baiduqianfancodingplan",
-  "default_model": "qianfan-code-latest",
   "log_level": "INFO",
-  "default_system_prompt": "You are a helpful AI assistant with access to tools.",
-  "skills_dir": "tools/skills",
-  "memory_db": "memory.db",
-  "embedding_model": "BAAI/bge-m3",
-  "embedding_dim": 1024,
   "env_vars": {
     "SERPER_API_KEY": "sk-xxx",
     "BAIDU_API_KEY": "sk-xxx"
@@ -19,7 +12,6 @@
       "api": "openai-completions",
       "models": [
         {
-          "id": "qianfan-code-latest",
           "name": "qianfan-code-latest",
           "reasoning": false,
           "input": ["text"],
@@ -41,7 +33,6 @@
       "api": "openai-completions",
       "models": [
         {
-          "id": "astron-code-latest",
           "name": "astron-code-latest",
           "reasoning": false,
           "input": ["text"],
@@ -56,5 +47,35 @@
         }
       ]
     }
-  ]
+  ],
+  "default_provider": "baiduqianfancodingplan",
+  "default_model": "qianfan-code-latest",
+  "skills_dir": "tools/skills",
+  "cli_tools_dir": "tools/cli",
+  "active_skills": ["cli-register"],
+  "active_tools": ["load_tool_detail", "load_skill_detail", "load_cli_detail", "recall_memory"],
+  "active_cli_tools": [],
+  "memory_db": "memory.db",
+  "embeddings_backends": {
+    "default": {
+      "model_path": "BAAI/bge-m3",
+      "dim": 1024,
+      "backend": "sentence-transformers"
+    },
+    "gguf": {
+      "model_path": "bge-m3-q4_k_m.gguf",
+      "dim": 1024,
+      "backend": "llama-cpp-python",
+      "llama_n_ctx": 8192,
+      "llama_n_batch": 512
+    }
+  },
+  "memory_search": {
+    "default_embeddings_backend": "default",
+    "compress_threshold": 0.7,
+    "target_threshold": 0.5,
+    "auto_recall": true,
+    "auto_recall_top_k": 5
+  },
+  "max_iterations": 20
 }

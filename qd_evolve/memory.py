@@ -26,6 +26,32 @@ class MemoryEntry(BaseModel):
     distance: float | None = None
 
 
+class RecalledMemoryRegistry:
+    """Tracks auto-recalled memory entries to deduplicate across turns."""
+
+    def __init__(self) -> None:
+        self._entries: dict[int, MemoryEntry] = {}
+
+    def add(self, entries: list[MemoryEntry]) -> list[MemoryEntry]:
+        """Add entries, returning only those not already present (deduped)."""
+        new = [e for e in entries if e.id not in self._entries]
+        for e in new:
+            self._entries[e.id] = e
+        return new
+
+    def format_section(self) -> str:
+        """Format all recalled entries as a memory section string."""
+        if not self._entries:
+            return ""
+        lines = []
+        for e in self._entries.values():
+            lines.append(f"- [{e.key}] user: {e.user_msg} | assistant: {e.assistant_msg}")
+        return "\n".join(lines)
+
+    def clear(self) -> None:
+        self._entries.clear()
+
+
 class Embedder(Protocol):
     def encode(self, text: str) -> np.ndarray: ...
 
@@ -40,32 +66,30 @@ class SentenceTransformerEmbedder:
 
 
 class LlamaCppEmbedder:
-    def __init__(self, model_path: str) -> None:
+    def __init__(self, model_path: str, n_ctx: int = 8192, n_batch: int = 512) -> None:
         from llama_cpp import Llama
-        self._llm = Llama(model_path=model_path, embedding=True, verbose=False, n_ctx=8192, n_batch=512, n_ubatch=512)
+        self._llm = Llama(model_path=model_path, embedding=True, verbose=False, n_ctx=n_ctx, n_batch=n_batch, n_ubatch=n_batch)
 
     def encode(self, text: str) -> np.ndarray:
         result = self._llm.create_embedding(text)
         return np.array(result["data"][0]["embedding"], dtype=np.float32)
 
 
-def _create_embedder(model_path: str) -> Embedder:
-    p = Path(model_path)
-    if p.suffix.lower() == ".gguf":
-        logger.info("Using llama-cpp embedder: {}", model_path)
-        return LlamaCppEmbedder(model_path)
-    logger.info("Using sentence-transformers embedder: {}", model_path)
-    return SentenceTransformerEmbedder(model_path)
+def _create_embedder(backend: EmbeddingsBackend) -> Embedder:
+    if backend.backend == "llama-cpp-python":
+        logger.info("Using llama-cpp embedder: {}", backend.model_path)
+        return LlamaCppEmbedder(backend.model_path, n_ctx=backend.llama_n_ctx, n_batch=backend.llama_n_batch)
+    logger.info("Using sentence-transformers embedder: {}", backend.model_path)
+    return SentenceTransformerEmbedder(backend.model_path)
 
 
 class MemoryStore:
-    def __init__(self, db_path: str | Path, embedding_model_path: str, embedding_dim: int = 1024) -> None:
+    def __init__(self, db_path: str | Path, backend: EmbeddingsBackend) -> None:
         self._db_path = Path(db_path)
-        self._embedding_model_path = embedding_model_path
-        self._embedding_dim = embedding_dim
+        self._embedding_dim = backend.dim
         self._session_id = datetime.now().isoformat(timespec="seconds")
-        self._embedder: Embedder | None = None
         self._db = sqlite3.connect(str(self._db_path))
+        self._embedder = _create_embedder(backend)
         self._init_db()
         logger.info("MemoryStore initialized: db={}, session_id={}, dim={}", self._db_path, self._session_id, self._embedding_dim)
 
@@ -103,9 +127,12 @@ class MemoryStore:
     def session_id(self) -> str:
         return self._session_id
 
+    def new_session(self) -> str:
+        self._session_id = datetime.now().isoformat(timespec="seconds")
+        logger.info("New memory session: {}", self._session_id)
+        return self._session_id
+
     def _encode(self, text: str) -> np.ndarray:
-        if self._embedder is None:
-            self._embedder = _create_embedder(self._embedding_model_path)
         return self._embedder.encode(text)
 
     def save(self, user_msg: str, assistant_msg: str) -> int:
@@ -138,11 +165,11 @@ class MemoryStore:
                        m.accessed_at, m.access_count, v.distance
                 FROM memory_vec v
                 JOIN memories m ON m.id = v.rowid
-                WHERE v.embedding MATCH ?
+                WHERE v.embedding MATCH ? AND k = ?
                   AND m.session_id != ?
                 ORDER BY v.distance
                 LIMIT ?
-            """, (query_vec, self._session_id, limit)).fetchall()
+            """, (query_vec, limit, self._session_id, limit)).fetchall()
 
             for row in rows:
                 entry = MemoryEntry(
@@ -345,7 +372,7 @@ class MemoryStore:
                     clauses.append("m.key < ?")
                     params.append(end)
                 where = " AND ".join(clauses)
-                params.extend([query_vec, limit])
+                params.extend([query_vec, limit, limit])
 
                 rows = self._db.execute(f"""
                     SELECT m.id, m.key, m.session_id, m.user_msg, m.assistant_msg, m.content,
@@ -353,7 +380,7 @@ class MemoryStore:
                     FROM memory_vec v
                     JOIN memories m ON m.id = v.rowid
                     WHERE {where}
-                      AND v.embedding MATCH ?
+                      AND v.embedding MATCH ? AND k = ?
                     ORDER BY v.distance
                     LIMIT ?
                 """, params).fetchall()
@@ -441,11 +468,10 @@ class MemoryStore:
         return sorted(results.values(), key=lambda e: e.distance if e.distance is not None else 999)
 
     def close(self) -> None:
-        if self._embedder is not None and isinstance(self._embedder, LlamaCppEmbedder):
+        if isinstance(self._embedder, LlamaCppEmbedder):
             try:
                 self._embedder._llm.close()
             except Exception:
                 pass
-            self._embedder = None
         self._db.close()
         logger.info("MemoryStore closed")

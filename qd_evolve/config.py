@@ -17,17 +17,12 @@ class ModelCost(BaseModel):
 
 
 class ModelConfig(BaseModel):
-    id: str = ""
     name: str = ""
     reasoning: bool = False
     input: list[str] = ["text"]
     cost: ModelCost = ModelCost()
     context_window: int = 0
     max_tokens: int = 4096
-
-    @property
-    def display_name(self) -> str:
-        return self.name or self.id
 
 
 class ProviderConfig(BaseModel):
@@ -45,30 +40,43 @@ class MCPServerConfig(BaseModel):
     env: dict[str, str] = {}
 
 
+class EmbeddingsBackend(BaseModel):
+    model_path: str = "BAAI/bge-m3"
+    dim: int = 1024
+    backend: str = "sentence-transformers"  # sentence-transformers | llama-cpp-python
+    llama_n_ctx: int = 8192
+    llama_n_batch: int = 512
+
+
+class MemorySearchConfig(BaseModel):
+    default_embeddings_backend: str = "default"
+    compress_threshold: float = 0.7
+    target_threshold: float = 0.5
+    auto_recall: bool = True
+    auto_recall_top_k: int = 5
+
+
 class Settings(BaseModel):
     log_level: str = "INFO"
-    default_system_prompt: str = "You are a helpful AI assistant with access to tools."
+    env_vars: dict[str, str] = {}
+    providers: list[ProviderConfig] = []
     default_provider: str = ""
     default_model: str = ""
     skills_dir: str = "skills"
-    env_vars: dict[str, str] = {}
-    providers: list[ProviderConfig] = []
+    cli_tools_dir: str = "tools/cli"
+    active_skills: list[str] = []
+    active_tools: list[str] = []
+    active_cli_tools: list[str] = []
     memory_db: str = "memory.db"
-    embedding_model: str = "BAAI/bge-m3"
-    embedding_dim: int = 1024
+    embeddings_backends: dict[str, EmbeddingsBackend] = {"default": EmbeddingsBackend()}
+    memory_search: MemorySearchConfig = MemorySearchConfig()
+    max_iterations: int = 20
 
     def get_provider(self, name: str | None = None) -> ProviderConfig | None:
         target = name or self.default_provider
         for p in self.providers:
             if p.name == target:
                 return p
-        return None
-
-    def get_model_config(self, model_name: str) -> ModelConfig | None:
-        for p in self.providers:
-            for m in p.models:
-                if m.name == model_name or m.id == model_name:
-                    return m
         return None
 
     @property

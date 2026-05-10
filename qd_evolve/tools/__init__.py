@@ -68,6 +68,12 @@ class ToolRegistry:
     def list_tools(self) -> list[ToolDef]:
         return list(self._tools.values())
 
+    def unregister(self, name: str) -> None:
+        """Remove a tool from the registry."""
+        if name in self._tools:
+            del self._tools[name]
+            logger.debug(f"Unregistered tool: {name}")
+
     def definitions(self, api_format: str = "openai", active_tools: set[str] | None = None) -> list[dict[str, Any]]:
         """Build tool definitions for API calls.
 
@@ -107,11 +113,14 @@ class ToolRegistry:
                 result.append({"type": "function", "function": func})
         return result
 
-    def format_tools_summary(self) -> str:
-        """Format all tools as a summary list for the system prompt."""
+    def format_tools_summary(self, loaded: set[str] | None = None) -> str:
+        """Format unloaded tools as a summary list for the system prompt."""
+        loaded = loaded or set()
         lines = []
         for td in self._tools.values():
             if not td.enabled:
+                continue
+            if td.name in loaded:
                 continue
             lines.append(f"- {td.name}: {td.description}")
         return "\n".join(lines)
