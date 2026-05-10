@@ -36,13 +36,11 @@ console = Console()
 SLASH_COMMANDS = {
     "/quit": "Quit the session",
     "/reset": "Reset conversation history",
-    "/help": "Show available commands",
     "/tools": "List available tools",
     "/skills": "List loaded skills",
-    "/config": "Show current configuration",
-    "/loglevel": "Set log level (e.g. /loglevel DEBUG)",
     "/models": "Pick a model to switch to",
     "/memory": "List saved memories",
+    "/help": "Show available commands",
 }
 
 
@@ -62,13 +60,22 @@ def _detect_python_cmd() -> str:
     return "python"
 
 
-def _read_input() -> str:
-    try:
-        from prompt_toolkit import prompt as pt_prompt
-        from prompt_toolkit.completion import WordCompleter
+def _make_prompt_session() -> "PromptSession":
+    from prompt_toolkit import PromptSession
+    from prompt_toolkit.completion import WordCompleter
 
-        completer = WordCompleter(list(SLASH_COMMANDS.keys()), ignore_case=True, sentence=True)
-        return pt_prompt("You> ", completer=completer).strip()
+    completer = WordCompleter(
+        list(SLASH_COMMANDS.keys()),
+        ignore_case=True,
+        sentence=True,
+        meta_dict=SLASH_COMMANDS,
+    )
+    return PromptSession("You> ", completer=completer)
+
+
+def _read_input(session: "PromptSession") -> str:
+    try:
+        return session.prompt().strip()
     except ImportError:
         return console.input("[bold cyan]You>[/bold cyan] ").strip()
 
@@ -85,7 +92,7 @@ def _handle_slash_command(
     if name == "/quit":
         return None
     if name == "/reset":
-        agent.messages.clear()
+        agent.reset()
         return "Conversation reset."
     if name == "/help":
         table = Table(title="Commands", show_header=False)
@@ -113,22 +120,6 @@ def _handle_slash_command(
         for s in skills:
             lines.append(f"  [bold]{s.name}[/bold] v{s.version}")
         return "\n".join(lines)
-    if name == "/config":
-        lines = [
-            f"  Provider: {settings.default_provider}",
-            f"  Model: {settings.default_model}",
-            f"  Log level: {settings.log_level}",
-        ]
-        return "\n".join(lines)
-    if name == "/loglevel":
-        parts = cmd.strip().split(maxsplit=1)
-        if len(parts) < 2:
-            return "  Usage: /loglevel <DEBUG|INFO|WARNING|ERROR>"
-        level = parts[1].upper()
-        logger.remove()
-        from qd_evolve.logger import setup_logging
-        setup_logging(level)
-        return f"  Log level set to {level}"
     if name == "/models":
         table = Table(title="Available Models", show_header=True)
         table.add_column("#", style="dim")
@@ -142,7 +133,12 @@ def _handle_slash_command(
         for i, (prov_name, mid, mname) in enumerate(all_models, 1):
             table.add_row(str(i), prov_name, mid, mname)
         console.print(table)
-        choice = console.input("[bold]Switch to #:[/bold] ").strip()
+        try:
+            from prompt_toolkit import PromptSession
+            model_session = PromptSession("Switch to #: ")
+            choice = model_session.prompt().strip()
+        except (EOFError, KeyboardInterrupt):
+            return "  Cancelled."
         if choice.isdigit() and 1 <= int(choice) <= len(all_models):
             prov_name, mid, _ = all_models[int(choice) - 1]
             settings.default_provider = prov_name
@@ -243,9 +239,11 @@ def chat(
         style="bold green",
     ))
 
+    input_session = _make_prompt_session()
+
     while True:
         try:
-            user_input = _read_input()
+            user_input = _read_input(input_session)
         except (EOFError, KeyboardInterrupt):
             console.print("\n[dim]Goodbye![/dim]")
             break
@@ -268,6 +266,9 @@ def chat(
         with Live(spinner, console=console, transient=True):
             try:
                 response = agent.run(user_input)
+            except KeyboardInterrupt:
+                console.print("\n[dim]Interrupted.[/dim]")
+                continue
             except Exception as e:
                 console.print(f"[red]Error:[/red] {e}")
                 continue

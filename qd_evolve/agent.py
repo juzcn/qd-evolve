@@ -356,3 +356,5 @@ class Agent:
         self._recalled.clear()
         self.total_input_tokens = 0
         self.total_output_tokens = 0
+        if self.memory:
+            self.memory.new_session()
