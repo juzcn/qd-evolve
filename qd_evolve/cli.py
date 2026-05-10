@@ -37,7 +37,7 @@ SLASH_COMMANDS = {
     "/quit": "Quit the session",
     "/reset": "Reset conversation history",
     "/tools": "List available tools",
-    "/skills": "List loaded skills",
+    "/skills": "List available skills",
     "/models": "Pick a model to switch to",
     "/memory": "List saved memories",
     "/help": "Show available commands",

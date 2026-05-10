@@ -91,7 +91,7 @@ qd-evolve -m model-name      # override model
 | `/quit` | Quit the session |
 | `/reset` | Reset conversation history |
 | `/tools` | List available tools |
-| `/skills` | List loaded skills |
+| `/skills` | List available skills |
 | `/config` | Show current configuration |
 | `/models` | Switch model interactively |
 | `/memory` | List saved memories |
