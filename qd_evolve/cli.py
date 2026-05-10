@@ -150,44 +150,32 @@ def _handle_slash_command(
             return f"  Switched to {prov_name}/{mname} (restart to apply)"
         return "  Cancelled."
     if name == "/status":
-        table = Table(title="Runtime Status", show_header=True)
-        table.add_column("Category", style="bold")
-        table.add_column("Item", style="cyan")
-        table.add_column("State", style="dim")
-
-        # Provider / Model
         prov_name = agent._provider_name or settings.default_provider
         model_name = agent._model or settings.default_model
-        table.add_row("Provider", f"{prov_name}/{model_name}", "current")
+        lines = [f"  [bold]Provider:[/bold] {prov_name}/{model_name}"]
 
-        # Preloaded tools
-        for t in sorted(agent._always_active):
-            table.add_row("Tool (preload)", t, "active")
+        preload_tools = sorted(agent._always_active)
+        loaded_tools = sorted(agent._active_tools - agent._always_active)
+        if preload_tools:
+            lines.append(f"  [bold]Tool (preload):[/bold] {', '.join(preload_tools)}")
+        if loaded_tools:
+            lines.append(f"  [bold]Tool (loaded):[/bold] {', '.join(loaded_tools)}")
 
-        # Runtime activated tools
-        for t in sorted(agent._active_tools - agent._always_active):
-            table.add_row("Tool (loaded)", t, "active")
+        preload_skills = sorted(agent._preload_skills)
+        loaded_skills = sorted(s for s in agent._loaded_skills if s not in agent._preload_skills)
+        if preload_skills:
+            lines.append(f"  [bold]Skill (preload):[/bold] {', '.join(preload_skills)}")
+        if loaded_skills:
+            lines.append(f"  [bold]Skill (loaded):[/bold] {', '.join(loaded_skills)}")
 
-        # Preloaded skills
-        for s in sorted(agent._preload_skills):
-            table.add_row("Skill (preload)", s, "active")
+        preload_cli = sorted(agent._preload_cli)
+        loaded_cli = sorted(c for c in agent._loaded_cli if c not in agent._preload_cli)
+        if preload_cli:
+            lines.append(f"  [bold]CLI (preload):[/bold] {', '.join(preload_cli)}")
+        if loaded_cli:
+            lines.append(f"  [bold]CLI (loaded):[/bold] {', '.join(loaded_cli)}")
 
-        # Runtime loaded skills
-        for s in sorted(agent._loaded_skills):
-            if s not in agent._preload_skills:
-                table.add_row("Skill (loaded)", s, "injected")
-
-        # Preloaded CLI tools
-        for c in sorted(agent._preload_cli):
-            table.add_row("CLI (preload)", c, "active")
-
-        # Runtime loaded CLI tools
-        for c in sorted(agent._loaded_cli):
-            if c not in agent._preload_cli:
-                table.add_row("CLI (loaded)", c, "injected")
-
-        console.print(table)
-        return ""
+        return "\n".join(lines)
     if name == "/memory":
         if memory is None:
             return "  Memory store not initialized"
