@@ -124,14 +124,13 @@ def _handle_slash_command(
         table = Table(title="Available Models", show_header=True)
         table.add_column("#", style="dim")
         table.add_column("Provider", style="bold")
-        table.add_column("Model ID", style="bold cyan")
-        table.add_column("Name")
-        all_models: list[tuple[str, str, str]] = []
+        table.add_column("Model", style="bold cyan")
+        all_models: list[tuple[str, str]] = []
         for p in settings.providers:
             for m in p.models:
-                all_models.append((p.name, m.id, m.name or m.id))
-        for i, (prov_name, mid, mname) in enumerate(all_models, 1):
-            table.add_row(str(i), prov_name, mid, mname)
+                all_models.append((p.name, m.name))
+        for i, (prov_name, mname) in enumerate(all_models, 1):
+            table.add_row(str(i), prov_name, mname)
         console.print(table)
         try:
             from prompt_toolkit import PromptSession
@@ -140,10 +139,10 @@ def _handle_slash_command(
         except (EOFError, KeyboardInterrupt):
             return "  Cancelled."
         if choice.isdigit() and 1 <= int(choice) <= len(all_models):
-            prov_name, mid, _ = all_models[int(choice) - 1]
+            prov_name, mname = all_models[int(choice) - 1]
             settings.default_provider = prov_name
-            settings.default_model = mid
-            return f"  Switched to {prov_name}/{mid} (restart to apply)"
+            settings.default_model = mname
+            return f"  Switched to {prov_name}/{mname} (restart to apply)"
         return "  Cancelled."
     if name == "/memory":
         if memory is None:

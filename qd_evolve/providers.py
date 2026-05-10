@@ -49,7 +49,7 @@ class Provider:
             return OpenAI(**kwargs)
 
     def get_model_names(self) -> list[str]:
-        return [m.display_name for m in self.config.models]
+        return [m.name for m in self.config.models]
 
     def get_max_tokens(self, model: str) -> int:
         m = self._find_model(model)
@@ -70,7 +70,7 @@ class Provider:
 
     def _find_model(self, model: str) -> Any:
         for m in self.config.models:
-            if m.name == model or m.id == model:
+            if m.name == model:
                 return m
         return None
 

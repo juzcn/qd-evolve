@@ -12,7 +12,6 @@
       "api": "openai-completions",
       "models": [
         {
-          "id": "qianfan-code-latest",
           "name": "qianfan-code-latest",
           "reasoning": false,
           "input": ["text"],
@@ -34,7 +33,6 @@
       "api": "openai-completions",
       "models": [
         {
-          "id": "astron-code-latest",
           "name": "astron-code-latest",
           "reasoning": false,
           "input": ["text"],

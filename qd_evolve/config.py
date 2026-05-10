@@ -17,17 +17,12 @@ class ModelCost(BaseModel):
 
 
 class ModelConfig(BaseModel):
-    id: str = ""
     name: str = ""
     reasoning: bool = False
     input: list[str] = ["text"]
     cost: ModelCost = ModelCost()
     context_window: int = 0
     max_tokens: int = 4096
-
-    @property
-    def display_name(self) -> str:
-        return self.name or self.id
 
 
 class ProviderConfig(BaseModel):
@@ -78,13 +73,6 @@ class Settings(BaseModel):
         for p in self.providers:
             if p.name == target:
                 return p
-        return None
-
-    def get_model_config(self, model_name: str) -> ModelConfig | None:
-        for p in self.providers:
-            for m in p.models:
-                if m.name == model_name or m.id == model_name:
-                    return m
         return None
 
     @property
