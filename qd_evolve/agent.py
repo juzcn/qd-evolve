@@ -15,9 +15,10 @@ if TYPE_CHECKING:
 
 
 class Agent:
-    def __init__(self, settings: Settings, registry: ToolRegistry, providers: ProviderRegistry, memory: MemoryStore | None = None) -> None:
+    def __init__(self, settings: Settings, registry: ToolRegistry, providers: ProviderRegistry, memory: MemoryStore | None = None, default_system_prompt: str = "") -> None:
         self.settings = settings
         self.registry = registry
+        self.default_system_prompt = default_system_prompt
         self._active_tools: set[str] = set()
         # load_tool_detail and load_skill_detail are always active (need full schema)
         self._always_active: set[str] = {"load_tool_detail", "load_skill_detail", "recall_memory"}
@@ -55,7 +56,7 @@ class Agent:
     ) -> str:
         self._provider_name = provider or self.settings.default_provider
         self._model = model or self.settings.default_model
-        system_prompt = system or self.settings.default_system_prompt
+        system_prompt = system or self.default_system_prompt
         self.messages.append({"role": "user", "content": user_input})
         self.iteration = 0
         logger.info("User input: {}", user_input)

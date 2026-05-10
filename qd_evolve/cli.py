@@ -222,7 +222,6 @@ def chat(
 
     # 6. Provider
     providers = ProviderRegistry(settings)
-    settings.default_system_prompt = system_prompt
 
     # 7. Memory
     backend_name = settings.memory_search.default_embeddings_backend
@@ -236,7 +235,7 @@ def chat(
     from qd_evolve.tools.recall_memory import set_memory_store
     set_memory_store(memory)
 
-    agent = Agent(settings=settings, registry=registry, providers=providers, memory=memory)
+    agent = Agent(settings=settings, registry=registry, providers=providers, memory=memory, default_system_prompt=system_prompt)
 
     model_info = escape(f"[{settings.default_provider}/{settings.default_model}]")
     console.print(Panel(

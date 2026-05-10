@@ -1,30 +1,5 @@
 {
-  "default_provider": "baiduqianfancodingplan",
-  "default_model": "qianfan-code-latest",
   "log_level": "INFO",
-  "default_system_prompt": "You are a helpful AI assistant with access to tools.",
-  "skills_dir": "tools/skills",
-  "memory_db": "memory.db",
-  "max_iterations": 20,
-  "memory_search": {
-    "default_embeddings_backend": "default",
-    "compress_threshold": 0.7,
-    "target_threshold": 0.5,
-    "auto_recall": true,
-    "auto_recall_top_k": 5
-  },
-  "embeddings_backends": {
-    "default": {
-      "model_path": "BAAI/bge-m3",
-      "dim": 1024
-    },
-    "gguf": {
-      "model_path": "bge-m3-q4_k_m.gguf",
-      "dim": 1024,
-      "llama_n_ctx": 8192,
-      "llama_n_batch": 512
-    }
-  },
   "env_vars": {
     "SERPER_API_KEY": "sk-xxx",
     "BAIDU_API_KEY": "sk-xxx"
@@ -74,5 +49,31 @@
         }
       ]
     }
-  ]
+  ],
+  "default_provider": "baiduqianfancodingplan",
+  "default_model": "qianfan-code-latest",
+  "skills_dir": "tools/skills",
+  "memory_db": "memory.db",
+  "embeddings_backends": {
+    "default": {
+      "model_path": "BAAI/bge-m3",
+      "dim": 1024,
+      "backend": "sentence-transformers"
+    },
+    "gguf": {
+      "model_path": "bge-m3-q4_k_m.gguf",
+      "dim": 1024,
+      "backend": "llama-cpp-python",
+      "llama_n_ctx": 8192,
+      "llama_n_batch": 512
+    }
+  },
+  "memory_search": {
+    "default_embeddings_backend": "default",
+    "compress_threshold": 0.7,
+    "target_threshold": 0.5,
+    "auto_recall": true,
+    "auto_recall_top_k": 5
+  },
+  "max_iterations": 20
 }

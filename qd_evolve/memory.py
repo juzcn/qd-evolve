@@ -76,8 +76,7 @@ class LlamaCppEmbedder:
 
 
 def _create_embedder(backend: EmbeddingsBackend) -> Embedder:
-    p = Path(backend.model_path)
-    if p.suffix.lower() == ".gguf":
+    if backend.backend == "llama-cpp-python":
         logger.info("Using llama-cpp embedder: {}", backend.model_path)
         return LlamaCppEmbedder(backend.model_path, n_ctx=backend.llama_n_ctx, n_batch=backend.llama_n_batch)
     logger.info("Using sentence-transformers embedder: {}", backend.model_path)

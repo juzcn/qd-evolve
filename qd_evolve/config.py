@@ -48,6 +48,7 @@ class MCPServerConfig(BaseModel):
 class EmbeddingsBackend(BaseModel):
     model_path: str = "BAAI/bge-m3"
     dim: int = 1024
+    backend: str = "sentence-transformers"  # sentence-transformers | llama-cpp-python
     llama_n_ctx: int = 8192
     llama_n_batch: int = 512
 
@@ -62,16 +63,15 @@ class MemorySearchConfig(BaseModel):
 
 class Settings(BaseModel):
     log_level: str = "INFO"
-    default_system_prompt: str = "You are a helpful AI assistant with access to tools."
+    env_vars: dict[str, str] = {}
+    providers: list[ProviderConfig] = []
     default_provider: str = ""
     default_model: str = ""
     skills_dir: str = "skills"
-    env_vars: dict[str, str] = {}
-    providers: list[ProviderConfig] = []
     memory_db: str = "memory.db"
-    max_iterations: int = 20
-    memory_search: MemorySearchConfig = MemorySearchConfig()
     embeddings_backends: dict[str, EmbeddingsBackend] = {"default": EmbeddingsBackend()}
+    memory_search: MemorySearchConfig = MemorySearchConfig()
+    max_iterations: int = 20
 
     def get_provider(self, name: str | None = None) -> ProviderConfig | None:
         target = name or self.default_provider
