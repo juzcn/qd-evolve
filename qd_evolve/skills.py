@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
 
 from loguru import logger
 from pydantic import BaseModel
@@ -115,6 +114,3 @@ class SkillRegistry:
             if s.active and s.content:
                 parts.append(f"### {s.name}\n{s.content}")
         return "\n".join(parts)
-
-    def load_skills(self, skills_dir: str | Path) -> None:
-        self.discover_skills(skills_dir)

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import platform
-import shutil
 import sys
 from pathlib import Path
 from typing import Any
@@ -248,12 +247,8 @@ def chat() -> None:
     # 7. System prompt via Jinja2 template
     python_cmd = _detect_python_cmd()
     template_mgr = PromptTemplateManager()
-    skill_addition = skill_registry.format_for_prompt()
-    active_skills_content = skill_registry.get_active_skills_content()
-    cli_tools_summary = cli_registry.format_for_prompt()
-    tools_summary = registry.format_tools_summary()
 
-    # Build loaded content for active skills/CLI/tools
+    # Build loaded content for preload skills/CLI/tools
     import json as _json
     loaded_skill_names: set[str] = set()
     loaded_cli_names: set[str] = set()
@@ -279,14 +274,6 @@ def chat() -> None:
     unloaded_skills = skill_registry.format_for_prompt(loaded=loaded_skill_names)
     unloaded_cli = cli_registry.format_for_prompt(loaded=loaded_cli_names)
     unloaded_tools = registry.format_tools_summary(loaded=loaded_tool_names)
-
-    # Build loaded tool schemas for active tools
-    loaded_tool_parts = []
-    for tool_name in settings.preload_tools:
-        detail = registry.get_detail(tool_name)
-        if detail:
-            loaded_tool_parts.append(_json.dumps(detail, ensure_ascii=False))
-    active_tools_content = "\n".join(loaded_tool_parts)
 
     system_prompt = template_mgr.render(
         "default",

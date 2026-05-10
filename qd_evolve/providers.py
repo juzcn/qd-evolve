@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from loguru import logger
-
 from qd_evolve.config import ProviderConfig, Settings
 
 
@@ -48,9 +46,6 @@ class Provider:
                 kwargs["base_url"] = self.config.base_url
             return OpenAI(**kwargs)
 
-    def get_model_names(self) -> list[str]:
-        return [m.name for m in self.config.models]
-
     def get_max_tokens(self, model: str) -> int:
         m = self._find_model(model)
         return m.max_tokens if m else 4096
@@ -61,12 +56,6 @@ class Provider:
 
     def get_api_type(self, model: str) -> str:
         return self.api_type
-
-    def get_model_cost(self, model: str) -> dict[str, float]:
-        m = self._find_model(model)
-        if m:
-            return m.cost.model_dump()
-        return {}
 
     def _find_model(self, model: str) -> Any:
         for m in self.config.models:
@@ -87,9 +76,3 @@ class ProviderRegistry:
         if target not in self._providers:
             raise KeyError(f"Provider not found: {target}")
         return self._providers[target]
-
-    def list_providers(self) -> list[str]:
-        return list(self._providers.keys())
-
-    def list_all_models(self) -> dict[str, list[str]]:
-        return {name: p.get_model_names() for name, p in self._providers.items()}
