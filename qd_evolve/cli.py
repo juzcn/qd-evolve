@@ -164,10 +164,7 @@ def _handle_slash_command(
 
 
 @app.command()
-def chat(
-    provider: str = typer.Option("", "--provider", "-p", help="Provider name override"),
-    model: str = typer.Option("", "--model", "-m", help="Model name override"),
-) -> None:
+def chat() -> None:
     from qd_evolve.agent import Agent
     from qd_evolve.logger import setup_logging
 
