@@ -1,0 +1,57 @@
+name: yt-dlp
+command: yt-dlp
+description: "Download videos from YouTube and many other sites"
+help_summary: |
+  Usage: yt-dlp [OPTIONS] URL [URL...]
+
+  Video Selection:
+    -I, --playlist-items ITEM_SPEC   Comma-separated playlist_index of items to download
+    --min-filesize SIZE              Abort if filesize smaller than SIZE
+    --max-filesize SIZE              Abort if filesize larger than SIZE
+    --date DATE                      Download only videos uploaded on this date
+    --no-playlist                    Download only the video, not playlist
+    --yes-playlist                   Download the playlist if URL refers to both
+
+  Download Options:
+    -N, --concurrent-fragments N     Number of fragments to download concurrently
+    -r, --limit-rate RATE            Maximum download rate (e.g. 50K, 4.2M)
+    -R, --retries RETRIES            Number of retries (default: 10)
+
+  Filesystem Options:
+    -P, --paths [TYPES:]PATH         Directory paths for downloaded files
+    -o, --output [TYPES:]TEMPLATE    Output filename template
+    --restrict-filenames             Restrict filenames to ASCII characters
+    -w, --no-overwrites              Do not overwrite existing files
+    --write-description              Write video description to file
+    --write-info-json                Write video metadata to JSON file
+    --write-thumbnail                Write thumbnail image to disk
+
+  Video Format Options:
+    -f, --format FORMAT              Video format code
+    -S, --format-sort SORTORDER      Sort formats by fields
+    --merge-output-format FORMAT     Container for merging formats (e.g. mp4/mkv)
+
+  Subtitle Options:
+    --write-subs                     Write subtitle file
+    --write-auto-subs                Write auto-generated subtitles
+    --sub-langs LANGS                Languages of subtitles (e.g. 'en,zh')
+    --embed-subs                     Embed subtitles in video file
+
+  Audio Options:
+    -x, --extract-audio              Convert video to audio-only
+    --audio-format FORMAT            Audio format (mp3, aac, flac, m4a, opus, wav)
+    --audio-quality QUALITY          Audio quality (0-10 for VBR, or bitrate like 128K)
+
+  Post-Processing:
+    --embed-thumbnail                Embed thumbnail as cover art
+    --embed-metadata                 Embed metadata to video file
+    --embed-chapters                 Add chapter markers to video
+    --recode-video FORMAT            Re-encode video to another format
+
+examples:
+  - "yt-dlp https://www.youtube.com/watch?v=VIDEO_ID"
+  - "yt-dlp -o '%(title)s.%(ext)s' https://x.com/user/status/123456"
+  - "yt-dlp -x --audio-format mp3 https://www.youtube.com/watch?v=VIDEO_ID"
+  - "yt-dlp -f 'best[height<=1080]' https://www.youtube.com/watch?v=VIDEO_ID"
+  - "yt-dlp --write-subs --sub-langs en,zh https://www.youtube.com/watch?v=VIDEO_ID"
+  - "yt-dlp --embed-thumbnail --embed-metadata https://www.youtube.com/watch?v=VIDEO_ID"

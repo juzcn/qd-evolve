@@ -51,18 +51,14 @@
   "default_provider": "baiduqianfancodingplan",
   "default_model": "qianfan-code-latest",
   "skills_dir": "tools/skills",
-  "cli_tools_dir": "tools/cli",
-  "preload_skills": ["cli-register"],
-  "preload_tools": ["load_tool_detail", "load_skill_detail", "load_cli_detail", "recall_memory"],
-  "preload_cli": [],
   "memory_db": "memory.db",
   "embeddings_backends": {
-    "default": {
+    "bge-m3-local": {
       "model_path": "BAAI/bge-m3",
       "dim": 1024,
       "backend": "sentence-transformers"
     },
-    "gguf": {
+    "bge-m3-gguf": {
       "model_path": "bge-m3-q4_k_m.gguf",
       "dim": 1024,
       "backend": "llama-cpp-python",
@@ -71,11 +67,14 @@
     }
   },
   "memory_search": {
-    "default_embeddings_backend": "default",
+    "default_embeddings_backend": "bge-m3-local",
     "compress_threshold": 0.7,
     "target_threshold": 0.5,
     "auto_recall": true,
     "auto_recall_top_k": 5
   },
-  "max_iterations": 20
+  "max_iterations": 20,
+  "preload_skills": ["cli-register"],
+  "preload_tools": ["load_tool_detail", "load_skill_detail", "load_cli_detail", "recall_memory"],
+  "preload_cli": []
 }
