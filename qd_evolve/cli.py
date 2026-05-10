@@ -186,9 +186,6 @@ def _handle_slash_command(
             if c not in agent._loaded_cli:
                 table.add_row("CLI (preload)", c, "active")
 
-        # Token stats
-        table.add_row("Tokens", f"in={agent.total_input_tokens} out={agent.total_output_tokens}", "cumulative")
-
         console.print(table)
         return ""
     if name == "/memory":
