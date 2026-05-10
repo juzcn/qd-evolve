@@ -52,9 +52,9 @@
   "default_model": "qianfan-code-latest",
   "skills_dir": "tools/skills",
   "cli_tools_dir": "tools/cli",
-  "active_skills": ["cli-register"],
-  "active_tools": ["load_tool_detail", "load_skill_detail", "load_cli_detail", "recall_memory"],
-  "active_cli_tools": [],
+  "preload_skills": ["cli-register"],
+  "preload_tools": ["load_tool_detail", "load_skill_detail", "load_cli_detail", "recall_memory"],
+  "preload_cli": [],
   "memory_db": "memory.db",
   "embeddings_backends": {
     "default": {

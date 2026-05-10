@@ -27,11 +27,11 @@ class SkillRegistry:
     def __init__(self) -> None:
         self._skills: dict[str, SkillInfo] = {}
         self._skills_dir: Path | None = None
-        self._active_skills: set[str] = set()
+        self._preload_skills: set[str] = set()
 
-    def discover_skills(self, skills_dir: str | Path, active_skills: list[str] | None = None) -> None:
+    def discover_skills(self, skills_dir: str | Path, preload_skills: list[str] | None = None) -> None:
         self._skills_dir = Path(skills_dir)
-        self._active_skills = set(active_skills or [])
+        self._preload_skills = set(preload_skills or [])
         self._load()
 
     def reload(self) -> None:
@@ -78,7 +78,7 @@ class SkillRegistry:
                         summary = stripped[:120]
                         break
 
-            active = slug in self._active_skills or skill_dir.name in self._active_skills
+            active = slug in self._preload_skills or skill_dir.name in self._preload_skills
             skill = SkillInfo(
                 name=slug,
                 content=content,

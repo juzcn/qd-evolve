@@ -20,8 +20,8 @@ class Agent:
         self.registry = registry
         self.default_system_prompt = default_system_prompt
         self._active_tools: set[str] = set()
-        # load_tool_detail and load_skill_detail are always active (need full schema)
-        self._always_active: set[str] = set(settings.active_tools)
+        # preload_tools are always active (need full schema from start)
+        self._always_active: set[str] = set(settings.preload_tools)
         self.providers = providers
         self.memory = memory
         self.messages: list[dict[str, Any]] = []

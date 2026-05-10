@@ -20,7 +20,7 @@ Multi-provider AI agent with tool use, skills, MCP integration, and CLI interfac
 - **Memory recall tool** — `recall_memory` tool for LLM to search past conversations by query, keywords, and time range
 - **Dual embedder support** — sentence-transformers or llama-cpp-python, selected by config `embeddings_backends.*.backend`
 - **Env vars injection** — Define `env_vars` in config to inject API keys into environment at startup
-- **Active tool/skill configuration** — `active_tools`, `active_skills`, `active_cli_tools` in `qd-evolve.json` control which items are always available (no on-demand loading needed)
+- **Preload tool/skill configuration** — `preload_tools`, `preload_skills`, `preload_cli` in `qd-evolve.json` control which items are preloaded (no on-demand loading needed)
 - **Structured logging** — loguru with file rotation to `logs/` directory
 - **Rich CLI** — Interactive prompt with spinner status, slash commands, and tab completion
 
@@ -39,9 +39,9 @@ Create `qd-evolve.json` in the project root (see `qd-evolve.json.example`):
   "log_level": "INFO",
   "skills_dir": "tools/skills",
   "cli_tools_dir": "tools/cli",
-  "active_skills": ["cli-register"],
-  "active_tools": ["load_tool_detail", "load_skill_detail", "load_cli_detail", "recall_memory"],
-  "active_cli_tools": [],
+  "preload_skills": ["cli-register"],
+  "preload_tools": ["load_tool_detail", "load_skill_detail", "load_cli_detail", "recall_memory"],
+  "preload_cli": [],
   "env_vars": {
     "SERPER_API_KEY": "sk-xxx",
     "BAIDU_API_KEY": "sk-xxx"
@@ -157,7 +157,7 @@ Use the `cli-register` skill to generate YAML from `--help` output automatically
 
 ## Skills
 
-Skills are directories under `tools/skills/` containing a `SKILL.md` file. They are **not** tool calls — the LLM reads the summary in the system prompt and uses `load_skill_detail` to get full instructions when needed. Active skills (configured in `active_skills`) have their full content injected into the system prompt.
+Skills are directories under `tools/skills/` containing a `SKILL.md` file. They are **not** tool calls — the LLM reads the summary in the system prompt and uses `load_skill_detail` to get full instructions when needed. Preloaded skills (configured in `preload_skills`) have their full content injected into the system prompt.
 
 ```
 tools/skills/
@@ -200,9 +200,9 @@ All config via `qd-evolve.json`. Key fields:
 | `log_level` | Logging level (DEBUG/INFO/WARNING/ERROR) |
 | `skills_dir` | Skills directory path (default: `skills`) |
 | `cli_tools_dir` | CLI tools directory path (default: `tools/cli`) |
-| `active_skills` | List of skill names to always inject into system prompt |
-| `active_tools` | List of tool names that are always active (no on-demand loading) |
-| `active_cli_tools` | List of CLI tool names to always inject into system prompt |
+| `preload_skills` | List of skill names to always inject into system prompt |
+| `preload_tools` | List of tool names that are preloaded (no on-demand loading) |
+| `preload_cli` | List of CLI tool names to always inject into system prompt |
 | `env_vars` | Environment variables to inject at startup |
 | `memory_search.default_embeddings_backend` | Name of the embeddings backend to use |
 | `memory_search.compress_threshold` | Token ratio to trigger context compression (default: 0.7) |

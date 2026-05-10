@@ -201,7 +201,7 @@ def chat() -> None:
 
     # 3. Skills
     skill_registry = SkillRegistry()
-    skill_registry.discover_skills(settings.skills_dir, active_skills=settings.active_skills)
+    skill_registry.discover_skills(settings.skills_dir, preload_skills=settings.preload_skills)
 
     # 4. CLI tools
     cli_registry = CLIRegistry()
@@ -229,7 +229,7 @@ def chat() -> None:
     import json as _json
     loaded_skill_names: set[str] = set()
     loaded_cli_names: set[str] = set()
-    loaded_tool_names: set[str] = set(settings.active_tools)
+    loaded_tool_names: set[str] = set(settings.preload_tools)
 
     active_skills_parts = []
     for s in skill_registry.get_all_skills():
@@ -240,7 +240,7 @@ def chat() -> None:
 
     active_cli_parts = []
     for t in cli_registry.list_tools():
-        if t.name in settings.active_cli_tools:
+        if t.name in settings.preload_cli:
             detail = cli_registry.get_detail(t.name)
             if detail:
                 active_cli_parts.append(_json.dumps(detail, ensure_ascii=False))
@@ -254,7 +254,7 @@ def chat() -> None:
 
     # Build loaded tool schemas for active tools
     loaded_tool_parts = []
-    for tool_name in settings.active_tools:
+    for tool_name in settings.preload_tools:
         detail = registry.get_detail(tool_name)
         if detail:
             loaded_tool_parts.append(_json.dumps(detail, ensure_ascii=False))
@@ -295,7 +295,7 @@ def chat() -> None:
         if s.active and s.content:
             agent._loaded_skills[s.name] = s.content
     for t in cli_registry.list_tools():
-        if t.name in settings.active_cli_tools:
+        if t.name in settings.preload_cli:
             detail = cli_registry.get_detail(t.name)
             if detail:
                 agent._loaded_cli[t.name] = _json.dumps(detail, ensure_ascii=False)

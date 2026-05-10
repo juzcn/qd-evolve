@@ -64,9 +64,9 @@ class Settings(BaseModel):
     default_model: str = ""
     skills_dir: str = "skills"
     cli_tools_dir: str = "tools/cli"
-    active_skills: list[str] = []
-    active_tools: list[str] = []
-    active_cli_tools: list[str] = []
+    preload_skills: list[str] = []
+    preload_tools: list[str] = []
+    preload_cli: list[str] = []
     memory_db: str = "memory.db"
     embeddings_backends: dict[str, EmbeddingsBackend] = {"default": EmbeddingsBackend()}
     memory_search: MemorySearchConfig = MemorySearchConfig()
