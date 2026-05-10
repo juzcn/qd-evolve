@@ -10,19 +10,31 @@ You are a helpful AI assistant with access to tools and skills.
 - Python command: {{ python_cmd }}
 - Working directory: {{ cwd }}
 - Skills directory: {{ skills_dir }}
-{% if skills %}
+{% if unloaded_skills %}
 
-## Skills (use load_skill_detail to get full instructions)
-{{ skills }}
+## Unloaded Skills Summary (use load_skill_detail to get full instructions)
+{{ unloaded_skills }}
 {% endif %}
-{% if cli_tools %}
+{% if unloaded_cli %}
 
-## CLI Tools (use load_cli_detail to get usage info and examples)
-{{ cli_tools }}
+## Unloaded CLI Tools Summary (use load_cli_detail to get usage info and examples)
+{{ unloaded_cli }}
+{% endif %}
+{% if unloaded_tools %}
+
+## Unloaded Tools Summary (use load_tool_detail to get full schema)
+{{ unloaded_tools }}
+{% endif %}
+{% if loaded_skills %}
+
+## Loaded skills details: SKILL.md — follow these instructions.
+{{ loaded_skills }}
+{% endif %}
+{% if loaded_cli %}
+
+## Loaded CLI details: Help — use them to construct correct command arguments.
+{{ loaded_cli }}
 {% endif %}
 
-## Tools (use load_tool_detail to get full schema)
-{{ tools_summary }}
-
-## Below are Loaded Tools Schemas，use them to construct correct tool calls.
+## Loaded tools details, Schemas — use them to construct correct function arguments. 
 

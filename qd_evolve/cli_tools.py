@@ -60,13 +60,14 @@ class CLIRegistry:
     def list_tools(self) -> list[CLIToolDef]:
         return list(self._tools.values())
 
-    def format_for_prompt(self, active_cli_tools: list[str] | None = None) -> str:
-        active = set(active_cli_tools or [])
-        if not active:
+    def format_for_prompt(self, loaded: set[str] | None = None) -> str:
+        """Format unloaded CLI tools as summary list for the system prompt."""
+        if not self._tools:
             return ""
+        loaded = loaded or set()
         lines = []
         for tool in self._tools.values():
-            if tool.name not in active:
+            if tool.name in loaded:
                 continue
             line = f"- {tool.name}: {tool.description or tool.command}"
             if tool.examples:

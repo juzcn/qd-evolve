@@ -35,6 +35,8 @@ class Agent:
         self.iteration: int = 0
         self._on_status: Callable[[str], None] | None = None
         self._recalled = RecalledMemoryRegistry()
+        self._loaded_skills: dict[str, str] = {}
+        self._loaded_cli: dict[str, str] = {}
 
     def set_status_callback(self, cb: Callable[[str], None]) -> None:
         self._on_status = cb
@@ -63,6 +65,7 @@ class Agent:
 
         # Auto recall: inject relevant memory into system prompt
         system_prompt = self._auto_recall(user_input, system_prompt)
+        system_prompt = self._inject_loaded_content(system_prompt)
 
         prov = self.providers.get(self._provider_name)
         max_tokens = prov.get_max_tokens(self._model)
@@ -73,14 +76,15 @@ class Agent:
             client = prov.create_client()
             active = self._active_tools | self._always_active
             logger.info(
-                "LLM prompt: {} / {} ({}) | system={} tools={} messages={}",
-                self._provider_name,
-                self._model,
-                self._api_type,
-                system_prompt,
-                json.dumps(self.registry.definitions(api_format=self._api_type if self._api_type != "openai_completion" else "openai", active_tools=active), ensure_ascii=False),
-                json.dumps(self.messages, ensure_ascii=False),
-            )
+                    "\n=== LLM Request #{} ===\nProvider: {} / {} ({})\nActive tools: {}\n\n--- System Prompt ---\n{}\n\n--- Messages ---\n  {}",
+                    self.iteration,
+                    self._provider_name,
+                    self._model,
+                    self._api_type,
+                    active,
+                    system_prompt,
+                    self._format_messages_log(),
+                )
 
             if self._api_type == "anthropic":
                 result = self._run_anthropic(client, system_prompt, max_tokens)
@@ -143,6 +147,38 @@ class Agent:
             removed, int(current_ratio * context_window), self.last_input_tokens, target_tokens,
         )
 
+    def _inject_loaded_content(self, system_prompt: str) -> str:
+        """Inject loaded skill and CLI content into the system prompt sections."""
+        if self._loaded_skills:
+            skills_content = "\n".join(self._loaded_skills.values())
+            marker = "## Loaded SKILL.md — follow these instructions."
+            if marker in system_prompt:
+                parts = system_prompt.split(marker, 1)
+                after = parts[1]
+                next_section = after.find("\n## ")
+                if next_section != -1:
+                    after = after[next_section:]
+                else:
+                    after = ""
+                system_prompt = parts[0] + marker + "\n" + skills_content + after
+                logger.info("Injected loaded skills: {}", list(self._loaded_skills.keys()))
+
+        if self._loaded_cli:
+            cli_content = "\n".join(self._loaded_cli.values())
+            marker = "## Loaded CLI Tools Help — use them to construct correct command arguments."
+            if marker in system_prompt:
+                parts = system_prompt.split(marker, 1)
+                after = parts[1]
+                next_section = after.find("\n## ")
+                if next_section != -1:
+                    after = after[next_section:]
+                else:
+                    after = ""
+                system_prompt = parts[0] + marker + "\n" + cli_content + after
+                logger.info("Injected loaded CLI tools: {}", list(self._loaded_cli.keys()))
+
+        return system_prompt
+
     def _auto_recall(self, user_input: str, system_prompt: str) -> str:
         if not self.memory or not self.settings.memory_search.auto_recall:
             return system_prompt
@@ -153,6 +189,9 @@ class Agent:
             return system_prompt
 
         logger.info("Auto-recalled {} new memory entries for query: {}", len(new_entries), user_input[:50])
+        for entry in new_entries:
+            logger.info("  Memory [{}] user: {} | assistant: {} (distance: {})",
+                        entry.session_id, entry.user_msg[:100], entry.assistant_msg[:100], entry.distance)
 
         # Rebuild entire memory section from registry
         memory_text = self._recalled.format_section()
@@ -187,7 +226,7 @@ class Agent:
 
         if response.stop_reason != "tool_use":
             text = self._extract_text(response.content)
-            logger.info("LLM completion: {}", text[:500])
+            logger.info("\n=== LLM Response ===\n{}", self._format_completion_log(response))
             return text
 
         results = self._execute_tools_anthropic(response.content)
@@ -195,6 +234,7 @@ class Agent:
         if _iter >= self.settings.max_iterations:
             return "Max tool iterations reached. Please simplify your request."
         self.iteration += 1
+        system_prompt = self._inject_loaded_content(system_prompt)
         return self._run_anthropic(client, system_prompt, max_tokens, _iter + 1)
 
     def _run_openai_completion(self, client: Any, system_prompt: str, max_tokens: int, _iter: int = 0) -> str:
@@ -238,8 +278,8 @@ class Agent:
                 args_brief = json.dumps(args, ensure_ascii=False)[:60]
                 self._update_status(f"Tool: {tc.function.name}({args_brief})")
                 output = self.registry.call(tc.function.name, **args)
-                logger.info("Tool result: {} -> {}", tc.function.name, output[:200])
-                self._activate_tool(tc.function.name, args)
+                logger.info("Tool result: {} -> {}", tc.function.name, output)
+                self._activate_tool(tc.function.name, args, output)
                 self.messages.append({
                     "role": "tool",
                     "tool_call_id": tc.id,
@@ -248,10 +288,11 @@ class Agent:
             if _iter >= self.settings.max_iterations:
                 return "Max tool iterations reached. Please simplify your request."
             self.iteration += 1
+            system_prompt = self._inject_loaded_content(system_prompt)
             return self._run_openai_completion(client, system_prompt, max_tokens, _iter + 1)
 
         self.messages.append({"role": "assistant", "content": msg.content or ""})
-        logger.info("LLM completion: {}", (msg.content or "")[:500])
+        logger.info("\n=== LLM Response ===\n{}", self._format_completion_log(response))
         return msg.content or ""
 
     def _run_openai_response(self, client: Any, system_prompt: str, max_tokens: int, _iter: int = 0) -> str:
@@ -271,8 +312,8 @@ class Agent:
                 args_brief = json.dumps(args, ensure_ascii=False)[:60]
                 self._update_status(f"Tool: {item.name}({args_brief})")
                 result = self.registry.call(item.name, **args)
-                logger.info("Tool result: {} -> {}", item.name, result[:200])
-                self._activate_tool(item.name, args)
+                logger.info("Tool result: {} -> {}", item.name, result)
+                self._activate_tool(item.name, args, result)
                 self.messages.append({"role": "assistant", "content": None, "tool_calls": [item]})
                 self.messages.append({
                     "type": "function_call_output",
@@ -280,6 +321,7 @@ class Agent:
                     "output": result,
                 })
                 self.iteration += 1
+                system_prompt = self._inject_loaded_content(system_prompt)
                 return self._run_openai_response(client, system_prompt, max_tokens)
 
         text_parts = [item.content[0].text for item in response.output if item.type == "message"]
@@ -306,23 +348,22 @@ class Agent:
         self.total_output_tokens += usage.output_tokens
         logger.info("Token usage: input={}, output={}, total={}", usage.input_tokens, usage.output_tokens, self.total_tokens)
 
-    def _activate_tool(self, tool_name: str) -> None:
-        """When load_tool_detail is called, activate that tool for full schema in subsequent turns."""
-        if tool_name == "load_tool_detail":
-            # The argument to load_tool_detail is the tool name to activate
-            # We need to extract it from the last tool call
-            pass
-        else:
-            self._active_tools.add(tool_name)
-
-    def _activate_tool(self, tool_name: str, tool_args: dict) -> None:
-        """After a tool call, activate tools as needed for full schema in subsequent turns."""
+    def _activate_tool(self, tool_name: str, tool_args: dict, result: str = "") -> None:
+        """After a tool call, activate tools and track loaded skill/CLI content."""
         self._active_tools.add(tool_name)
         if tool_name == "load_tool_detail":
             target = tool_args.get("name", "")
             if target:
                 self._active_tools.add(target)
-                logger.debug(f"Activated tool: {target}")
+                logger.debug("Activated tool: {}", target)
+        elif tool_name == "load_skill_detail" and result:
+            name = tool_args.get("name", "")
+            if name:
+                self._loaded_skills[name] = result
+        elif tool_name == "load_cli_detail" and result:
+            name = tool_args.get("name", "")
+            if name:
+                self._loaded_cli[name] = result
 
     def _execute_tools_anthropic(self, content: list) -> list[dict]:
         results: list[dict] = []
@@ -332,9 +373,8 @@ class Agent:
                 args_brief = json.dumps(block.input, ensure_ascii=False)[:60]
                 self._update_status(f"Tool: {block.name}({args_brief})")
                 output = self.registry.call(block.name, **block.input)
-                logger.info("Tool result: {} -> {}", block.name, output[:200])
-                # Activate tool after call
-                self._activate_tool(block.name, block.input)
+                logger.info("Tool result: {} -> {}", block.name, output)
+                self._activate_tool(block.name, block.input, output)
                 results.append({
                     "type": "tool_result",
                     "tool_use_id": block.id,
@@ -350,6 +390,84 @@ class Agent:
             if block.type == "text":
                 parts.append(block.text)
         return "\n".join(parts)
+
+    def _format_messages_log(self) -> str:
+        """Format messages list as readable multi-line summary for logging."""
+        parts = []
+        for i, msg in enumerate(self.messages):
+            role = msg.get("role", "?")
+            if role == "user":
+                content = msg.get("content", "")
+                if isinstance(content, str):
+                    parts.append(f"[{i}] [user] {content}")
+                elif isinstance(content, list):
+                    for item in content:
+                        if isinstance(item, dict) and item.get("type") == "tool_result":
+                            tid = item.get("tool_use_id", "")
+                            out = str(item.get("content", ""))
+                            parts.append(f"[{i}] [tool_result id={tid}] {out}")
+                        else:
+                            parts.append(f"[{i}] [user] {str(item)}")
+            elif role == "assistant":
+                content = msg.get("content", "")
+                tool_calls = msg.get("tool_calls")
+                if content:
+                    parts.append(f"[{i}] [assistant] {content}")
+                if tool_calls:
+                    for tc in tool_calls:
+                        name = tc.get("function", {}).get("name", tc.get("name", ""))
+                        args = tc.get("function", {}).get("arguments", tc.get("arguments", ""))
+                        parts.append(f"[{i}] [assistant/tool_call name={name}] {args}")
+                if isinstance(content, list):
+                    for item in content:
+                        if isinstance(item, dict):
+                            if item.get("type") == "text":
+                                parts.append(f"[{i}] [assistant/text] {item.get('text', '')}")
+                            elif item.get("type") == "tool_use":
+                                name = item.get("name", "")
+                                inp = json.dumps(item.get("input", {}), ensure_ascii=False)
+                                parts.append(f"[{i}] [assistant/tool_use name={name}] {inp}")
+                            else:
+                                parts.append(f"[{i}] [assistant] {str(item)}")
+            elif role == "tool":
+                tid = msg.get("tool_call_id", "")
+                out = str(msg.get("content", ""))
+                parts.append(f"[{i}] [tool id={tid}] {out}")
+            else:
+                parts.append(f"[{i}] [{role}] {str(msg)[:500]}")
+        return "\n  ".join(parts)
+
+    def _format_completion_log(self, response: Any) -> str:
+        """Format LLM completion response as readable summary for logging."""
+        parts = []
+        if self._api_type == "anthropic":
+            for block in response.content:
+                if block.type == "text":
+                    parts.append(f"[text] {block.text[:300]}")
+                elif block.type == "tool_use":
+                    inp = json.dumps(block.input, ensure_ascii=False)[:300]
+                    parts.append(f"[tool_use name={block.name}] {inp}")
+            parts.append(f"stop_reason={response.stop_reason}")
+        elif self._api_type == "openai_response":
+            for item in response.output:
+                if item.type == "message":
+                    for c in item.content:
+                        parts.append(f"[text] {c.text[:300]}")
+                elif item.type == "function_call":
+                    inp = item.arguments[:300] if hasattr(item, "arguments") else ""
+                    parts.append(f"[function_call name={item.name}] {inp}")
+            parts.append(f"status={response.status}")
+        else:  # openai_completion
+            choice = response.choices[0] if response.choices else None
+            if choice:
+                msg = choice.message
+                if msg.content:
+                    parts.append(f"[text] {msg.content[:300]}")
+                if msg.tool_calls:
+                    for tc in msg.tool_calls:
+                        parts.append(f"[tool_call name={tc.function.name}] {tc.function.arguments[:300]}")
+                parts.append(f"finish_reason={choice.finish_reason}")
+        return "\n  ".join(parts)
 
     def reset(self) -> None:
         self.messages.clear()

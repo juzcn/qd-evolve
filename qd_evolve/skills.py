@@ -20,9 +20,6 @@ class SkillInfo(BaseModel):
     def format_for_prompt(self) -> str:
         return f"- {self.name}: {self.summary or self.content.split(chr(10))[0][:120]}"
 
-    def format_active_for_prompt(self) -> str:
-        return f"### {self.name}\n{self.content}"
-
 
 class SkillRegistry:
     """Discovers skills from directories containing SKILL.md files."""
@@ -100,17 +97,24 @@ class SkillRegistry:
         skill = self._skills.get(name)
         return skill.content if skill else None
 
-    def format_for_prompt(self) -> str:
-        """Format all skills as a summary list for the system prompt."""
+    def format_for_prompt(self, loaded: set[str] | None = None) -> str:
+        """Format unloaded skills as a summary list for the system prompt."""
         if not self._skills:
             return ""
+        loaded = loaded or set()
         lines = []
         for s in self._skills.values():
-            if s.active:
-                lines.append(s.format_active_for_prompt())
-            else:
+            if s.name not in loaded:
                 lines.append(s.format_for_prompt())
         return "\n".join(lines)
+
+    def get_active_skills_content(self) -> str:
+        """Return full content of all active skills for injection into system prompt."""
+        parts = []
+        for s in self._skills.values():
+            if s.active and s.content:
+                parts.append(f"### {s.name}\n{s.content}")
+        return "\n".join(parts)
 
     def load_skills(self, skills_dir: str | Path) -> None:
         self.discover_skills(skills_dir)

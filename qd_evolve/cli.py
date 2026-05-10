@@ -221,13 +221,52 @@ def chat() -> None:
     python_cmd = _detect_python_cmd()
     template_mgr = PromptTemplateManager()
     skill_addition = skill_registry.format_for_prompt()
-    cli_tools_summary = cli_registry.format_for_prompt(active_cli_tools=settings.active_cli_tools)
+    active_skills_content = skill_registry.get_active_skills_content()
+    cli_tools_summary = cli_registry.format_for_prompt()
     tools_summary = registry.format_tools_summary()
+
+    # Build loaded content for active skills/CLI/tools
+    import json as _json
+    loaded_skill_names: set[str] = set()
+    loaded_cli_names: set[str] = set()
+    loaded_tool_names: set[str] = set(settings.active_tools)
+
+    active_skills_parts = []
+    for s in skill_registry.get_all_skills():
+        if s.active and s.content:
+            active_skills_parts.append(f"### {s.name}\n{s.content}")
+            loaded_skill_names.add(s.name)
+    active_skills_content = "\n".join(active_skills_parts)
+
+    active_cli_parts = []
+    for t in cli_registry.list_tools():
+        if t.name in settings.active_cli_tools:
+            detail = cli_registry.get_detail(t.name)
+            if detail:
+                active_cli_parts.append(_json.dumps(detail, ensure_ascii=False))
+                loaded_cli_names.add(t.name)
+    active_cli_content = "\n".join(active_cli_parts)
+
+    # Unloaded summaries exclude already-loaded items
+    unloaded_skills = skill_registry.format_for_prompt(loaded=loaded_skill_names)
+    unloaded_cli = cli_registry.format_for_prompt(loaded=loaded_cli_names)
+    unloaded_tools = registry.format_tools_summary(loaded=loaded_tool_names)
+
+    # Build loaded tool schemas for active tools
+    loaded_tool_parts = []
+    for tool_name in settings.active_tools:
+        detail = registry.get_detail(tool_name)
+        if detail:
+            loaded_tool_parts.append(_json.dumps(detail, ensure_ascii=False))
+    active_tools_content = "\n".join(loaded_tool_parts)
+
     system_prompt = template_mgr.render(
         "default",
-        skills=skill_addition,
-        cli_tools=cli_tools_summary,
-        tools_summary=tools_summary,
+        unloaded_skills=unloaded_skills,
+        unloaded_cli=unloaded_cli,
+        unloaded_tools=unloaded_tools,
+        loaded_skills=active_skills_content,
+        loaded_cli=active_cli_content,
         os_name=platform.system(),
         python_cmd=python_cmd,
         cwd=str(Path.cwd()),
@@ -250,6 +289,16 @@ def chat() -> None:
     set_memory_store(memory)
 
     agent = Agent(settings=settings, registry=registry, providers=providers, memory=memory, default_system_prompt=system_prompt)
+
+    # Initialize agent's loaded_skills/loaded_cli with active content for on-demand append
+    for s in skill_registry.get_all_skills():
+        if s.active and s.content:
+            agent._loaded_skills[s.name] = s.content
+    for t in cli_registry.list_tools():
+        if t.name in settings.active_cli_tools:
+            detail = cli_registry.get_detail(t.name)
+            if detail:
+                agent._loaded_cli[t.name] = _json.dumps(detail, ensure_ascii=False)
 
     model_info = escape(f"[{settings.default_provider}/{settings.default_model}]")
     console.print(Panel(

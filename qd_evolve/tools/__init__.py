@@ -113,11 +113,14 @@ class ToolRegistry:
                 result.append({"type": "function", "function": func})
         return result
 
-    def format_tools_summary(self) -> str:
-        """Format all tools as a summary list for the system prompt."""
+    def format_tools_summary(self, loaded: set[str] | None = None) -> str:
+        """Format unloaded tools as a summary list for the system prompt."""
+        loaded = loaded or set()
         lines = []
         for td in self._tools.values():
             if not td.enabled:
+                continue
+            if td.name in loaded:
                 continue
             lines.append(f"- {td.name}: {td.description}")
         return "\n".join(lines)

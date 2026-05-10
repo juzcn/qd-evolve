@@ -16,6 +16,7 @@
 
 - **Tools are auto-discovered.** Builtin tools from `qd_evolve/tools/`, MCP tools from `tools/mcp/*.json`, CLI tools from `tools/cli/*.yaml`. No manual registration.
 - **On-demand tool loading.** Tools start with name+description only. The LLM calls `load_tool_detail` to get the full schema, then the tool is activated for subsequent turns. This reduces prompt size.
+- **Dynamic system prompt sections.** The system prompt has three dynamic injection sections: "Loaded SKILL.md", "Loaded Cli Tools help", and "Loaded Tools Schemas". When `load_skill_detail`, `load_cli_detail`, or `load_tool_detail` is called, the returned content is injected into the corresponding section on the next iteration, so the LLM has the full context without re-fetching.
 - **Always-active tools.** Configured via `active_tools` in `qd-evolve.json`. By default: `load_tool_detail`, `load_skill_detail`, `load_cli_detail`, and `recall_memory` — no need to load their schema first.
 - **Skills are non-callable.** SKILL.md files injected into system prompt as summaries — the LLM calls `load_skill_detail` to get full instructions and uses callable tools to execute.
 - **Active skills.** Configured via `active_skills` in `qd-evolve.json`. Active skills have their full content injected into the system prompt instead of just a summary line.
