@@ -36,13 +36,13 @@ console = Console()
 
 SLASH_COMMANDS = {
     "/quit": "Quit the session",
-    "/reset": "Reset conversation history",
     "/tools": "List available tools",
     "/skills": "List available skills",
     "/models": "Pick a model to switch to",
     "/memory": "List saved memories",
     "/cli": "List registered CLI tools",
     "/status": "Show runtime status (loaded tools, skills, CLI)",
+    "/reset": "Reset conversation history",
     "/help": "Show available commands",
 }
 
