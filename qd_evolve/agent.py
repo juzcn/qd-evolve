@@ -101,8 +101,8 @@ class Agent:
         if context_window <= 0:
             return
 
-        compress_threshold = self.settings.compress_threshold
-        target_threshold = self.settings.target_threshold
+        compress_threshold = self.settings.memory_search.compress_threshold
+        target_threshold = self.settings.memory_search.target_threshold
         current_ratio = self.last_input_tokens / context_window
 
         if current_ratio <= compress_threshold:
@@ -143,10 +143,10 @@ class Agent:
         )
 
     def _auto_recall(self, user_input: str, system_prompt: str) -> str:
-        if not self.memory or not self.settings.auto_recall:
+        if not self.memory or not self.settings.memory_search.auto_recall:
             return system_prompt
 
-        entries = self.memory.recall(query=user_input, limit=self.settings.auto_recall_top_k)
+        entries = self.memory.recall(query=user_input, limit=self.settings.memory_search.auto_recall_top_k)
         new_entries = self._recalled.add(entries)
         if not new_entries:
             return system_prompt

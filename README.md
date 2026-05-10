@@ -59,8 +59,19 @@ Create `qd-evolve.json` in the project root (see `qd-evolve.json.example`):
       ]
     }
   ],
-  "compress_threshold": 0.7,
-  "target_threshold": 0.5
+  "memory_search": {
+    "default_embeddings_backend": "default",
+    "compress_threshold": 0.7,
+    "target_threshold": 0.5,
+    "auto_recall": true,
+    "auto_recall_top_k": 5
+  },
+  "embeddings_backends": {
+    "default": {
+      "model_path": "BAAI/bge-m3",
+      "dim": 1024
+    }
+  }
 }
 ```
 
@@ -161,10 +172,12 @@ All config via `qd-evolve.json`. Key fields:
 | `default_system_prompt` | Fallback system prompt |
 | `skills_dir` | Skills directory path (default: `skills`) |
 | `env_vars` | Environment variables to inject at startup |
-| `compress_threshold` | Token ratio to trigger context compression (default: 0.7) |
-| `target_threshold` | Token ratio to compress down to (default: 0.5) |
-| `auto_recall` | Enable automatic memory recall before each LLM call (default: true) |
-| `auto_recall_top_k` | Number of memory entries to retrieve per auto recall (default: 5) |
+| `memory_search.default_embeddings_backend` | Name of the embeddings backend to use |
+| `memory_search.compress_threshold` | Token ratio to trigger context compression (default: 0.7) |
+| `memory_search.target_threshold` | Token ratio to compress down to (default: 0.5) |
+| `memory_search.auto_recall` | Enable automatic memory recall before each LLM call (default: true) |
+| `memory_search.auto_recall_top_k` | Number of memory entries to retrieve per auto recall (default: 5) |
+| `embeddings_backends` | Dict of named backends with `model_path`, `dim`, `llama_n_ctx`, `llama_n_batch` |
 | `providers[]` | Provider list with api_key, base_url, api type, models |
 
 Provider `api` field: `openai-completions` | `openai-response` | `anthropic`

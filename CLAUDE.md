@@ -24,7 +24,7 @@
 - **Persistent memory.** SQLite + sqlite-vec for cross-session memory storage. Each user+assistant message pair is auto-saved with BGE-M3 embedding. Supports semantic + keyword hybrid search, time-range filtering, and session exclusion.
 - **Context compression.** When input tokens exceed `compress_threshold` (default 70%) of context window, old Q/A pairs are removed from the message list until tokens drop below `target_threshold` (default 50%). A new memory session is created after compression so recall_memory can distinguish pre/post compression context.
 - **Auto recall.** Before each LLM call, user input is used as query to automatically retrieve relevant past conversations from MemoryStore. Results are injected into a dedicated memory section in the system prompt, with deduplication via `RecalledMemoryRegistry` (keyed by memory id). All recall queries exclude the current session. Configurable via `auto_recall` (on/off) and `auto_recall_top_k`.
-- **Embedder auto-detection.** `.gguf` files use llama-cpp-python, other paths use sentence-transformers. `embedding_dim` configured in `qd-evolve.json`.
+- **Embedder auto-detection.** `.gguf` files use llama-cpp-python, other paths use sentence-transformers. Embedding config is in `embeddings_backends` section of `qd-evolve.json`, referenced by `memory_search.default_embeddings_backend`.
 - **Env vars from config.** `env_vars` in `qd-evolve.json` are injected into `os.environ` at startup, so tools can access API keys without .env files.
 - **Config is read once at startup.** No runtime config changes — edit `qd-evolve.json` and restart.
 - **File paths relative to CWD.** Tools never hardcode paths; everything resolves against current working directory.

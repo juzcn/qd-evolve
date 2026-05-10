@@ -225,7 +225,12 @@ def chat(
     settings.default_system_prompt = system_prompt
 
     # 7. Memory
-    memory = MemoryStore(settings.memory_db, settings.embedding_model, settings.embedding_dim, settings.llama_n_ctx, settings.llama_n_batch)
+    backend_name = settings.memory_search.default_embeddings_backend
+    backend = settings.embeddings_backends.get(backend_name)
+    if backend is None:
+        console.print(f"[red]Error:[/red] Embeddings backend '{backend_name}' not found in config")
+        raise SystemExit(1)
+    memory = MemoryStore(settings.memory_db, backend)
 
     # 8. Inject memory store into recall_memory tool
     from qd_evolve.tools.recall_memory import set_memory_store

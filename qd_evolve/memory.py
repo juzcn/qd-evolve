@@ -75,23 +75,22 @@ class LlamaCppEmbedder:
         return np.array(result["data"][0]["embedding"], dtype=np.float32)
 
 
-def _create_embedder(model_path: str, llama_n_ctx: int = 8192, llama_n_batch: int = 512) -> Embedder:
-    p = Path(model_path)
+def _create_embedder(backend: EmbeddingsBackend) -> Embedder:
+    p = Path(backend.model_path)
     if p.suffix.lower() == ".gguf":
-        logger.info("Using llama-cpp embedder: {}", model_path)
-        return LlamaCppEmbedder(model_path, n_ctx=llama_n_ctx, n_batch=llama_n_batch)
-    logger.info("Using sentence-transformers embedder: {}", model_path)
-    return SentenceTransformerEmbedder(model_path)
+        logger.info("Using llama-cpp embedder: {}", backend.model_path)
+        return LlamaCppEmbedder(backend.model_path, n_ctx=backend.llama_n_ctx, n_batch=backend.llama_n_batch)
+    logger.info("Using sentence-transformers embedder: {}", backend.model_path)
+    return SentenceTransformerEmbedder(backend.model_path)
 
 
 class MemoryStore:
-    def __init__(self, db_path: str | Path, embedding_model_path: str, embedding_dim: int = 1024, llama_n_ctx: int = 8192, llama_n_batch: int = 512) -> None:
+    def __init__(self, db_path: str | Path, backend: EmbeddingsBackend) -> None:
         self._db_path = Path(db_path)
-        self._embedding_model_path = embedding_model_path
-        self._embedding_dim = embedding_dim
+        self._embedding_dim = backend.dim
         self._session_id = datetime.now().isoformat(timespec="seconds")
         self._db = sqlite3.connect(str(self._db_path))
-        self._embedder = _create_embedder(embedding_model_path, llama_n_ctx=llama_n_ctx, llama_n_batch=llama_n_batch)
+        self._embedder = _create_embedder(backend)
         self._init_db()
         logger.info("MemoryStore initialized: db={}, session_id={}, dim={}", self._db_path, self._session_id, self._embedding_dim)
 

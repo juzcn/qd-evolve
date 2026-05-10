@@ -45,6 +45,21 @@ class MCPServerConfig(BaseModel):
     env: dict[str, str] = {}
 
 
+class EmbeddingsBackend(BaseModel):
+    model_path: str = "BAAI/bge-m3"
+    dim: int = 1024
+    llama_n_ctx: int = 8192
+    llama_n_batch: int = 512
+
+
+class MemorySearchConfig(BaseModel):
+    default_embeddings_backend: str = "default"
+    compress_threshold: float = 0.7
+    target_threshold: float = 0.5
+    auto_recall: bool = True
+    auto_recall_top_k: int = 5
+
+
 class Settings(BaseModel):
     log_level: str = "INFO"
     default_system_prompt: str = "You are a helpful AI assistant with access to tools."
@@ -54,15 +69,9 @@ class Settings(BaseModel):
     env_vars: dict[str, str] = {}
     providers: list[ProviderConfig] = []
     memory_db: str = "memory.db"
-    embedding_model: str = "BAAI/bge-m3"
-    embedding_dim: int = 1024
-    compress_threshold: float = 0.7
-    target_threshold: float = 0.5
-    auto_recall: bool = True
-    auto_recall_top_k: int = 5
     max_iterations: int = 20
-    llama_n_ctx: int = 8192
-    llama_n_batch: int = 512
+    memory_search: MemorySearchConfig = MemorySearchConfig()
+    embeddings_backends: dict[str, EmbeddingsBackend] = {"default": EmbeddingsBackend()}
 
     def get_provider(self, name: str | None = None) -> ProviderConfig | None:
         target = name or self.default_provider
