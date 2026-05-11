@@ -1,0 +1,6 @@
+# Test slash commands
+/help
+/tools
+/skills
+/status
+/quit

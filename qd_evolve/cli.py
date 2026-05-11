@@ -33,6 +33,40 @@ except Exception:
 app = typer.Typer(help="qd-evolve AI agent")
 console = Console()
 
+
+class ReplayInput:
+    """Feeds pre-recorded inputs instead of reading from prompt_toolkit."""
+
+    def __init__(self, inputs: list[str]) -> None:
+        self._inputs = list(inputs)
+        self._index = 0
+
+    def prompt(self, **kwargs: Any) -> str:
+        if self._index >= len(self._inputs):
+            raise EOFError
+        line = self._inputs[self._index]
+        self._index += 1
+        return line
+
+
+class TeeWriter:
+    """Writes to multiple file-like objects simultaneously."""
+
+    def __init__(self, *files: Any) -> None:
+        self._files = files
+
+    def write(self, text: str) -> int:
+        for f in self._files:
+            f.write(text)
+        return len(text)
+
+    def flush(self) -> None:
+        for f in self._files:
+            f.flush()
+
+    def isatty(self) -> bool:
+        return any(getattr(f, "isatty", lambda: False)() for f in self._files)
+
 SLASH_COMMANDS = {
     "/quit": "Quit the session",
     "/tools": "List available tools",
@@ -204,8 +238,11 @@ def _handle_slash_command(
     return None
 
 
-@app.command()
-def chat() -> None:
+@app.callback(invoke_without_command=True)
+def chat(
+    replay: Path | None = typer.Option(None, "--replay", help="Replay inputs from file"),
+    output: Path | None = typer.Option(None, "--output", help="Capture output to file"),
+) -> None:
     from qd_evolve.agent import Agent
     from qd_evolve.logger import setup_logging
 
@@ -321,7 +358,21 @@ def chat() -> None:
         style="bold green",
     ))
 
-    input_session = _make_prompt_session()
+    # Replay mode setup
+    output_file = None
+    if replay:
+        lines = replay.read_text(encoding="utf-8").splitlines()
+        inputs = [l for l in lines if l.strip() and not l.strip().startswith("#")]
+        input_session = ReplayInput(inputs)
+        if output:
+            output.parent.mkdir(parents=True, exist_ok=True)
+            output_file = open(output, "w", encoding="utf-8")
+            tee = TeeWriter(sys.stdout, output_file)
+            import qd_evolve.cli as _cli_mod
+            _cli_mod.console = Console(file=tee, force_terminal=True)
+        logger.info(f"Replay mode: {len(inputs)} inputs from {replay}")
+    else:
+        input_session = _make_prompt_session()
 
     while True:
         try:
@@ -372,6 +423,8 @@ def chat() -> None:
         console.print(f"[dim]Cumulative: {agent.total_input_tokens + agent.total_output_tokens} tokens used[/dim]")
 
     memory.close()
+    if output_file:
+        output_file.close()
 
 
 if __name__ == "__main__":
