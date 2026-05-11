@@ -9,7 +9,7 @@ You can register CLI tools so the agent knows how to use them.
 
 ## When the user asks to register a CLI tool
 
-1. Run `<command> --help` via `run_shell` to get the help output. If `--help` doesn't work, try `-h`.
+1. Run `<command> --help` to get the help output. If `--help` doesn't work, try `-h`.
 2. Analyze the help output and generate a YAML definition.
 3. Check if `tools/cli/<name>.yaml` already exists using `list_directory` on `tools/cli`. If the file already exists, ask the user whether to overwrite or skip. Do not overwrite without confirmation.
 4. Write the YAML file using the `write_file` tool with path `tools/cli/<name>.yaml`. Do NOT use shell commands to write files.
