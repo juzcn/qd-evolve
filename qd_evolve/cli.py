@@ -15,7 +15,7 @@ from rich.spinner import Spinner
 from rich.table import Table
 from rich.text import Text
 
-from qd_evolve.config import Settings, load_settings
+from qd_evolve.config import CONFIG_PATH, Settings, load_settings, save_json
 from qd_evolve.cli_tools import CLIRegistry
 from qd_evolve.memory import MemoryStore
 from qd_evolve.prompts import PromptTemplateManager
@@ -180,7 +180,9 @@ def _handle_slash_command(
             prov_name, mname = all_models[int(choice) - 1]
             settings.default_provider = prov_name
             settings.default_model = mname
-            return f"  Switched to {prov_name}/{mname} (restart to apply)"
+            save_json(settings.model_dump(), CONFIG_PATH)
+            logger.info("Switched default model to {}/{} and saved config", prov_name, mname)
+            return f"  Switched to {prov_name}/{mname}"
         return "  Cancelled."
     if name == "/status":
         prov_name = agent._provider_name or settings.default_provider
