@@ -2,12 +2,12 @@
 
 ## Principles
 
-- **Don't reinvent the wheel.** Use battle-tested libraries: anthropic/openai SDK, pydantic, rich, typer, loguru.
+- **Don't reinvent the wheel.** Use battle-tested libraries: anthropic/openai SDK, pydantic, rich, typer, standard logging.
 - **Composition over inheritance.** Tools are callables registered in a registry, not a class hierarchy.
 - **Configuration is data.** All config via `qd-evolve.json`. No CLI config commands, no .env files. Edit the file directly.
 - **Multi-provider, multi-model.** Each provider has an api_key, base_url, api type, and multiple models with full metadata.
 - **Three API types supported.** `openai-completions`, `openai-response`, `anthropic`. Set at provider level via `api` field.
-- **Logging is structured.** loguru with file rotation. No print statements for debugging.
+- **Logging is structured.** Standard library logging with custom SharedFileHandler (per-write open/flush/close) for real-time log visibility. No print statements for debugging.
 - **CLI is minimal.** Just `qd-evolve` to start chat. `--replay` for automated testing, `--output` to capture. No CLI options for provider/model — edit `qd-evolve.json` or use `/models` at runtime.
 - **Agent loop is simple and explicit.** Call API → check stop_reason → execute tools → append results → repeat. Capped at `max_iterations` (default 20) to prevent infinite loops.
 - **Type everything.** Python 3.13 with full type annotations. pydantic models for all data boundaries.

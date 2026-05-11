@@ -21,7 +21,7 @@ Multi-provider AI agent with tool use, skills, MCP integration, and CLI interfac
 - **Dual embedder support** — sentence-transformers or llama-cpp-python, selected by config `embeddings_backends.*.backend`
 - **Env vars injection** — Define `env_vars` in config to inject API keys into environment at startup
 - **Preload tool/skill configuration** — `preload_tools`, `preload_skills`, `preload_cli` in `qd-evolve.json` control which items are preloaded (no on-demand loading needed)
-- **Structured logging** — loguru with file rotation to `logs/` directory
+- **Structured logging** — Standard library logging with SharedFileHandler (per-write open/flush/close) to `logs/` directory for real-time visibility
 - **Rich CLI** — Interactive prompt with spinner status, slash commands, and tab completion
 
 ## Quick Start
@@ -226,7 +226,7 @@ Provider `api` field: `openai-completions` | `openai-response` | `anthropic`
 ```
 qd_evolve/
   config.py          — Settings, ProviderConfig, ModelConfig, load/save
-  logger.py          — loguru setup with file rotation
+  logger.py          — Standard logging with SharedFileHandler
   prompts.py         — Jinja2 template manager (user + builtin fallback)
   providers.py       — Provider/ProviderRegistry, client creation
   memory.py          — SQLite + sqlite-vec persistent memory store
@@ -257,7 +257,7 @@ main.py              — thin launcher
 | Config | JSON + pydantic |
 | Templates | Jinja2 |
 | CLI | typer + rich + prompt-toolkit |
-| Logging | loguru |
+| Logging | standard library (logging) |
 | HTTP | httpx |
 | Search | serper-toolkit |
 | MCP | mcp (Model Context Protocol) |

@@ -24,6 +24,7 @@ class CLIRegistry:
     def __init__(self) -> None:
         self._tools: dict[str, CLIToolDef] = {}
         self._cli_dir: Path | None = None
+        self._disabled: set[str] = set()
 
     def discover(self, cli_dir: str | Path) -> None:
         self._cli_dir = Path(cli_dir)
@@ -52,13 +53,15 @@ class CLIRegistry:
                 logger.error("CLI: failed to load %s: %s", yaml_file.name, e)
 
     def get_detail(self, name: str) -> dict[str, Any] | None:
+        if name in self._disabled:
+            return None
         tool = self._tools.get(name)
         if tool is None:
             return None
         return tool.model_dump()
 
     def list_tools(self) -> list[CLIToolDef]:
-        return list(self._tools.values())
+        return [t for t in self._tools.values() if t.name not in self._disabled]
 
     def format_for_prompt(self, loaded: set[str] | None = None) -> str:
         """Format unloaded CLI tools as summary list for the system prompt."""
@@ -67,7 +70,7 @@ class CLIRegistry:
         loaded = loaded or set()
         lines = []
         for tool in self._tools.values():
-            if tool.name in loaded:
+            if tool.name in loaded or tool.name in self._disabled:
                 continue
             line = f"- {tool.name}: {tool.description or tool.command}"
             if tool.examples:

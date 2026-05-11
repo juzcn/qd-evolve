@@ -42,6 +42,7 @@ class SkillRegistry:
         self._skills: dict[str, SkillInfo] = {}
         self._skills_dir: Path | None = None
         self._preload_skills: set[str] = set()
+        self._disabled: set[str] = set()
 
     def discover_skills(self, skills_dir: str | Path, preload_skills: list[str] | None = None) -> None:
         self._skills_dir = Path(skills_dir)
@@ -101,14 +102,18 @@ class SkillRegistry:
             logger.debug(f"Discovered skill: {name}")
 
     def get_all_skills(self) -> list[SkillInfo]:
-        return list(self._skills.values())
+        return [s for s in self._skills.values() if s.name not in self._disabled]
 
     def get_skill(self, name: str) -> SkillInfo | None:
-        """Return SkillInfo for a skill, or None if not found."""
+        """Return SkillInfo for a skill, or None if not found or disabled."""
+        if name in self._disabled:
+            return None
         return self._skills.get(name)
 
     def get_detail(self, name: str) -> str | None:
-        """Return full SKILL.md content for a skill, or None if not found."""
+        """Return full SKILL.md content for a skill, or None if not found or disabled."""
+        if name in self._disabled:
+            return None
         skill = self._skills.get(name)
         return skill.content if skill else None
 
@@ -119,7 +124,7 @@ class SkillRegistry:
         loaded = loaded or set()
         lines = []
         for s in self._skills.values():
-            if s.name not in loaded:
+            if s.name not in loaded and s.name not in self._disabled:
                 lines.append(s.format_for_prompt())
         return "\n".join(lines)
 

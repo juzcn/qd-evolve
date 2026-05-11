@@ -22,6 +22,7 @@ from qd_evolve.prompts import PromptTemplateManager
 from qd_evolve.providers import ProviderRegistry
 from qd_evolve.skills import SkillRegistry
 from qd_evolve.tools import get_registry
+from qd_evolve.toolbox import state_mark
 from qd_evolve.tools._mcp_client import connect_mcp_servers, discover_mcp_servers, reload_mcp_servers
 
 try:
@@ -94,6 +95,232 @@ def _detect_python_cmd() -> str:
         except Exception:
             continue
     return "python"
+
+
+@app.command()
+def toolbox(
+    toggle: str = typer.Option("", "--toggle", "-t", help="Quick toggle: --toggle <name>"),
+    tui: bool = typer.Option(True, "--tui/--no-tui", help="Use Textual TUI (default: on)"),
+) -> None:
+    """Interactive tool manager — enable/disable/preload tools, MCP, CLI, skills.
+
+    Opens a Textual TUI by default. Use --no-tui for interactive shell.
+    --toggle <name> for quick non-interactive toggle.
+    """
+    from qd_evolve.toolbox import toggle as tb_toggle
+
+    # Quick toggle mode
+    if toggle:
+        section = _resolve_section(toggle)
+        name = _resolve_name(toggle)
+        new_state = tb_toggle(section, name)
+        console.print(f"[bold]{toggle}[/bold] → [cyan]{new_state}[/cyan]")
+        return
+
+    if tui:
+        from qd_evolve.toolbox_tui import ToolboxApp
+        ToolboxApp().run()
+    else:
+        _toolbox_interactive()
+
+
+def _toolbox_interactive() -> None:
+    """Interactive toolbox shell."""
+    from qd_evolve.toolbox import (
+        get_state, set_state, toggle as tb_toggle, get_disabled_mcp_servers,
+    )
+    from qd_evolve.tools import get_registry
+    from qd_evolve.skills import SkillRegistry
+    from qd_evolve.cli_tools import CLIRegistry
+    from qd_evolve.config import load_settings
+
+    PAGE_SIZE = 20
+
+    console.print("[bold]Toolbox[/bold] — manage tool state (enabled / preload / disabled)")
+    console.print("Type [cyan]help[/cyan] for commands, [cyan]quit[/cyan] to exit\n")
+
+    while True:
+        try:
+            cmd = console.input("[bold cyan]toolbox>[/bold cyan] ").strip()
+        except (EOFError, KeyboardInterrupt):
+            console.print()
+            break
+
+        if not cmd:
+            continue
+
+        parts = cmd.split()
+        action = parts[0].lower()
+        args = parts[1:] if len(parts) > 1 else []
+
+        if action in ("q", "quit", "exit"):
+            break
+        elif action == "help":
+            _toolbox_help()
+        elif action in ("ls", "list", "show"):
+            _toolbox_list(args)
+        elif action == "toggle":
+            if args:
+                section = _resolve_section(args[0])
+                name = _resolve_name(args[0])
+                new = tb_toggle(section, name)
+                console.print(f"  {args[0]} → [cyan]{new}[/cyan]")
+            else:
+                console.print("  Usage: toggle <name>")
+        elif action == "enable":
+            if args:
+                section = _resolve_section(args[0])
+                name = _resolve_name(args[0])
+                set_state(section, name, "enabled")
+                console.print(f"  {args[0]} → [green]enabled[/green]")
+            else:
+                console.print("  Usage: enable <name>")
+        elif action == "disable":
+            if args:
+                section = _resolve_section(args[0])
+                name = _resolve_name(args[0])
+                set_state(section, name, "disabled")
+                console.print(f"  {args[0]} → [red]disabled[/red]")
+            else:
+                console.print("  Usage: disable <name>")
+        elif action == "preload":
+            if args:
+                section = _resolve_section(args[0])
+                name = _resolve_name(args[0])
+                if section == "mcp_servers":
+                    console.print("  MCP servers don't support preload")
+                else:
+                    set_state(section, name, "preload")
+                    console.print(f"  {args[0]} → [yellow]preload[/yellow]")
+            else:
+                console.print("  Usage: preload <name>")
+        else:
+            console.print(f"  Unknown: {action}. Type [cyan]help[/cyan]")
+
+
+def _toolbox_help() -> None:
+    console.print("""
+  [bold]Commands:[/bold]
+    [cyan]ls[/cyan] [section]     List tools (tools, mcp, cli, skills, all)
+    [cyan]toggle[/cyan] <name>    Cycle state (enabled→preload→disabled→enabled)
+    [cyan]enable[/cyan] <name>    Set item to enabled (on-demand loading)
+    [cyan]disable[/cyan] <name>   Hide item from the LLM
+    [cyan]preload[/cyan] <name>   Load full definition into system prompt
+    [cyan]quit[/cyan]             Exit
+
+  [bold]Name prefixes:[/bold]
+    builtin/MCP tools: just the name (e.g. [cyan]fetch[/cyan], [cyan]boat__write_file[/cyan])
+    MCP servers:       [cyan]mcp:boat[/cyan]
+    CLI tools:          [cyan]pandoc[/cyan]
+    Skills:             [cyan]baidu-search[/cyan]
+
+  [bold]States:[/bold] [✓] enabled  [P] preload  [✗] disabled
+""")
+
+
+def _toolbox_list(args: list[str]) -> None:
+    from qd_evolve.toolbox import get_state, get_disabled_mcp_servers
+    from qd_evolve.tools import get_registry
+    from qd_evolve.skills import SkillRegistry
+    from qd_evolve.cli_tools import CLIRegistry
+    from qd_evolve.config import load_settings
+    from qd_evolve.tools._mcp_client import discover_mcp_servers
+
+    PAGE_SIZE = 20
+    settings = load_settings()
+    section_arg = args[0].lower() if args else "all"
+
+    # Build data
+    registry = get_registry()
+    builtin: list[tuple[str, str, str]] = []
+    mcp_tools: dict[str, list[tuple[str, str, str]]] = {}
+    for td in registry.list_tools():
+        state = get_state("tools", td.name)
+        if "__" in td.name:
+            server = td.name.split("__")[0]
+            mcp_tools.setdefault(server, []).append((td.name, td.description or "", state))
+        else:
+            builtin.append((td.name, td.description or "", state))
+
+    # Skills
+    sr = SkillRegistry()
+    sr.discover_skills(settings.skills_dir, preload_skills=settings.preload_skills)
+    skills_data: list[tuple[str, str, str]] = []
+    for s in sr._skills.values():
+        skills_data.append((s.name, s.summary or "", get_state("skills", s.name)))
+
+    # CLI
+    cr = CLIRegistry()
+    cr.discover(settings.cli_tools_dir)
+    cli_data: list[tuple[str, str, str]] = []
+    for t in cr._tools.values():
+        cli_data.append((t.name, t.description or t.command, get_state("cli", t.name)))
+
+    # MCP servers
+    mcp_configs = discover_mcp_servers()
+    disabled_srv = get_disabled_mcp_servers()
+
+    def _print_items(title: str, items: list[tuple[str, str, str]], page: int = 0) -> None:
+        if not items:
+            return
+        start = page * PAGE_SIZE
+        chunk = items[start:start + PAGE_SIZE]
+        total_pages = (len(items) - 1) // PAGE_SIZE + 1
+        active_n = sum(1 for _, _, s in items if s != "disabled")
+        console.print(f"\n[bold]{title}[/bold] ({active_n}/{len(items)} active{', page %s/%s' % (page + 1, total_pages) if total_pages > 1 else ''})")
+        for name, desc, state in chunk:
+            mark = state_mark(state)
+            style = "dim" if state == "disabled" else ""
+            console.print(f"  {mark} [cyan]{name}[/cyan] {style}—{desc[:70]}")
+        if total_pages > 1 and page < total_pages - 1:
+            console.print(f"  [dim]... ls {section_arg} page {page + 2} for more[/dim]")
+
+    def _print_servers() -> None:
+        if not mcp_configs:
+            return
+        console.print("\n[bold]MCP Servers[/bold]")
+        for cfg in mcp_configs:
+            tools = mcp_tools.get(cfg.name, [])
+            srv_state = "disabled" if cfg.name in disabled_srv else "enabled"
+            mark = state_mark(srv_state)
+            style = "dim" if srv_state == "disabled" else ""
+            total = len(tools)
+            active = sum(1 for _, _, s in tools if s != "disabled")
+            summary = f"{active}/{total} tools" if total else "tools visible during chat"
+            console.print(f"  {mark} [cyan]mcp:{cfg.name}[/cyan] {style}—{summary}")
+            if total > 0:
+                console.print(f"    [dim]ls mcp:{cfg.name} to expand[/dim]")
+
+    page = 0
+    if len(args) > 1 and args[1].isdigit():
+        page = int(args[1]) - 1
+
+    if section_arg in ("all", "tools"):
+        _print_items("Builtin Tools", builtin, page)
+    if section_arg in ("all", "cli"):
+        _print_items("CLI Tools", cli_data, page)
+    if section_arg in ("all", "skills"):
+        _print_items("Skills", skills_data, page)
+    if section_arg in ("all", "mcp"):
+        _print_servers()
+    if section_arg.startswith("mcp:") and section_arg != "mcp":
+        server = section_arg.split(":", 1)[1]
+        if server in mcp_tools:
+            _print_items(f"MCP: {server}", mcp_tools[server], page)
+        else:
+            console.print(f"  MCP server '{server}' has no tools registered (run chat first)")
+
+
+def _resolve_section(name: str) -> str:
+    if name.startswith("mcp:"):
+        return "mcp_servers"
+    return "tools"
+
+
+def _resolve_name(name: str) -> str:
+    if name.startswith("mcp:"):
+        return name.split(":", 1)[1]
+    return name
 
 
 def _make_prompt_session() -> "PromptSession":
@@ -243,9 +470,12 @@ def _handle_slash_command(
 
 @app.callback(invoke_without_command=True)
 def chat(
+    ctx: typer.Context,
     replay: Path | None = typer.Option(None, "--replay", help="Replay inputs from file"),
     output: Path | None = typer.Option(None, "--output", help="Capture output to file"),
 ) -> None:
+    if ctx.invoked_subcommand is not None:
+        return  # toolbox or another subcommand was invoked
     from qd_evolve.agent import Agent
     from qd_evolve.logger import setup_logging
 
@@ -278,6 +508,17 @@ def chat(
     mcp_configs = discover_mcp_servers()
     mcp_bridges = connect_mcp_servers(mcp_configs)
 
+    # 5b. Apply toolbox state from toolbox.json
+    from qd_evolve.toolbox import (
+        apply_to_tools, apply_to_cli_registry, apply_to_skill_registry,
+    )
+    loaded_tool_names: set[str] = set(settings.preload_tools)
+    loaded_skill_names: set[str] = set()
+    loaded_cli_names: set[str] = set()
+    apply_to_tools(registry, loaded_tool_names)
+    apply_to_cli_registry(cli_registry, loaded_cli_names)
+    apply_to_skill_registry(skill_registry, loaded_skill_names)
+
     # 6. Inject registries into loader tools
     from qd_evolve.tools.skill_loader import set_skill_registry
     set_skill_registry(skill_registry)
@@ -292,9 +533,29 @@ def chat(
 
     # Build loaded content for preload skills/CLI/tools
     import json as _json
-    loaded_skill_names: set[str] = set()
-    loaded_cli_names: set[str] = set()
-    loaded_tool_names: set[str] = set(settings.preload_tools)
+    # Recompute preload sets from toolbox.json merging
+    preload_skills_final = loaded_skill_names | set(settings.preload_skills)
+    preload_cli_final = loaded_cli_names | set(settings.preload_cli)
+    preload_tools_final = loaded_tool_names | set(settings.preload_tools)
+    from qd_evolve.tools.skill_loader import set_skill_registry
+    set_skill_registry(skill_registry)
+    from qd_evolve.tools.tool_loader import set_preload_tools
+    set_preload_tools(set(settings.preload_tools))
+    from qd_evolve.tools.cli_loader import set_cli_registry
+    set_cli_registry(cli_registry, set(settings.preload_cli))
+
+    # 7. System prompt via Jinja2 template
+    python_cmd = _detect_python_cmd()
+    template_mgr = PromptTemplateManager()
+
+    # Build loaded content for preload skills/CLI/tools
+    import json as _json
+    # Merge toolbox preloads into registry state
+    skill_registry._preload_skills |= loaded_skill_names
+    for s in skill_registry._skills.values():
+        if s.name in loaded_skill_names:
+            s.active = True
+    preload_cli_final = loaded_cli_names | set(settings.preload_cli)
 
     active_skills_parts = []
     for s in skill_registry.get_all_skills():
@@ -305,7 +566,7 @@ def chat(
 
     active_cli_parts = []
     for t in cli_registry.list_tools():
-        if t.name in settings.preload_cli:
+        if t.name in preload_cli_final:
             detail = cli_registry.get_detail(t.name)
             if detail:
                 active_cli_parts.append(_json.dumps(detail, ensure_ascii=False))

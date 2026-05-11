@@ -175,8 +175,13 @@ class MCPToolBridge:
 
 
 def connect_mcp_servers(configs: list[MCPServerConfig]) -> list[MCPToolBridge]:
+    from qd_evolve.toolbox import get_disabled_mcp_servers
+    disabled = get_disabled_mcp_servers()
     bridges: list[MCPToolBridge] = []
     for config in configs:
+        if config.name in disabled:
+            logger.info("MCP: skipping disabled server %s", config.name)
+            continue
         try:
             bridge = MCPToolBridge(config)
             bridge.connect()

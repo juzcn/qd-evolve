@@ -9,7 +9,6 @@ dependencies = [
     "pydantic>=2.11",
     "typer>=0.15.0",
     "rich>=14.0.0",
-    "loguru>=0.7.0",
     "jinja2>=3.1",
     "pyyaml>=6.0",
     "sqlite-vec>=0.1.9",
@@ -20,7 +19,12 @@ dependencies = [
     "sentence-transformers>=5.4.1",
     "numpy>=2.4.4",
     "llama-cpp-python>=0.3.22",
+    "mcp>=1.0",
+    "textual>=8.0",
 ]
+
+[project.optional-dependencies]
+boat = ["basic-open-agent-tools[all]>=1.3"]
 
 [project.scripts]
 qd-evolve = "qd_evolve.cli:app"
