@@ -148,10 +148,10 @@ class Agent:
         )
 
     def _inject_loaded_content(self, system_prompt: str) -> str:
-        """Inject loaded skill and CLI content into the system prompt sections."""
+        """Inject loaded skill/CLI content and remove them from unloaded sections."""
         if self._loaded_skills:
             skills_content = "\n".join(self._loaded_skills.values())
-            marker = "## Loaded SKILL.md —follow these instructions."
+            marker = "## Loaded skills details: SKILL.md — follow these instructions."
             if marker in system_prompt:
                 parts = system_prompt.split(marker, 1)
                 after = parts[1]
@@ -162,10 +162,16 @@ class Agent:
                     after = ""
                 system_prompt = parts[0] + marker + "\n" + skills_content + after
                 logger.info("Injected loaded skills: %s", list(self._loaded_skills.keys()))
+            # Remove loaded skills from unloaded section
+            system_prompt = self._remove_from_unloaded(
+                system_prompt,
+                "## Unloaded Skills Summary",
+                self._loaded_skills.keys(),
+            )
 
         if self._loaded_cli:
             cli_content = "\n".join(self._loaded_cli.values())
-            marker = "## Loaded CLI Tools Help —use them to construct correct command arguments."
+            marker = "## Loaded CLI details: Help — use them to construct correct command arguments."
             if marker in system_prompt:
                 parts = system_prompt.split(marker, 1)
                 after = parts[1]
@@ -176,8 +182,51 @@ class Agent:
                     after = ""
                 system_prompt = parts[0] + marker + "\n" + cli_content + after
                 logger.info("Injected loaded CLI tools: %s", list(self._loaded_cli.keys()))
+            system_prompt = self._remove_from_unloaded(
+                system_prompt,
+                "## Unloaded CLI Tools Summary",
+                self._loaded_cli.keys(),
+            )
+
+        # Also remove activated tools from unloaded section
+        if self._active_tools:
+            system_prompt = self._remove_from_unloaded(
+                system_prompt,
+                "## Unloaded Tools Summary",
+                self._active_tools,
+            )
 
         return system_prompt
+
+    @staticmethod
+    def _remove_from_unloaded(text: str, section_header: str, loaded_names: Any) -> str:
+        """Remove lines matching loaded_names from an unloaded section."""
+        idx = text.find(section_header)
+        if idx < 0:
+            return text
+        # Find end of section (next ## or end of text)
+        end = text.find("\n## ", idx + len(section_header))
+        if end < 0:
+            end = len(text)
+        section = text[idx:end]
+        lines = section.split("\n")
+        # Keep header line, filter out lines starting with "- name:"
+        kept = [lines[0]]  # header
+        for line in lines[1:]:
+            stripped = line.strip()
+            if stripped.startswith("- "):
+                name = stripped[2:].split(":")[0].strip()
+                if name in loaded_names:
+                    continue
+            kept.append(line)
+        # If only header remains, remove entire section
+        if len(kept) <= 1:
+            # Remove the section + trailing newlines
+            before = text[:idx].rstrip("\n") + "\n"
+            after = text[end:]
+            return before + after.lstrip("\n")
+        new_section = "\n".join(kept)
+        return text[:idx] + new_section + text[end:]
 
     def _auto_recall(self, user_input: str, system_prompt: str) -> str:
         if not self.memory or not self.settings.memory_search.auto_recall:
@@ -215,6 +264,8 @@ class Agent:
         return system_prompt
 
     def _run_anthropic(self, client: Any, system_prompt: str, max_tokens: int, _iter: int = 0) -> str:
+        if _iter > 0:
+            logger.info("=== LLM Request #%s (tool) ===", self.iteration)
         response = client.messages.create(
             model=self._model,
             max_tokens=max_tokens,
@@ -240,6 +291,8 @@ class Agent:
         return self._run_anthropic(client, system_prompt, max_tokens, _iter + 1)
 
     def _run_openai_completion(self, client: Any, system_prompt: str, max_tokens: int, _iter: int = 0) -> str:
+        if _iter > 0:
+            logger.info("=== LLM Request #%s (tool) ===", self.iteration)
         openai_messages: list[dict[str, Any]] = [{"role": "system", "content": system_prompt}]
         openai_messages.extend(self.messages)
 
@@ -281,7 +334,7 @@ class Agent:
                 args_brief = json.dumps(args, ensure_ascii=False)[:60]
                 self._update_status(f"Tool: {tc.function.name}({args_brief})")
                 output = self.registry.call(tc.function.name, **args)
-                logger.info("Tool result: %s -> %s",tc.function.name, output[:500])
+                logger.info("Tool result: %s -> %s",tc.function.name, output)
                 self._activate_tool(tc.function.name, args, output)
                 self.messages.append({
                     "role": "tool",
@@ -299,6 +352,8 @@ class Agent:
         return msg.content or ""
 
     def _run_openai_response(self, client: Any, system_prompt: str, max_tokens: int, _iter: int = 0) -> str:
+        if _iter > 0:
+            logger.info("=== LLM Request #%s (tool) ===", self.iteration)
         response = client.responses.create(
             model=self._model,
             instructions=system_prompt,
@@ -315,7 +370,7 @@ class Agent:
                 args_brief = json.dumps(args, ensure_ascii=False)[:60]
                 self._update_status(f"Tool: {item.name}({args_brief})")
                 result = self.registry.call(item.name, **args)
-                logger.info("Tool result: %s -> %s",item.name, str(result)[:500])
+                logger.info("Tool result: %s -> %s",item.name, str(result))
                 self._activate_tool(item.name, args, result)
                 self.messages.append({"role": "assistant", "content": None, "tool_calls": [item]})
                 self.messages.append({
@@ -376,7 +431,7 @@ class Agent:
                 args_brief = json.dumps(block.input, ensure_ascii=False)[:60]
                 self._update_status(f"Tool: {block.name}({args_brief})")
                 output = self.registry.call(block.name, **block.input)
-                logger.info("Tool result: %s -> %s",block.name, str(output)[:500])
+                logger.info("Tool result: %s -> %s",block.name, str(output))
                 self._activate_tool(block.name, block.input, output)
                 results.append({
                     "type": "tool_result",
