@@ -92,12 +92,15 @@ def _create_embedder(backend: EmbeddingsBackend) -> Embedder:
 
 
 class MemoryStore:
-    def __init__(self, db_path: str | Path, backend: EmbeddingsBackend) -> None:
+    def __init__(self, db_path: str | Path, backend: EmbeddingsBackend,
+                 search_by_time_limit: int = 20, list_all_limit: int = 50) -> None:
         self._db_path = Path(db_path)
         self._embedding_dim = backend.dim
         self._session_id = datetime.now().isoformat(timespec="seconds")
         self._db = sqlite3.connect(str(self._db_path))
         self._embedder = _create_embedder(backend)
+        self._search_by_time_limit = search_by_time_limit
+        self._list_all_limit = list_all_limit
         self._init_db()
         logger.info("MemoryStore initialized: db=%s, session_id=%s, dim=%s", self._db_path, self._session_id, self._embedding_dim)
 
@@ -163,8 +166,10 @@ class MemoryStore:
         return memory_id
 
     def search_by_time(
-        self, start: str | None = None, end: str | None = None, limit: int = 20
+        self, start: str | None = None, end: str | None = None, limit: int | None = None
     ) -> list[MemoryEntry]:
+        if limit is None:
+            limit = self._search_by_time_limit
         clauses: list[str] = ["session_id != ?"]
         params: list[Any] = [self._session_id]
         if start:
@@ -201,7 +206,9 @@ class MemoryStore:
         self._db.commit()
         return True
 
-    def list_all(self, limit: int = 50) -> list[MemoryEntry]:
+    def list_all(self, limit: int | None = None) -> list[MemoryEntry]:
+        if limit is None:
+            limit = self._list_all_limit
         rows = self._db.execute("""
             SELECT id, key, session_id, user_msg, assistant_msg, content, accessed_at, access_count
             FROM memories

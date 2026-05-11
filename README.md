@@ -62,7 +62,10 @@ Create `qd-evolve.json` in the project root (see `qd-evolve.json.example`):
     "compress_threshold": 0.7,
     "target_threshold": 0.5,
     "auto_recall": true,
-    "auto_recall_top_k": 5
+    "auto_recall_top_k": 1,
+    "recall_memory_limit": 5,
+    "search_by_time_limit": 20,
+    "list_all_limit": 50
   },
   "embeddings_backends": {
     "default": {
@@ -210,12 +213,16 @@ All config via `qd-evolve.json`. Key fields:
 | `default_model` | Default model name |
 | `log_level` | Logging level (DEBUG/INFO/WARNING/ERROR) |
 | `max_iterations` | Maximum tool-calling iterations per turn (default: 20) |
+| `tool_output_limit` | Max characters per tool response before truncation (default: 50000) |
 | `env_vars` | Environment variables to inject at startup |
 | `memory_search.default_embeddings_backend` | Name of the embeddings backend to use |
 | `memory_search.compress_threshold` | Token ratio to trigger context compression (default: 0.7) |
 | `memory_search.target_threshold` | Token ratio to compress down to (default: 0.5) |
 | `memory_search.auto_recall` | Enable automatic memory recall before each LLM call (default: true) |
-| `memory_search.auto_recall_top_k` | Number of memory entries to retrieve per auto recall (default: 5) |
+| `memory_search.auto_recall_top_k` | Number of memory entries to retrieve per auto recall (default: 1) |
+| `memory_search.recall_memory_limit` | Default limit for the recall_memory tool (default: 5) |
+| `memory_search.search_by_time_limit` | Default limit for time-based memory search (default: 20) |
+| `memory_search.list_all_limit` | Default limit for listing all memories (default: 50) |
 | `embeddings_backends` | Dict of named backends with `model_path`, `dim`, `backend`, `llama_n_ctx`, `llama_n_batch` |
 | `providers[]` | Provider list with api_key, base_url, api type, models |
 

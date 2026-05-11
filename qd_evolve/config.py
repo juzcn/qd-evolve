@@ -53,7 +53,10 @@ class MemorySearchConfig(BaseModel):
     compress_threshold: float = 0.7
     target_threshold: float = 0.5
     auto_recall: bool = True
-    auto_recall_top_k: int = 5
+    auto_recall_top_k: int = 1
+    recall_memory_limit: int = 5
+    search_by_time_limit: int = 20
+    list_all_limit: int = 50
 
 
 class Settings(BaseModel):
@@ -71,6 +74,7 @@ class Settings(BaseModel):
     embeddings_backends: dict[str, EmbeddingsBackend] = {"default": EmbeddingsBackend()}
     memory_search: MemorySearchConfig = MemorySearchConfig()
     max_iterations: int = 20
+    tool_output_limit: int = 50000
 
     def get_provider(self, name: str | None = None) -> ProviderConfig | None:
         target = name or self.default_provider

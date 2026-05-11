@@ -69,7 +69,11 @@
     "compress_threshold": 0.7,
     "target_threshold": 0.5,
     "auto_recall": true,
-    "auto_recall_top_k": 5
+    "auto_recall_top_k": 1,
+    "recall_memory_limit": 5,
+    "search_by_time_limit": 20,
+    "list_all_limit": 50
   },
-  "max_iterations": 20
+  "max_iterations": 20,
+  "tool_output_limit": 50000
 }

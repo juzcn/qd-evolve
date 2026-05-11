@@ -435,6 +435,9 @@ class Agent:
                 args_brief = json.dumps(block.input, ensure_ascii=False)[:60]
                 self._update_status(f"Tool: {block.name}({args_brief})")
                 output = self.registry.call(block.name, **block.input)
+                limit = self.settings.tool_output_limit
+                if len(output) > limit:
+                    output = output[:limit] + "\n... (truncated)"
                 logger.info("Tool result: %s -> %s",block.name, str(output))
                 self._activate_tool(block.name, block.input, output)
                 results.append({

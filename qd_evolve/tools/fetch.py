@@ -63,8 +63,6 @@ def _fetch(url: str, method: str = "GET", headers: dict | None = None, body: str
         content_type = resp.headers.get("content-type", "")
         text = resp.text
 
-        if len(text) > 50000:
-            text = text[:50000] + "\n... (truncated)"
         return text
 
     except httpx.HTTPStatusError as e:

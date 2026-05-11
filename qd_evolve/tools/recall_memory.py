@@ -10,6 +10,8 @@ if TYPE_CHECKING:
     from qd_evolve.memory import MemoryStore
 
 _memory_store: MemoryStore | None = None
+_default_limit: int = 5
+_browse_min_limit: int = 20
 
 
 def set_memory_store(store: MemoryStore) -> None:
@@ -17,18 +19,30 @@ def set_memory_store(store: MemoryStore) -> None:
     _memory_store = store
 
 
+def set_default_limit(limit: int) -> None:
+    global _default_limit
+    _default_limit = limit
+
+
+def set_browse_min_limit(limit: int) -> None:
+    global _browse_min_limit
+    _browse_min_limit = limit
+
+
 def _recall_memory(
     query: str | None = None,
     keywords: list[str] | None = None,
     time_range: str | None = None,
-    limit: int = 5,
+    limit: int | None = None,
 ) -> str:
+    if limit is None:
+        limit = _default_limit
     if _memory_store is None:
         return "Memory store not initialized."
 
     # When only time_range (no query/keywords), raise limit for browsing
     if not query and not keywords and time_range:
-        limit = max(limit, 20)
+        limit = max(limit, _browse_min_limit)
 
     entries = _memory_store.recall(
         query=query or None,
@@ -79,8 +93,7 @@ registry.register(
             },
             "limit": {
                 "type": "integer",
-                "description": "Maximum number of memories to return. Default 5.",
-                "default": 5,
+                "description": "Maximum number of memories to return. Default from config (recall_memory_limit).",
             },
         },
         "required": [],

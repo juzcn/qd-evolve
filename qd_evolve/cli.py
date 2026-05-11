@@ -586,11 +586,15 @@ def chat(
     if backend is None:
         console.print(f"[red]Error:[/red] Embeddings backend '{backend_name}' not found in config")
         raise SystemExit(1)
-    memory = MemoryStore(settings.memory_db, backend)
+    memory = MemoryStore(settings.memory_db, backend,
+                         search_by_time_limit=settings.memory_search.search_by_time_limit,
+                         list_all_limit=settings.memory_search.list_all_limit)
 
-    # 10. Inject memory store into recall_memory tool
-    from qd_evolve.tools.recall_memory import set_memory_store
+    # 10. Inject memory store and defaults into recall_memory tool
+    from qd_evolve.tools.recall_memory import set_memory_store, set_default_limit, set_browse_min_limit
     set_memory_store(memory)
+    set_default_limit(settings.memory_search.recall_memory_limit)
+    set_browse_min_limit(settings.memory_search.search_by_time_limit)
 
     agent = Agent(settings=settings, registry=registry, providers=providers, memory=memory,
                   default_system_prompt=system_prompt,
