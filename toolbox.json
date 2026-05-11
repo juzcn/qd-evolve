@@ -1,0 +1,17 @@
+{
+  "tools": {
+    "load_cli_detail": "preload",
+    "recall_memory": "preload",
+    "load_skill_detail": "preload",
+    "load_tool_detail": "preload",
+    "read_file": "disabled",
+    "write_file": "disabled",
+    "list_directory": "disabled",
+    "run_shell": "disabled"
+  },
+  "mcp_servers": {},
+  "cli": {},
+  "skills": {
+    "cli-register": "preload"
+  }
+}
