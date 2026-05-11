@@ -13,6 +13,9 @@ import sqlite_vec
 from qd_evolve.logger import logger
 from pydantic import BaseModel
 
+import os
+os.environ.setdefault("TQDM_DISABLE", "1")
+
 
 class MemoryEntry(BaseModel):
     id: int
@@ -67,7 +70,7 @@ class SentenceTransformerEmbedder:
         self._model = SentenceTransformer(model_path)
 
     def encode(self, text: str) -> np.ndarray:
-        return np.array(self._model.encode(text), dtype=np.float32)
+        return np.array(self._model.encode(text, show_progress_bar=False), dtype=np.float32)
 
 
 class LlamaCppEmbedder:

@@ -80,11 +80,11 @@ class Agent:
             self.iteration += 1
             client = prov.create_client()
             active = self._active_tools | self._always_active
+            msg = self._format_messages_log()
             logger.info("=== LLM Request #%s === Provider: %s / %s (%s), Active tools: %s\n"
-                        "--- System Prompt ---\n%s\n"
                         "--- Messages ---\n  %s",
                         self.iteration, self._provider_name, self._model, self._api_type, active,
-                        system_prompt, self._format_messages_log())
+                        msg)
 
             if self._api_type == "anthropic":
                 result = self._run_anthropic(client, system_prompt, max_tokens)
@@ -149,6 +149,8 @@ class Agent:
 
     def _inject_loaded_content(self, system_prompt: str) -> str:
         """Inject loaded skill/CLI content and remove them from unloaded sections."""
+        updated = False
+
         if self._loaded_skills:
             skills_content = "\n".join(self._loaded_skills.values())
             marker = "## Loaded skills details: SKILL.md — follow these instructions."
@@ -161,8 +163,7 @@ class Agent:
                 else:
                     after = ""
                 system_prompt = parts[0] + marker + "\n" + skills_content + after
-                logger.info("Injected loaded skills: %s", list(self._loaded_skills.keys()))
-            # Remove loaded skills from unloaded section
+                updated = True
             system_prompt = self._remove_from_unloaded(
                 system_prompt,
                 "## Unloaded Skills Summary",
@@ -181,12 +182,15 @@ class Agent:
                 else:
                     after = ""
                 system_prompt = parts[0] + marker + "\n" + cli_content + after
-                logger.info("Injected loaded CLI tools: %s", list(self._loaded_cli.keys()))
+                updated = True
             system_prompt = self._remove_from_unloaded(
                 system_prompt,
                 "## Unloaded CLI Tools Summary",
                 self._loaded_cli.keys(),
             )
+
+        if updated:
+            logger.info("System prompt updated:\n%s", system_prompt)
 
         # Also remove activated tools from unloaded section
         if self._active_tools:
