@@ -410,7 +410,7 @@ def _handle_slash_command(
             settings.default_provider = prov_name
             settings.default_model = mname
             save_json(settings.model_dump(), CONFIG_PATH)
-            logger.info("Switched default model to %s/%s and saved config", prov_name, mname)
+            logger.info("CLI: switched default model to %s/%s and saved config", prov_name, mname)
             return f"  Switched to {prov_name}/{mname}"
         return "  Cancelled."
     if name == "/status":
@@ -574,7 +574,7 @@ def chat(
         os_name=platform.system(),
         python_cmd=python_cmd,
         cwd=str(Path.cwd()),
-        skills_dir=str(Path(settings.skills_dir).resolve()),
+        skills_dir=settings.skills_dir,
     )
 
     # 8. Provider
@@ -630,7 +630,7 @@ def chat(
             tee = TeeWriter(sys.stdout, output_file)
             import qd_evolve.cli as _cli_mod
             _cli_mod.console = Console(file=tee, force_terminal=True)
-        logger.info(f"Replay mode: {len(inputs)} inputs from {replay}")
+        logger.info("CLI: replay mode: %s inputs from %s", len(inputs), replay)
     else:
         input_session = _make_prompt_session()
 

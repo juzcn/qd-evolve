@@ -37,7 +37,7 @@ class CLIRegistry:
     def _load(self) -> None:
         self._tools.clear()
         if self._cli_dir is None or not self._cli_dir.is_dir():
-            logger.debug("CLI tools dir %s not found, skipping", self._cli_dir)
+            logger.debug("CLI: tools dir %s not found, skipping", self._cli_dir)
             return
 
         for yaml_file in sorted(self._cli_dir.glob("*.yaml")):

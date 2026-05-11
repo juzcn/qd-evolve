@@ -96,10 +96,12 @@ class MCPToolBridge:
         from mcp import ClientSession, StdioServerParameters
         from mcp.client.stdio import stdio_client
 
+        import os as _os
+        merged_env = {**_os.environ, "PYTHONIOENCODING": "utf-8", **self._config.env}
         server_params = StdioServerParameters(
             command=self._config.command,
             args=self._config.args,
-            env=self._config.env or None,
+            env=merged_env,
         )
 
         logger.info("MCP: connecting to %s (%s)", self._config.name, self._config.command)
@@ -131,7 +133,13 @@ class MCPToolBridge:
             future = asyncio.run_coroutine_threadsafe(
                 self._call_tool(tool_name, kwargs), self._loop
             )
-            return future.result(timeout=60)
+            try:
+                return future.result(timeout=120)
+            except TimeoutError:
+                return json.dumps({"error": f"MCP tool '{tool_name}' timed out after 120s"})
+            except Exception as exc:
+                logger.exception("MCP: tool '%s' failed", tool_name)
+                return json.dumps({"error": f"MCP tool '{tool_name}' failed: {type(exc).__name__}: {exc}"})
         return handler
 
     async def _call_tool(self, tool_name: str, arguments: dict[str, Any]) -> str:
@@ -187,7 +195,7 @@ def connect_mcp_servers(configs: list[MCPServerConfig]) -> list[MCPToolBridge]:
             bridge.connect()
             bridges.append(bridge)
         except Exception as e:
-            logger.error("MCP: failed to connect to %s: %s", config.name, e)
+            logger.exception("MCP: failed to connect to %s: %s", config.name, e)
     return bridges
 
 
@@ -218,6 +226,6 @@ def reload_mcp_servers(
             kept_bridges.append(bridge)
             logger.info("MCP: connected new server %s", config.name)
         except Exception as e:
-            logger.error("MCP: failed to connect to %s: %s", config.name, e)
+            logger.exception("MCP: failed to connect to %s: %s", config.name, e)
 
     return kept_bridges

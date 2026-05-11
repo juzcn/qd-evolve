@@ -12,22 +12,41 @@ import json
 from typing import Any
 
 import basic_open_agent_tools as boat
+from qd_evolve.logger import logger
 from mcp.server.fastmcp import FastMCP
 
 
 _DEFAULTS: dict[type, Any] = {bool: False}
 
 
+def _sanitize(obj: Any) -> Any:
+    """Replace None with '' in dict values to survive pydantic string validation."""
+    if isinstance(obj, dict):
+        return {k: _sanitize(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_sanitize(v) for v in obj]
+    return obj if obj is not None else ""
+
+
 def _make_wrapper(fn: Any) -> tuple[Any, str]:
     """Wrap a BOAT function: strip skip_confirm, add defaults for optional params."""
     sig = inspect.signature(fn)
     new_params = []
+    has_default = False
     for name, p in sig.parameters.items():
         if name == "skip_confirm":
             continue
         # If non-string param has no default, give it one (bool/int/float)
         if p.default is inspect.Parameter.empty and p.annotation in _DEFAULTS:
             new_params.append(p.replace(default=_DEFAULTS[p.annotation]))
+            has_default = True
+        elif p.default is not inspect.Parameter.empty:
+            new_params.append(p)
+            has_default = True
+        elif has_default and p.default is inspect.Parameter.empty:
+            # Follows a parameter with a default — must not be required
+            new_params.append(p.replace(default=None))
+            has_default = True
         else:
             new_params.append(p)
     new_sig = sig.replace(parameters=new_params)
@@ -50,10 +69,10 @@ def _make_wrapper(fn: Any) -> tuple[Any, str]:
             if result is None:
                 return "(done)"
             if isinstance(result, (dict, list)):
-                return json.dumps(result, ensure_ascii=False, indent=2)
+                return _sanitize(result)
             return str(result)
         except Exception as exc:
-            return f"Error: {type(exc).__name__}: {exc}"
+            return {"error": f"{type(exc).__name__}: {exc}"}
 
     wrapper.__signature__ = new_sig  # type: ignore[attr-defined]
     return wrapper, doc
@@ -93,6 +112,7 @@ def main() -> None:
             if a.startswith("load_") and not a.endswith("_loadout")
             and not a.startswith("load_all_") and a != "load_all_tools"
         )
+        logger.error("BOAT: unknown loadout '%s'. Available: %s", name, ', '.join(sorted(set(available))))
         print(f"Error: unknown loadout '{name}'. Available: {', '.join(sorted(set(available)))}",
               flush=True)
         raise SystemExit(1)

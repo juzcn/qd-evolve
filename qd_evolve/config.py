@@ -104,7 +104,7 @@ def load_settings(path: Path | str | None = None) -> Settings:
     p = Path(path) if path else CONFIG_PATH
     if p.exists():
         data = load_json(p)
-        logger.debug("Loaded config from %s", p)
+        logger.debug("Config: loaded from %s", p)
         return Settings.model_validate(data)
-    logger.debug("Config file %s not found, using defaults", p)
+    logger.debug("Config: file %s not found, using defaults", p)
     return Settings()

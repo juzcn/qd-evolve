@@ -56,7 +56,7 @@ class SkillRegistry:
     def _load(self) -> None:
         self._skills.clear()
         if self._skills_dir is None or not self._skills_dir.is_dir():
-            logger.warning(f"Skills directory not found: {self._skills_dir}")
+            logger.warning("Skills: skills directory not found: %s", self._skills_dir)
             return
 
         for skill_dir in self._skills_dir.iterdir():
@@ -72,13 +72,13 @@ class SkillRegistry:
 
             fm = _parse_frontmatter(content)
             if not fm:
-                logger.error(f"SKILL.md missing YAML frontmatter (name + description): {skill_dir.name}")
+                logger.error("Skills: SKILL.md missing YAML frontmatter (name + description): %s", skill_dir.name)
                 continue
 
             name = fm.get("name") or ""
             summary = fm.get("description") or ""
             if not name or not summary:
-                logger.error(f"SKILL.md frontmatter missing 'name' or 'description': {skill_dir.name}")
+                logger.error("Skills: SKILL.md frontmatter missing 'name' or 'description': %s", skill_dir.name)
                 continue
 
             version = ""
@@ -88,7 +88,7 @@ class SkillRegistry:
                     meta = json.loads(meta_path.read_text(encoding="utf-8"))
                     version = meta.get("version", "")
                 except (json.JSONDecodeError, OSError):
-                    logger.warning(f"Failed to parse _meta.json for skill: {skill_dir.name}")
+                    logger.warning("Skills: failed to parse _meta.json for skill: %s", skill_dir.name)
 
             active = name in self._preload_skills or skill_dir.name in self._preload_skills
             skill = SkillInfo(
@@ -99,7 +99,7 @@ class SkillRegistry:
                 active=active,
             )
             self._skills[name] = skill
-            logger.debug(f"Discovered skill: {name}")
+            logger.debug("Skills: discovered skill: %s", name)
 
     def get_all_skills(self) -> list[SkillInfo]:
         return [s for s in self._skills.values() if s.name not in self._disabled]

@@ -85,9 +85,9 @@ class LlamaCppEmbedder:
 
 def _create_embedder(backend: EmbeddingsBackend) -> Embedder:
     if backend.backend == "llama-cpp-python":
-        logger.info("Using llama-cpp embedder: %s", backend.model_path)
+        logger.info("Memory: using llama-cpp embedder: %s", backend.model_path)
         return LlamaCppEmbedder(backend.model_path, n_ctx=backend.llama_n_ctx, n_batch=backend.llama_n_batch)
-    logger.info("Using sentence-transformers embedder: %s", backend.model_path)
+    logger.info("Memory: using sentence-transformers embedder: %s", backend.model_path)
     return SentenceTransformerEmbedder(backend.model_path)
 
 
@@ -102,7 +102,7 @@ class MemoryStore:
         self._search_by_time_limit = search_by_time_limit
         self._list_all_limit = list_all_limit
         self._init_db()
-        logger.info("MemoryStore initialized: db=%s, session_id=%s, dim=%s", self._db_path, self._session_id, self._embedding_dim)
+        logger.info("Memory: store initialized: db=%s, session_id=%s, dim=%s", self._db_path, self._session_id, self._embedding_dim)
 
     def _init_db(self) -> None:
         self._db.enable_load_extension(True)
@@ -140,7 +140,7 @@ class MemoryStore:
 
     def new_session(self) -> str:
         self._session_id = datetime.now().isoformat(timespec="seconds")
-        logger.info("New memory session: %s", self._session_id)
+        logger.info("Memory: new session: %s", self._session_id)
         return self._session_id
 
     def _encode(self, text: str) -> np.ndarray:
@@ -162,7 +162,7 @@ class MemoryStore:
             (memory_id, embedding),
         )
         self._db.commit()
-        logger.debug("Saved memory id=%s, key=%s", memory_id, key)
+        logger.debug("Memory: saved memory id=%s, key=%s", memory_id, key)
         return memory_id
 
     def search_by_time(
@@ -278,7 +278,7 @@ class MemoryStore:
             start = datetime.strptime(m.group(1), "%Y-%m-%d").isoformat(timespec="seconds")
             return start, None
 
-        logger.warning("Unknown time_range format: %s", time_range)
+        logger.warning("Memory: unknown time_range format: %s", time_range)
         return None, None
 
     def recall(
@@ -350,7 +350,7 @@ class MemoryStore:
                     )
                     results[entry.id] = entry
             except Exception as e:
-                logger.warning("Semantic search failed: %s", e)
+                logger.warning("Memory: semantic search failed: %s", e)
 
         # Keyword search
         if keywords:
@@ -431,4 +431,4 @@ class MemoryStore:
             except Exception:
                 pass
         self._db.close()
-        logger.info("MemoryStore closed")
+        logger.info("Memory: store closed")

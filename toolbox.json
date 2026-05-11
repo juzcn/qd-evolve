@@ -7,7 +7,7 @@
     "read_file": "disabled",
     "write_file": "disabled",
     "list_directory": "disabled",
-    "run_shell": "disabled"
+    "execute_shell_command": "disabled"
   },
   "mcp_servers": {},
   "cli": {},

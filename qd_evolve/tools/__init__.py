@@ -32,14 +32,14 @@ class ToolRegistry:
         input_schema: dict[str, Any] | None = None,
     ) -> None:
         if name in self._tools:
-            logger.warning("Tool name collision, overwriting: %s", name)
+            logger.warning("Tools: tool name collision, overwriting: %s", name)
         self._tools[name] = ToolDef(
             name=name,
             description=description,
             handler=handler,
             input_schema=input_schema or {"type": "object", "properties": {}},
         )
-        logger.debug("Registered tool: %s", name)
+        logger.debug("Tools: registered tool: %s", name)
 
     def call(self, tool_name: str, **kwargs: Any) -> str:
         td = self._tools.get(tool_name)
@@ -50,8 +50,9 @@ class ToolRegistry:
         try:
             return td.handler(**kwargs)
         except Exception as e:
-            logger.error(f"Tool '{tool_name}' error: {e}")
-            return f"Error executing tool '{tool_name}': {e}"
+            msg = f"{type(e).__name__}: {e}" if str(e) else type(e).__name__
+            logger.exception("Tools: tool '%s' error: %s", tool_name, msg)
+            return f"Error executing tool '{tool_name}': {msg}"
 
     def get(self, name: str) -> ToolDef | None:
         return self._tools.get(name)
@@ -74,7 +75,7 @@ class ToolRegistry:
         """Remove a tool from the registry."""
         if name in self._tools:
             del self._tools[name]
-            logger.debug(f"Unregistered tool: {name}")
+            logger.debug("Tools: unregistered tool: %s", name)
 
     def definitions(self, api_format: str = "openai", active_tools: set[str] | None = None) -> list[dict[str, Any]]:
         """Build tool definitions for API calls.
@@ -137,7 +138,7 @@ class ToolRegistry:
             try:
                 importlib.import_module(module_name)
             except Exception as e:
-                logger.error(f"Failed to load tool module {module_name}: {e}")
+                logger.exception("Tools: failed to load tool module %s", module_name)
 
 
 # Module-level singleton

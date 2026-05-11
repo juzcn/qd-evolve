@@ -16,6 +16,10 @@ You are a proactive AI agent. Always prefer action over guessing.
 - Python command: {{ python_cmd }}
 - Working directory: {{ cwd }}
 - Skills directory: {{ skills_dir }}
+
+**Skill path adaptation:** Skills use `python3 skills/X` paths. Adapt to the local environment: replace `python3` with `{{ python_cmd }}`, and replace `skills/` with `{{ skills_dir }}/`. Example: `python3 skills/foo/bar.py` → `{{ python_cmd }} {{ skills_dir }}/foo/bar.py`. Always use this relative form, never absolute paths.
+
+**Shell command rules:** Use `run_shell` to execute commands. It runs directly in the agent process (no subprocess hell). For skill scripts, use the adapted path from above. `timeout` defaults to 30s — set higher (60-120) for network/API calls.
 {% if unloaded_skills %}
 
 ## Unloaded Skills Summary (use load_skill_detail to get full instructions)

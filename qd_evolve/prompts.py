@@ -52,7 +52,7 @@ class PromptTemplateManager:
         ctx = self._default_context()
         ctx.update(context)
         result = template.render(**ctx)
-        logger.debug("Rendered template '%s' (%s chars)", name, len(result))
+        logger.debug("Prompt: rendered template '%s' (%s chars)", name, len(result))
         return result
 
     @staticmethod

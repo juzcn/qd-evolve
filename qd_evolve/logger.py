@@ -42,7 +42,7 @@ def setup_logging(level: str = "INFO") -> None:
     root.addHandler(file_handler)
 
     stderr_handler = logging.StreamHandler(sys.stderr)
-    stderr_handler.setLevel(logging.CRITICAL)
+    stderr_handler.setLevel(logging.WARNING)
     stderr_handler.setFormatter(logging.Formatter(
         "%(asctime)s | %(levelname)-8s | %(name)s:%(funcName)s - %(message)s",
         datefmt="%H:%M:%S",
