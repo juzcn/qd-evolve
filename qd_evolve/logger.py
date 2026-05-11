@@ -8,11 +8,17 @@ from pathlib import Path
 LOG_DIR = Path(__file__).resolve().parent.parent / "logs"
 
 
-class _LineBufferedFileHandler(logging.FileHandler):
-    """FileHandler with line buffering — flushes to disk after every newline."""
+class _SharedFileHandler(logging.FileHandler):
+    """Opens the file per-write instead of holding it open, allowing external
+    readers/watchers to see every line immediately and delete the file freely."""
 
-    def _open(self):
-        return open(self.baseFilename, self.mode, encoding=self.encoding, buffering=1)
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            with open(self.baseFilename, self.mode, encoding=self.encoding) as f:
+                f.write(self.format(record) + self.terminator)
+                f.flush()
+        except Exception:
+            self.handleError(record)
 
 
 def setup_logging(level: str = "INFO") -> None:
@@ -26,7 +32,7 @@ def setup_logging(level: str = "INFO") -> None:
     root.setLevel(lvl)
     root.handlers.clear()
 
-    file_handler = _LineBufferedFileHandler(str(log_file), encoding="utf-8")
+    file_handler = _SharedFileHandler(str(log_file), encoding="utf-8")
     file_handler.setLevel(logging.DEBUG)
     file_handler.setFormatter(logging.Formatter(
         "%(asctime)s | %(levelname)-8s | %(name)s:%(funcName)s:%(lineno)d - %(message)s",
