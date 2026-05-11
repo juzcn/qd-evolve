@@ -15,13 +15,16 @@ if TYPE_CHECKING:
 
 
 class Agent:
-    def __init__(self, settings: Settings, registry: ToolRegistry, providers: ProviderRegistry, memory: MemoryStore | None = None, default_system_prompt: str = "") -> None:
+    def __init__(self, settings: Settings, registry: ToolRegistry, providers: ProviderRegistry,
+                 memory: MemoryStore | None = None, default_system_prompt: str = "",
+                 preload_tools: set[str] | None = None,
+                 preload_skills: set[str] | None = None,
+                 preload_cli: set[str] | None = None) -> None:
         self.settings = settings
         self.registry = registry
         self.default_system_prompt = default_system_prompt
         self._active_tools: set[str] = set()
-        # preload_tools are always active (need full schema from start)
-        self._always_active: set[str] = set(settings.preload_tools)
+        self._always_active: set[str] = preload_tools or set()
         self.providers = providers
         self.memory = memory
         self.messages: list[dict[str, Any]] = []
@@ -37,8 +40,8 @@ class Agent:
         self._recalled = RecalledMemoryRegistry()
         self._loaded_skills: dict[str, str] = {}
         self._loaded_cli: dict[str, str] = {}
-        self._preload_skills: set[str] = set(settings.preload_skills)
-        self._preload_cli: set[str] = set(settings.preload_cli)
+        self._preload_skills: set[str] = preload_skills or set()
+        self._preload_cli: set[str] = preload_cli or set()
 
     def set_status_callback(self, cb: Callable[[str], None]) -> None:
         self._on_status = cb

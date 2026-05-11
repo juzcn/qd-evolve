@@ -122,7 +122,7 @@ class MCPToolBridge:
                 handler=self._make_handler(tool.name),
             )
             self._tool_names.append(prefixed_name)
-            logger.info("MCP: registered tool %s -> %s", tool.name, prefixed_name)
+            logger.debug("MCP: registered tool %s -> %s", tool.name, prefixed_name)
 
     def _make_handler(self, tool_name: str):
         def handler(**kwargs: Any) -> str:

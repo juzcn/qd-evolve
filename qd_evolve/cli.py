@@ -118,8 +118,11 @@ def toolbox(
         return
 
     if tui:
-        from qd_evolve.toolbox_tui import ToolboxApp
-        ToolboxApp().run()
+        from qd_evolve.toolbox_tui import _build_data, ToolboxApp
+        console.print("Loading tools...", end="\r")
+        data, bridges = _build_data(connect_mcp=True)
+        console.print(f"Loaded {sum(len(v) for v in data.values())} items across {len(data)} categories")
+        ToolboxApp(data, bridges).run()
     else:
         _toolbox_interactive()
 
@@ -244,7 +247,7 @@ def _toolbox_list(args: list[str]) -> None:
 
     # Skills
     sr = SkillRegistry()
-    sr.discover_skills(settings.skills_dir, preload_skills=settings.preload_skills)
+    sr.discover_skills(settings.skills_dir)
     skills_data: list[tuple[str, str, str]] = []
     for s in sr._skills.values():
         skills_data.append((s.name, s.summary or "", get_state("skills", s.name)))
@@ -498,7 +501,7 @@ def chat(
 
     # 3. Skills
     skill_registry = SkillRegistry()
-    skill_registry.discover_skills(settings.skills_dir, preload_skills=settings.preload_skills)
+    skill_registry.discover_skills(settings.skills_dir)
 
     # 4. CLI tools
     cli_registry = CLIRegistry()
@@ -511,10 +514,11 @@ def chat(
     # 5b. Apply toolbox state from toolbox.json
     from qd_evolve.toolbox import (
         apply_to_tools, apply_to_cli_registry, apply_to_skill_registry,
+        get_preloaded,
     )
-    loaded_tool_names: set[str] = set(settings.preload_tools)
-    loaded_skill_names: set[str] = set()
-    loaded_cli_names: set[str] = set()
+    loaded_tool_names: set[str] = get_preloaded("tools")
+    loaded_skill_names: set[str] = get_preloaded("skills")
+    loaded_cli_names: set[str] = get_preloaded("cli")
     apply_to_tools(registry, loaded_tool_names)
     apply_to_cli_registry(cli_registry, loaded_cli_names)
     apply_to_skill_registry(skill_registry, loaded_skill_names)
@@ -523,26 +527,9 @@ def chat(
     from qd_evolve.tools.skill_loader import set_skill_registry
     set_skill_registry(skill_registry)
     from qd_evolve.tools.tool_loader import set_preload_tools
-    set_preload_tools(set(settings.preload_tools))
+    set_preload_tools(loaded_tool_names)
     from qd_evolve.tools.cli_loader import set_cli_registry
-    set_cli_registry(cli_registry, set(settings.preload_cli))
-
-    # 7. System prompt via Jinja2 template
-    python_cmd = _detect_python_cmd()
-    template_mgr = PromptTemplateManager()
-
-    # Build loaded content for preload skills/CLI/tools
-    import json as _json
-    # Recompute preload sets from toolbox.json merging
-    preload_skills_final = loaded_skill_names | set(settings.preload_skills)
-    preload_cli_final = loaded_cli_names | set(settings.preload_cli)
-    preload_tools_final = loaded_tool_names | set(settings.preload_tools)
-    from qd_evolve.tools.skill_loader import set_skill_registry
-    set_skill_registry(skill_registry)
-    from qd_evolve.tools.tool_loader import set_preload_tools
-    set_preload_tools(set(settings.preload_tools))
-    from qd_evolve.tools.cli_loader import set_cli_registry
-    set_cli_registry(cli_registry, set(settings.preload_cli))
+    set_cli_registry(cli_registry, loaded_cli_names)
 
     # 7. System prompt via Jinja2 template
     python_cmd = _detect_python_cmd()
@@ -555,18 +542,17 @@ def chat(
     for s in skill_registry._skills.values():
         if s.name in loaded_skill_names:
             s.active = True
-    preload_cli_final = loaded_cli_names | set(settings.preload_cli)
 
     active_skills_parts = []
     for s in skill_registry.get_all_skills():
         if s.active and s.content:
-            active_skills_parts.append(f"### {s.name}\n{s.content}")
+            active_skills_parts.append(s.content)
             loaded_skill_names.add(s.name)
     active_skills_content = "\n".join(active_skills_parts)
 
     active_cli_parts = []
     for t in cli_registry.list_tools():
-        if t.name in preload_cli_final:
+        if t.name in loaded_cli_names:
             detail = cli_registry.get_detail(t.name)
             if detail:
                 active_cli_parts.append(_json.dumps(detail, ensure_ascii=False))
@@ -606,14 +592,18 @@ def chat(
     from qd_evolve.tools.recall_memory import set_memory_store
     set_memory_store(memory)
 
-    agent = Agent(settings=settings, registry=registry, providers=providers, memory=memory, default_system_prompt=system_prompt)
+    agent = Agent(settings=settings, registry=registry, providers=providers, memory=memory,
+                  default_system_prompt=system_prompt,
+                  preload_tools=loaded_tool_names,
+                  preload_skills=loaded_skill_names,
+                  preload_cli=loaded_cli_names)
 
     # Initialize agent's loaded_skills/loaded_cli with active content for on-demand append
     for s in skill_registry.get_all_skills():
         if s.active and s.content:
             agent._loaded_skills[s.name] = s.content
     for t in cli_registry.list_tools():
-        if t.name in settings.preload_cli:
+        if t.name in loaded_cli_names:
             detail = cli_registry.get_detail(t.name)
             if detail:
                 agent._loaded_cli[t.name] = _json.dumps(detail, ensure_ascii=False)

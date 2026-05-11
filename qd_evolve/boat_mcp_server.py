@@ -54,12 +54,16 @@ def main() -> None:
 
     name = args.loadout
 
-    # Try three naming patterns (in order)
-    loader = (
-        getattr(boat, f"load_{name}_loadout", None)          # loadouts: coder, docs, ...
-        or getattr(boat, f"load_all_{name}_tools", None)     # per-module: pdf, excel, ..., all
-        or getattr(boat, f"load_{name}", None)               # curated bundles: converters, essential, ...
-    )
+    # Special case: "all" → load_all_tools
+    if name == "all":
+        loader = boat.load_all_tools
+    else:
+        # Try three naming patterns (in order)
+        loader = (
+            getattr(boat, f"load_{name}_loadout", None)          # loadouts: coder, docs, ...
+            or getattr(boat, f"load_all_{name}_tools", None)     # per-module: pdf, excel, ...
+            or getattr(boat, f"load_{name}", None)               # curated bundles: converters, ...
+        )
 
     if loader is None:
         available = sorted(

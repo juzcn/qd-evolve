@@ -8,7 +8,7 @@ from textual.containers import Horizontal
 from textual.screen import ModalScreen
 from textual.widgets import DataTable, Footer, Header, Input, Static
 
-from qd_evolve.toolbox import get_state, toggle as tb_toggle, set_state
+from qd_evolve.toolbox import get_state, set_state
 
 
 def _build_data(connect_mcp: bool = True) -> tuple[dict, list]:
@@ -28,7 +28,7 @@ def _build_data(connect_mcp: bool = True) -> tuple[dict, list]:
     if connect_mcp:
         bridges = connect_mcp_servers(mcp_configs)
 
-    # Now collect all tools from the registry
+    # Collect all tools from the global registry (MCP tools added during connect)
     registry = get_registry()
 
     # Builtin tools (no __ prefix)
@@ -54,7 +54,7 @@ def _build_data(connect_mcp: bool = True) -> tuple[dict, list]:
     for cfg in mcp_configs:
         srv_state = "disabled" if cfg.name in disabled_srv else "enabled"
         key = f"MCP: {cfg.name}"
-        categories[key] = [(f"▶ mcp:{cfg.name} (server)", cfg.command, srv_state)]
+        categories[key] = [(f"+ mcp:{cfg.name} (server)", cfg.command, srv_state)]
         if cfg.name in mcp_tools:
             categories[key].extend(mcp_tools[cfg.name])
 
@@ -68,7 +68,7 @@ def _build_data(connect_mcp: bool = True) -> tuple[dict, list]:
 
     # Skills
     sr = SkillRegistry()
-    sr.discover_skills(settings.skills_dir, preload_skills=settings.preload_skills)
+    sr.discover_skills(settings.skills_dir)
     skills = [(s.name, s.summary or "", get_state("skills", s.name))
               for s in sr._skills.values()]
     if skills:
@@ -90,7 +90,6 @@ class HelpScreen(ModalScreen):
             "   /           Filter tools\n"
             "\n"
             " [bold]Actions[/bold]\n"
-            "   Enter / t   Cycle: disabled → enabled → preload\n"
             "   e           Toggle enable / disable\n"
             "   p           Toggle preload on / off\n"
             "   Space       Expand / collapse MCP server\n"
@@ -98,7 +97,7 @@ class HelpScreen(ModalScreen):
             "\n"
             " [bold]Columns[/bold]\n"
             "   ✓/✗ = enabled/disabled   ⚡ = preloaded\n"
-            "   ▶/▼ = collapsed/expanded (MCP servers)\n"
+            "   +/v = collapsed/expanded (MCP servers)\n"
             "\n"
             " [bold]Other[/bold]\n"
             "   ?           This help\n"
@@ -111,12 +110,12 @@ class HelpScreen(ModalScreen):
 
 class ToolboxApp(App):
     _rebuilding = False  # guard against RowHighlighted during rebuild
+    ENABLE_COMMAND_PALETTE = False
 
     TITLE = "Toolbox"
     BINDINGS = [
         Binding("up,j", "cursor_up", "Up", show=False),
         Binding("down,k", "cursor_down", "Down", show=False),
-        Binding("enter,t", "cycle", "Cycle state"),
         Binding("e", "toggle_enabled", "Toggle enable/disable"),
         Binding("p", "toggle_preload", "Toggle preload"),
         Binding("space", "expand", "Expand/Collapse"),
@@ -127,11 +126,11 @@ class ToolboxApp(App):
         Binding("q", "quit", "Quit"),
     ]
 
-    def __init__(self) -> None:
+    def __init__(self, data: dict, bridges: list) -> None:
         super().__init__()
-        self._mcp_bridges: list = []
-        self._data, self._mcp_bridges = _build_data(connect_mcp=True)
-        self._categories = list(self._data.keys())
+        self._data = data
+        self._mcp_bridges = bridges
+        self._categories = list(data.keys())
         self._cat_index = 0
         self._filter = ""
         self._expanded: set[str] = set()
@@ -152,13 +151,9 @@ class ToolboxApp(App):
         yield Footer()
 
     def on_mount(self) -> None:
-        self._rebuilding = True
         cat_table = self.query_one("#categories", DataTable)
         cat_table.add_column("Category")
         cat_table.styles.width = "25%"
-        self._load_categories()
-        self._rebuilding = False
-
         tools_table = self.query_one("#tools", DataTable)
         tools_table.add_column("Enabled", width=7)
         tools_table.add_column("Preload", width=7)
@@ -166,6 +161,7 @@ class ToolboxApp(App):
         tools_table.add_column("Description")
         tools_table.styles.width = "75%"
 
+        self._load_categories()
         self._load_tools()
         cat_table.focus()
 
@@ -181,7 +177,7 @@ class ToolboxApp(App):
             if cat.startswith("MCP:"):
                 total -= 1
                 active = max(0, active - 1)
-            expanded = "▼ " if cat in self._expanded else ""
+            expanded = "v " if cat in self._expanded else ""
             cat_table.add_row(f"{expanded}{cat} ({active}/{total})")
         cat_table.move_cursor(row=saved_row)
         self._rebuilding = False
@@ -204,8 +200,8 @@ class ToolboxApp(App):
             if is_mcp:
                 if i == 0:
                     # Server header row — aggregate state from subtools
-                    arrow = "▼" if expanded else "▶"
-                    display_name = name.replace("▶", arrow).replace("▼", arrow)
+                    arrow = "v" if expanded else "+"
+                    display_name = name.replace("+", arrow).replace("v", arrow)
                     # Count subtool states
                     tool_states = [s for n, d, s in self._data[cat][1:] if self._filter.lower() in n.lower() or not self._filter]
                     all_enabled = tool_states and all(s != "disabled" for s in tool_states)
@@ -285,49 +281,29 @@ class ToolboxApp(App):
         self._load_categories()
         self._load_tools()
 
-    def action_cycle(self) -> None:
-        """Cycle: disabled → enabled → preload → disabled."""
-        name, section = self._selected_item()
-        if not name:
-            return
-        if name.startswith("mcp:") and "(server)" in name:
-            section = "mcp_servers"
-            name = name.split(":")[1].split(" ")[0]
-        new = tb_toggle(section, name)
-        self._refresh()
-        self.notify(f"{name} → {new}")
-
     def action_toggle_enabled(self) -> None:
         """Toggle enabled ↔ disabled. On server row, propagates to all subtools."""
         name, section = self._selected_item()
         if not name:
             return
-        if name.startswith("mcp:") and "(server)" in name:
-            # Toggle server + all its subtools
-            server = name.split(":")[1].split(" ")[0]
+        if "(server)" in name:
+            server = self._server_name(name)
             current = get_state("mcp_servers", server)
             new_state = "disabled" if current != "disabled" else "enabled"
             set_state("mcp_servers", server, new_state)
             # Propagate to all subtools
-            for tool_name, _, _ in self._data[f"MCP: {server}"]:
-                if "(server)" in tool_name:
-                    continue
-                clean = tool_name.strip()
-                if new_state == "disabled":
-                    set_state("tools", clean, "disabled")
-                else:
-                    set_state("tools", clean, "enabled")
+            cat_key = f"MCP: {server}"
+            if cat_key in self._data:
+                for tool_name, _, _ in self._data[cat_key]:
+                    if "(server)" in tool_name:
+                        continue
+                    clean = tool_name.strip()
+                    set_state("tools", clean, "disabled" if new_state == "disabled" else "enabled")
             self.notify(f"mcp:{server} → {new_state} (all tools)")
         else:
-            # Individual tool toggle — server becomes neutral
             current = get_state(section, name)
             new_state = "enabled" if current == "disabled" else "disabled"
             set_state(section, name, new_state)
-            # Remove server-level state (mixed)
-            cat = self._categories[self._cat_index]
-            if cat.startswith("MCP:"):
-                server = cat.split(": ", 1)[1]
-                set_state("mcp_servers", server, "enabled")  # clear key
             self.notify(f"{name} → {new_state}")
         self._refresh()
 
@@ -357,6 +333,11 @@ class ToolboxApp(App):
 
     def action_help(self) -> None:
         self.push_screen(HelpScreen())
+
+    @staticmethod
+    def _server_name(name: str) -> str:
+        """Extract server name from display row like '+ mcp:boat (server)' → 'boat'."""
+        return name.replace("+", "").replace("v", "").strip().removeprefix("mcp:").split(" ")[0]
 
     # ── helpers ──────────────────────────────────────────────
 
@@ -389,7 +370,7 @@ class ToolboxApp(App):
         if row_idx < len(visible):
             name = visible[row_idx][0]
             section = "tools"
-            if name.startswith("mcp:") or name.startswith("▶"):
+            if "(server)" in name:
                 section = "mcp_servers"
             elif cat_name == "CLI Tools":
                 section = "cli"
@@ -399,9 +380,19 @@ class ToolboxApp(App):
         return None, None
 
     def _refresh(self) -> None:
-        self._data, _ = _build_data(connect_mcp=False)
-        self._categories = list(self._data.keys())
-        self._expanded &= set(self._categories)
+        """Refresh states from toolbox.json without rebuilding registries."""
+        for cat, items in self._data.items():
+            for i, (name, desc, _) in enumerate(items):
+                if cat.startswith("MCP:") and i == 0:
+                    continue  # server header — aggregate, not stored
+                section = "tools"
+                if cat == "CLI Tools":
+                    section = "cli"
+                elif cat == "Skills":
+                    section = "skills"
+                elif "(server)" in name:
+                    section = "mcp_servers"
+                items[i] = (name, desc, get_state(section, name))
         self._load_categories()
         self._load_tools()
 
