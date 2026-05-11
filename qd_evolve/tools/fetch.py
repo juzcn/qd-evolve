@@ -5,8 +5,6 @@ import logging
 
 import httpx
 
-from qd_evolve.logger import logger
-
 from qd_evolve.tools import get_registry
 
 # Suppress httpx INFO logs

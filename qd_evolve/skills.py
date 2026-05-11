@@ -123,10 +123,3 @@ class SkillRegistry:
                 lines.append(s.format_for_prompt())
         return "\n".join(lines)
 
-    def get_active_skills_content(self) -> str:
-        """Return full content of all active skills for injection into system prompt."""
-        parts = []
-        for s in self._skills.values():
-            if s.active and s.content:
-                parts.append(f"### {s.name}\n{s.content}")
-        return "\n".join(parts)

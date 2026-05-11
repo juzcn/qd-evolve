@@ -42,7 +42,12 @@ def _recall_memory(
 
     lines = [f"Found {len(entries)} memories:\n"]
     for i, e in enumerate(entries, 1):
-        lines.append(f"[{i}] {e.key} (session: {e.session_id})")
+        meta_parts = [f"session: {e.session_id}"]
+        if e.accessed_at:
+            meta_parts.append(f"last_access: {e.accessed_at}")
+        if e.access_count:
+            meta_parts.append(f"access_count: {e.access_count}")
+        lines.append(f"[{i}] {e.key} ({', '.join(meta_parts)})")
         lines.append(f"  user: {e.user_msg}")
         lines.append(f"  assistant: {e.assistant_msg}")
         if e.distance is not None:

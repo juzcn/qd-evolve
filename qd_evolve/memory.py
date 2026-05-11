@@ -45,7 +45,12 @@ class RecalledMemoryRegistry:
             return ""
         lines = []
         for e in self._entries.values():
-            lines.append(f"- [{e.key}] user: {e.user_msg} | assistant: {e.assistant_msg}")
+            meta = ""
+            if e.accessed_at:
+                meta += f" last_access={e.accessed_at}"
+            if e.access_count:
+                meta += f" count={e.access_count}"
+            lines.append(f"- [{e.key}]{meta} user: {e.user_msg} | assistant: {e.assistant_msg}")
         return "\n".join(lines)
 
     def clear(self) -> None:

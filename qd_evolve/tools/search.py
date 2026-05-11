@@ -4,8 +4,6 @@ import asyncio
 import json
 import logging
 
-from qd_evolve.logger import logger
-
 from qd_evolve.tools import get_registry
 
 _started = False

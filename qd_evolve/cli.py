@@ -120,7 +120,6 @@ def _handle_slash_command(
     cmd: str,
     agent: Any,
     settings: Settings,
-    providers: ProviderRegistry,
     skill_registry: SkillRegistry,
     cli_registry: CLIRegistry,
     memory: MemoryStore | None = None,
@@ -221,10 +220,12 @@ def _handle_slash_command(
         table.add_column("#", style="dim")
         table.add_column("Key", style="bold")
         table.add_column("Session", style="dim")
+        table.add_column("Last Access", style="dim")
+        table.add_column("AC", style="dim", justify="right")
         table.add_column("User", style="cyan")
         table.add_column("Assistant")
         for e in entries:
-            table.add_row(str(e.id), e.key, e.session_id, e.user_msg, e.assistant_msg)
+            table.add_row(str(e.id), e.key, e.session_id, e.accessed_at or "-", str(e.access_count), e.user_msg, e.assistant_msg)
         console.print(table)
         return ""
     if name == "/cli":
@@ -388,7 +389,7 @@ def chat(
         if not user_input:
             continue
         if user_input.startswith("/"):
-            result = _handle_slash_command(user_input, agent, settings, providers, skill_registry, cli_registry, memory)
+            result = _handle_slash_command(user_input, agent, settings, skill_registry, cli_registry, memory)
             if result is None:
                 console.print("[dim]Goodbye![/dim]")
                 break
