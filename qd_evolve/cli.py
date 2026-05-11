@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import platform
 import sys
@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import typer
-from loguru import logger
+from qd_evolve.logger import logger
 from rich.console import Console
 from rich.live import Live
 from rich.markup import escape
@@ -147,7 +147,7 @@ def _handle_slash_command(
         lines = []
         for td in tools:
             desc = (td.description or "")[:80]
-            lines.append(f"  [cyan]{td.name}[/cyan] — {desc}")
+            lines.append(f"  [cyan]{td.name}[/cyan] —{desc}")
         return "\n".join(lines)
     if name == "/skills":
         skill_registry.reload()
@@ -156,7 +156,7 @@ def _handle_slash_command(
             return "  (no skills loaded)"
         lines = []
         for s in skills:
-            lines.append(f"  [bold]{s.name}[/bold]{' v'+s.version if s.version else ''} — {s.summary[:60] if s.summary else ''}")
+            lines.append(f"  [bold]{s.name}[/bold]{' v'+s.version if s.version else ''} —{s.summary[:60] if s.summary else ''}")
         return "\n".join(lines)
     if name == "/models":
         table = Table(title="Available Models", show_header=True)
@@ -181,7 +181,7 @@ def _handle_slash_command(
             settings.default_provider = prov_name
             settings.default_model = mname
             save_json(settings.model_dump(), CONFIG_PATH)
-            logger.info("Switched default model to {}/{} and saved config", prov_name, mname)
+            logger.info("Switched default model to %s/%s and saved config", prov_name, mname)
             return f"  Switched to {prov_name}/{mname}"
         return "  Cancelled."
     if name == "/status":
@@ -235,7 +235,7 @@ def _handle_slash_command(
         lines = []
         for t in tools:
             desc = t.description or t.command
-            lines.append(f"  [cyan]{t.name}[/cyan] — {desc}")
+            lines.append(f"  [cyan]{t.name}[/cyan] —{desc}")
         return "\n".join(lines)
     return None
 

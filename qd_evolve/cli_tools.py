@@ -1,11 +1,11 @@
-"""CLI tool registry — discovers and manages CLI tool definitions from yaml files."""
+﻿"""CLI tool registry —discovers and manages CLI tool definitions from yaml files."""
 
 from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
 
-from loguru import logger
+from qd_evolve.logger import logger
 from pydantic import BaseModel
 import yaml
 
@@ -36,20 +36,20 @@ class CLIRegistry:
     def _load(self) -> None:
         self._tools.clear()
         if self._cli_dir is None or not self._cli_dir.is_dir():
-            logger.debug("CLI tools dir {} not found, skipping", self._cli_dir)
+            logger.debug("CLI tools dir %s not found, skipping", self._cli_dir)
             return
 
         for yaml_file in sorted(self._cli_dir.glob("*.yaml")):
             try:
                 data = yaml.safe_load(yaml_file.read_text(encoding="utf-8"))
                 if not isinstance(data, dict) or "name" not in data:
-                    logger.warning("CLI: invalid yaml {}", yaml_file.name)
+                    logger.warning("CLI: invalid yaml %s", yaml_file.name)
                     continue
                 tool = CLIToolDef.model_validate(data)
                 self._tools[tool.name] = tool
-                logger.debug("CLI: discovered tool {}", tool.name)
+                logger.debug("CLI: discovered tool %s", tool.name)
             except Exception as e:
-                logger.error("CLI: failed to load {}: {}", yaml_file.name, e)
+                logger.error("CLI: failed to load %s: %s", yaml_file.name, e)
 
     def get_detail(self, name: str) -> dict[str, Any] | None:
         tool = self._tools.get(name)

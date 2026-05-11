@@ -1,4 +1,4 @@
-"""Skill registry — discovers and manages SKILL.md-based skills."""
+﻿"""Skill registry —discovers and manages SKILL.md-based skills."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 
 import yaml
-from loguru import logger
+from qd_evolve.logger import logger
 from pydantic import BaseModel
 
 

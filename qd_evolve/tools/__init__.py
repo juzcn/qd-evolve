@@ -1,4 +1,4 @@
-"""Tool registry — discovers, registers, and manages callable tools."""
+﻿"""Tool registry —discovers, registers, and manages callable tools."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import importlib
 from pathlib import Path
 from typing import Any, Callable
 
-from loguru import logger
+from qd_evolve.logger import logger
 from pydantic import BaseModel
 
 

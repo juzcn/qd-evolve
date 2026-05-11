@@ -1,11 +1,11 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 import logging
 
 import httpx
 
-from loguru import logger
+from qd_evolve.logger import logger
 
 from qd_evolve.tools import get_registry
 

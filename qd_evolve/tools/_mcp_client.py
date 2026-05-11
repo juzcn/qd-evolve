@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import asyncio
 import json
@@ -6,7 +6,7 @@ import threading
 from pathlib import Path
 from typing import Any
 
-from loguru import logger
+from qd_evolve.logger import logger
 
 from qd_evolve.config import MCPServerConfig
 from qd_evolve.tools import ToolRegistry, get_registry
@@ -18,7 +18,7 @@ def discover_mcp_servers() -> list[MCPServerConfig]:
     """Scan tools/mcp/*.json for MCP server configs and return parsed list."""
     configs: list[MCPServerConfig] = []
     if not MCP_DIR.exists():
-        logger.debug("MCP dir {} not found, skipping", MCP_DIR)
+        logger.debug("MCP dir %s not found, skipping", MCP_DIR)
         return configs
 
     for json_file in sorted(MCP_DIR.glob("*.json")):
@@ -33,9 +33,9 @@ def discover_mcp_servers() -> list[MCPServerConfig]:
                     env=srv.get("env", {}),
                 )
                 configs.append(config)
-                logger.info("MCP: discovered server '{}' from {}", name, json_file.name)
+                logger.info("MCP: discovered server '%s' from %s", name, json_file.name)
         except Exception:
-            logger.exception("MCP: failed to parse {}", json_file.name)
+            logger.exception("MCP: failed to parse %s", json_file.name)
     return configs
 
 
@@ -50,7 +50,7 @@ def _extract_servers(data: dict, fallback_name: str) -> dict[str, dict]:
         if "servers" in data["mcp"]:
             return data["mcp"]["servers"]
 
-    # Format 3: bare {"command": "...", "args": [...]} — use filename as name
+    # Format 3: bare {"command": "...", "args": [...]} —use filename as name
     if "command" in data:
         return {fallback_name: data}
 
@@ -102,7 +102,7 @@ class MCPToolBridge:
             env=self._config.env or None,
         )
 
-        logger.info("MCP: connecting to {} ({})", self._config.name, self._config.command)
+        logger.info("MCP: connecting to %s (%s)", self._config.name, self._config.command)
 
         self._stdio_context = stdio_client(server_params)
         self._read_stream, self._write_stream = await self._stdio_context.__aenter__()
@@ -122,7 +122,7 @@ class MCPToolBridge:
                 handler=self._make_handler(tool.name),
             )
             self._tool_names.append(prefixed_name)
-            logger.info("MCP: registered tool {} -> {}", tool.name, prefixed_name)
+            logger.info("MCP: registered tool %s -> %s", tool.name, prefixed_name)
 
     def _make_handler(self, tool_name: str):
         def handler(**kwargs: Any) -> str:
@@ -157,7 +157,7 @@ class MCPToolBridge:
             future = asyncio.run_coroutine_threadsafe(self._async_disconnect(), self._loop)
             future.result(timeout=10)
         except Exception as e:
-            logger.error("MCP: error disconnecting {}: {}", self._config.name, e)
+            logger.error("MCP: error disconnecting %s: %s", self._config.name, e)
         self._loop.call_soon_threadsafe(self._loop.stop)
 
     async def _async_disconnect(self) -> None:
@@ -171,7 +171,7 @@ class MCPToolBridge:
                 await self._stdio_context.__aexit__(None, None, None)
         except Exception:
             pass
-        logger.info("MCP: disconnected from {}", self._config.name)
+        logger.info("MCP: disconnected from %s", self._config.name)
 
 
 def connect_mcp_servers(configs: list[MCPServerConfig]) -> list[MCPToolBridge]:
@@ -182,7 +182,7 @@ def connect_mcp_servers(configs: list[MCPServerConfig]) -> list[MCPToolBridge]:
             bridge.connect()
             bridges.append(bridge)
         except Exception as e:
-            logger.error("MCP: failed to connect to {}: {}", config.name, e)
+            logger.error("MCP: failed to connect to %s: %s", config.name, e)
     return bridges
 
 
@@ -199,7 +199,7 @@ def reload_mcp_servers(
         if bridge._config.name in current_names:
             kept_bridges.append(bridge)
         else:
-            logger.info("MCP: disconnecting removed server {}", bridge._config.name)
+            logger.info("MCP: disconnecting removed server %s", bridge._config.name)
             bridge.disconnect()
 
     # Connect new servers
@@ -211,8 +211,8 @@ def reload_mcp_servers(
             bridge = MCPToolBridge(config)
             bridge.connect()
             kept_bridges.append(bridge)
-            logger.info("MCP: connected new server {}", config.name)
+            logger.info("MCP: connected new server %s", config.name)
         except Exception as e:
-            logger.error("MCP: failed to connect to {}: {}", config.name, e)
+            logger.error("MCP: failed to connect to %s: %s", config.name, e)
 
     return kept_bridges
