@@ -114,7 +114,7 @@ class MCPToolBridge:
 
         result = await self._session.list_tools()
         for tool in result.tools:
-            prefixed_name = f"{self._config.name}__{tool.name}"
+            prefixed_name = tool.name
             self._registry.register(
                 name=prefixed_name,
                 description=f"[{self._config.name}] {tool.description or tool.name}",

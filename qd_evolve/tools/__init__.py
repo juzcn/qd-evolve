@@ -31,13 +31,15 @@ class ToolRegistry:
         handler: Callable[..., str],
         input_schema: dict[str, Any] | None = None,
     ) -> None:
+        if name in self._tools:
+            logger.warning("Tool name collision, overwriting: %s", name)
         self._tools[name] = ToolDef(
             name=name,
             description=description,
             handler=handler,
             input_schema=input_schema or {"type": "object", "properties": {}},
         )
-        logger.debug(f"Registered tool: {name}")
+        logger.debug("Registered tool: %s", name)
 
     def call(self, tool_name: str, **kwargs: Any) -> str:
         td = self._tools.get(tool_name)

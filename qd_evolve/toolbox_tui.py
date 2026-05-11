@@ -28,22 +28,28 @@ def _build_data(connect_mcp: bool = True) -> tuple[dict, list]:
     if connect_mcp:
         bridges = connect_mcp_servers(mcp_configs)
 
-    # Collect all tools from the global registry (MCP tools added during connect)
+    # Collect all tools from the global registry
     registry = get_registry()
 
-    # Builtin tools (no __ prefix)
+    # Build tool → server map from bridges (handles unprefixed tools)
+    tool_server: dict[str, str] = {}
+    for b in bridges:
+        for tname in b._tool_names:
+            tool_server[tname] = b._config.name
+
+    # Builtin tools (not from any MCP server)
     builtin = []
     for td in registry.list_tools():
-        if "__" not in td.name:
+        if td.name not in tool_server:
             builtin.append((td.name, td.description or "", get_state("tools", td.name)))
     if builtin:
         categories["Builtin Tools"] = builtin
 
-    # MCP tools grouped by server (have __ prefix)
+    # MCP tools grouped by server
     mcp_tools: dict[str, list[tuple[str, str, str]]] = {}
     for td in registry.list_tools():
-        if "__" in td.name:
-            server = td.name.split("__")[0]
+        server = tool_server.get(td.name)
+        if server:
             mcp_tools.setdefault(server, []).append(
                 (td.name, td.description or "", get_state("tools", td.name))
             )

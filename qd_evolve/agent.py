@@ -80,16 +80,10 @@ class Agent:
             self.iteration += 1
             client = prov.create_client()
             active = self._active_tools | self._always_active
-            logger.info(
-                    "\n=== LLM Request #%s ===\nProvider: %s / %s (%s)\nActive tools: %s\n\n--- System Prompt ---\n%s\n\n--- Messages ---\n  %s",
-                    self.iteration,
-                    self._provider_name,
-                    self._model,
-                    self._api_type,
-                    active,
-                    system_prompt,
-                    self._format_messages_log(),
-                )
+            logger.info("=== LLM Request #%s === Provider: %s / %s (%s), Active tools: %s",
+                        self.iteration, self._provider_name, self._model, self._api_type, active)
+            logger.debug("--- System Prompt ---\n%s\n\n--- Messages ---\n  %s",
+                         system_prompt, self._format_messages_log())
 
             if self._api_type == "anthropic":
                 result = self._run_anthropic(client, system_prompt, max_tokens)
@@ -247,7 +241,7 @@ class Agent:
         openai_messages.extend(self.messages)
 
         tool_defs = self.registry.definitions("openai", active_tools=self._active_tools | self._always_active)
-        logger.info("Tool defs for API (count=%s): %s", len(tool_defs), json.dumps(tool_defs, ensure_ascii=False, indent=2))
+        logger.debug("Tool defs for API (count=%s): %s", len(tool_defs), json.dumps(tool_defs, ensure_ascii=False, indent=2))
         kwargs: dict[str, Any] = {
             "model": self._model,
             "messages": openai_messages,
