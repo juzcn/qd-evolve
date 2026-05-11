@@ -1,3 +1,8 @@
+---
+name: cli-register
+description: Register CLI tools by analyzing --help output and generating yaml definitions
+---
+
 # CLI Tool Register
 
 You can register CLI tools so the agent knows how to use them.

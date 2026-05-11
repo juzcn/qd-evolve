@@ -5,8 +5,23 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import yaml
 from loguru import logger
 from pydantic import BaseModel
+
+
+def _parse_frontmatter(content: str) -> dict[str, str]:
+    """Parse YAML frontmatter (between first two --- lines) from SKILL.md content."""
+    if not content.startswith("---"):
+        return {}
+    rest = content[3:]
+    end = rest.find("\n---")
+    if end < 0:
+        return {}
+    try:
+        return yaml.safe_load(rest[:end]) or {}
+    except yaml.YAMLError:
+        return {}
 
 
 class SkillInfo(BaseModel):
@@ -54,39 +69,36 @@ class SkillRegistry:
             if not content:
                 continue
 
-            slug = skill_dir.name
-            summary = ""
-            version = ""
+            fm = _parse_frontmatter(content)
+            if not fm:
+                logger.error(f"SKILL.md missing YAML frontmatter (name + description): {skill_dir.name}")
+                continue
 
-            # Read _meta.json if present
+            name = fm.get("name") or ""
+            summary = fm.get("description") or ""
+            if not name or not summary:
+                logger.error(f"SKILL.md frontmatter missing 'name' or 'description': {skill_dir.name}")
+                continue
+
+            version = ""
             meta_path = skill_dir / "_meta.json"
             if meta_path.is_file():
                 try:
                     meta = json.loads(meta_path.read_text(encoding="utf-8"))
-                    slug = meta.get("slug", slug)
-                    summary = meta.get("description", "")
                     version = meta.get("version", "")
                 except (json.JSONDecodeError, OSError):
                     logger.warning(f"Failed to parse _meta.json for skill: {skill_dir.name}")
 
-            # Fallback: first non-empty line of content as summary
-            if not summary:
-                for line in content.splitlines():
-                    stripped = line.strip().lstrip("#").strip()
-                    if stripped:
-                        summary = stripped[:120]
-                        break
-
-            active = slug in self._preload_skills or skill_dir.name in self._preload_skills
+            active = name in self._preload_skills or skill_dir.name in self._preload_skills
             skill = SkillInfo(
-                name=slug,
+                name=name,
                 content=content,
                 summary=summary,
                 version=version,
                 active=active,
             )
-            self._skills[slug] = skill
-            logger.debug(f"Discovered skill: {slug}")
+            self._skills[name] = skill
+            logger.debug(f"Discovered skill: {name}")
 
     def get_all_skills(self) -> list[SkillInfo]:
         return list(self._skills.values())
