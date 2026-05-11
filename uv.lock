@@ -927,15 +927,22 @@ wheels = [
 
 [[package]]
 name = "llama-cpp-python"
-version = "0.3.22"
-source = { registry = "https://pypi.org/simple" }
+version = "0.3.23"
+source = { registry = "https://abetlen.github.io/llama-cpp-python/whl/cpu" }
 dependencies = [
     { name = "diskcache" },
     { name = "jinja2" },
     { name = "numpy" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/57/ee/206c17c34ce1ba4cb5518c846e27b1f71f42a971fcfa008d24c871729e12/llama_cpp_python-0.3.22.tar.gz", hash = "sha256:93c54af95d917fe6d6d70039efe16ca9240634d11010f5aaf795261b9f43042f", size = 67970237, upload-time = "2026-05-02T22:40:56.385Z" }
+wheels = [
+    { url = "https://github.com/abetlen/llama-cpp-python/releases/download/v0.3.23/llama_cpp_python-0.3.23-py3-none-linux_aarch64.whl" },
+    { url = "https://github.com/abetlen/llama-cpp-python/releases/download/v0.3.23/llama_cpp_python-0.3.23-py3-none-linux_riscv64.whl" },
+    { url = "https://github.com/abetlen/llama-cpp-python/releases/download/v0.3.23/llama_cpp_python-0.3.23-py3-none-macosx_11_0_arm64.whl" },
+    { url = "https://github.com/abetlen/llama-cpp-python/releases/download/v0.3.23/llama_cpp_python-0.3.23-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl" },
+    { url = "https://github.com/abetlen/llama-cpp-python/releases/download/v0.3.23/llama_cpp_python-0.3.23-py3-none-musllinux_1_2_x86_64.whl" },
+    { url = "https://github.com/abetlen/llama-cpp-python/releases/download/v0.3.23/llama_cpp_python-0.3.23-py3-none-win_amd64.whl" },
+]
 
 [[package]]
 name = "lxml"
@@ -1825,7 +1832,7 @@ requires-dist = [
     { name = "basic-open-agent-tools", specifier = ">=1.3.2" },
     { name = "basic-open-agent-tools", extras = ["all"], marker = "extra == 'boat'", specifier = ">=1.3" },
     { name = "jinja2", specifier = ">=3.1" },
-    { name = "llama-cpp-python", specifier = ">=0.3.22" },
+    { name = "llama-cpp-python", specifier = ">=0.3.23" },
     { name = "mcp", specifier = ">=1.0" },
     { name = "numpy", specifier = ">=2.4.4" },
     { name = "openai", specifier = ">=2.35.1" },

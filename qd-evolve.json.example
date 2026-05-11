@@ -1,4 +1,6 @@
 {
+  "_note": "See README.md for full setup instructions.",
+  "_llama_cpp_wheels": "CPU wheels: https://abetlen.github.io/llama-cpp-python/whl/cpu | GGUF models: https://huggingface.co",
   "log_level": "INFO",
   "env_vars": {
     "SERPER_API_KEY": "sk-xxx",
