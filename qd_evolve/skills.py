@@ -1,12 +1,27 @@
-"""Skill registry — discovers and manages SKILL.md-based skills."""
+﻿"""Skill registry —discovers and manages SKILL.md-based skills."""
 
 from __future__ import annotations
 
 import json
 from pathlib import Path
 
-from loguru import logger
+import yaml
+from qd_evolve.logger import logger
 from pydantic import BaseModel
+
+
+def _parse_frontmatter(content: str) -> dict[str, str]:
+    """Parse YAML frontmatter (between first two --- lines) from SKILL.md content."""
+    if not content.startswith("---"):
+        return {}
+    rest = content[3:]
+    end = rest.find("\n---")
+    if end < 0:
+        return {}
+    try:
+        return yaml.safe_load(rest[:end]) or {}
+    except yaml.YAMLError:
+        return {}
 
 
 class SkillInfo(BaseModel):
@@ -27,6 +42,7 @@ class SkillRegistry:
         self._skills: dict[str, SkillInfo] = {}
         self._skills_dir: Path | None = None
         self._preload_skills: set[str] = set()
+        self._disabled: set[str] = set()
 
     def discover_skills(self, skills_dir: str | Path, preload_skills: list[str] | None = None) -> None:
         self._skills_dir = Path(skills_dir)
@@ -54,45 +70,50 @@ class SkillRegistry:
             if not content:
                 continue
 
-            slug = skill_dir.name
-            summary = ""
-            version = ""
+            fm = _parse_frontmatter(content)
+            if not fm:
+                logger.error(f"SKILL.md missing YAML frontmatter (name + description): {skill_dir.name}")
+                continue
 
-            # Read _meta.json if present
+            name = fm.get("name") or ""
+            summary = fm.get("description") or ""
+            if not name or not summary:
+                logger.error(f"SKILL.md frontmatter missing 'name' or 'description': {skill_dir.name}")
+                continue
+
+            version = ""
             meta_path = skill_dir / "_meta.json"
             if meta_path.is_file():
                 try:
                     meta = json.loads(meta_path.read_text(encoding="utf-8"))
-                    slug = meta.get("slug", slug)
-                    summary = meta.get("description", "")
                     version = meta.get("version", "")
                 except (json.JSONDecodeError, OSError):
                     logger.warning(f"Failed to parse _meta.json for skill: {skill_dir.name}")
 
-            # Fallback: first non-empty line of content as summary
-            if not summary:
-                for line in content.splitlines():
-                    stripped = line.strip().lstrip("#").strip()
-                    if stripped:
-                        summary = stripped[:120]
-                        break
-
-            active = slug in self._preload_skills or skill_dir.name in self._preload_skills
+            active = name in self._preload_skills or skill_dir.name in self._preload_skills
             skill = SkillInfo(
-                name=slug,
+                name=name,
                 content=content,
                 summary=summary,
                 version=version,
                 active=active,
             )
-            self._skills[slug] = skill
-            logger.debug(f"Discovered skill: {slug}")
+            self._skills[name] = skill
+            logger.debug(f"Discovered skill: {name}")
 
     def get_all_skills(self) -> list[SkillInfo]:
-        return list(self._skills.values())
+        return [s for s in self._skills.values() if s.name not in self._disabled]
+
+    def get_skill(self, name: str) -> SkillInfo | None:
+        """Return SkillInfo for a skill, or None if not found or disabled."""
+        if name in self._disabled:
+            return None
+        return self._skills.get(name)
 
     def get_detail(self, name: str) -> str | None:
-        """Return full SKILL.md content for a skill, or None if not found."""
+        """Return full SKILL.md content for a skill, or None if not found or disabled."""
+        if name in self._disabled:
+            return None
         skill = self._skills.get(name)
         return skill.content if skill else None
 
@@ -103,14 +124,7 @@ class SkillRegistry:
         loaded = loaded or set()
         lines = []
         for s in self._skills.values():
-            if s.name not in loaded:
+            if s.name not in loaded and s.name not in self._disabled:
                 lines.append(s.format_for_prompt())
         return "\n".join(lines)
 
-    def get_active_skills_content(self) -> str:
-        """Return full content of all active skills for injection into system prompt."""
-        parts = []
-        for s in self._skills.values():
-            if s.active and s.content:
-                parts.append(f"### {s.name}\n{s.content}")
-        return "\n".join(parts)

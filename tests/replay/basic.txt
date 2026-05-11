@@ -1,0 +1,5 @@
+# Basic replay test — simple greeting and quit
+hello, what can you do?
+请用百度查一下首经贸位置
+/status
+/quit

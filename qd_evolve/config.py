@@ -1,9 +1,9 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 from pathlib import Path
 
-from loguru import logger
+from qd_evolve.logger import logger
 from pydantic import BaseModel
 
 CONFIG_PATH = Path("qd-evolve.json")
@@ -62,7 +62,7 @@ class Settings(BaseModel):
     providers: list[ProviderConfig] = []
     default_provider: str = ""
     default_model: str = ""
-    skills_dir: str = "skills"
+    skills_dir: str = "tools/skills"
     cli_tools_dir: str = "tools/cli"
     preload_skills: list[str] = []
     preload_tools: list[str] = []
@@ -100,7 +100,7 @@ def load_settings(path: Path | str | None = None) -> Settings:
     p = Path(path) if path else CONFIG_PATH
     if p.exists():
         data = load_json(p)
-        logger.debug("Loaded config from {}", p)
+        logger.debug("Loaded config from %s", p)
         return Settings.model_validate(data)
-    logger.debug("Config file {} not found, using defaults", p)
+    logger.debug("Config file %s not found, using defaults", p)
     return Settings()

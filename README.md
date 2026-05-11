@@ -5,24 +5,22 @@ Multi-provider AI agent with tool use, skills, MCP integration, and CLI interfac
 ## Features
 
 - **Multi-provider, multi-model** — OpenAI Chat Completions, OpenAI Responses API, Anthropic Messages API
-- **Tool system** — Builtin tools auto-discovered from `qd_evolve/tools/`, MCP tools from `tools/mcp/*.json`
-- **CLI tool registry** — YAML-based CLI tool definitions in `tools/cli/*.yaml`, loaded on demand via `load_cli_detail`
-- **On-demand tool loading** — Tools start with name+description only; full schema loaded via `load_tool_detail` when the LLM calls it, reducing prompt size
-- **Skill system** — Non-callable prompt instructions from `skills/*/SKILL.md`, injected into system prompt; full content loaded via `load_skill_detail` on demand
-- **MCP integration** — Connect to external MCP servers via stdio; tools registered with `{server_name}__{tool_name}` prefix; incremental reload (only start new servers, disconnect removed ones)
-- **Registry reload** — Skills, CLI tools, and MCP servers are reloaded after each conversation turn, so new definitions take effect without restart
-- **Jinja2 prompt templates** — `.j2` files in `templates/`, with builtin fallbacks in `qd_evolve/_templates/`
-- **Per-turn token stats** — Input/output token tracking with context window usage percentage
-- **Cumulative token tracking** — Running total of tokens used across the session
-- **Persistent memory** — SQLite + sqlite-vec for cross-session memory with semantic (BGE-M3) + keyword hybrid search
-- **Context compression** — Automatic Q/A pair removal when tokens exceed threshold, with configurable compress/target ratios and session switching
-- **Auto recall** — Automatically retrieves relevant past conversations from memory before each LLM call, injected into system prompt with deduplication via RecalledMemoryRegistry
-- **Memory recall tool** — `recall_memory` tool for LLM to search past conversations by query, keywords, and time range
-- **Dual embedder support** — sentence-transformers or llama-cpp-python, selected by config `embeddings_backends.*.backend`
-- **Env vars injection** — Define `env_vars` in config to inject API keys into environment at startup
-- **Preload tool/skill configuration** — `preload_tools`, `preload_skills`, `preload_cli` in `qd-evolve.json` control which items are preloaded (no on-demand loading needed)
-- **Structured logging** — loguru with file rotation to `logs/` directory
-- **Rich CLI** — Interactive prompt with spinner status, slash commands, and tab completion
+- **Tool system** — Builtin tools + MCP tools from `tools/mcp/*.json` + BOAT (basic-open-agent-tools via MCP)
+- **Toolbox TUI** — `qd-evolve toolbox` (Textual) for interactive enable/disable/preload management across all tool types
+- **Toolbox config** — `toolbox.json` manages which tools/skills/CLI/MCP are enabled, disabled, or preloaded
+- **On-demand tool loading** — Tools start with name+description only; full schema loaded via `load_tool_detail`
+- **Skill system** — SKILL.md files from `tools/skills/`, injected into system prompt; `load_skill_detail` for full content
+- **CLI tools** — YAML definitions in `tools/cli/`, loaded via `load_cli_detail`
+- **MCP integration** — Stdio-based MCP servers; clean tool names (no prefix); disabled servers skipped entirely
+- **BOAT integration** — 442 basic-open-agent-tools exposed as MCP server; `tools/mcp/boat.json` for config
+- **Jinja2 prompt templates** — `.j2` files in `templates/`, with builtin fallbacks
+- **Persistent memory** — SQLite + sqlite-vec with BGE-M3 semantic + keyword hybrid search
+- **Context compression** — Auto Q/A removal when tokens exceed threshold
+- **Auto recall** — Relevant past conversations auto-injected into system prompt
+- **Per-turn token stats** — Input/output tracking with context window usage
+- **Dual embedder support** — sentence-transformers or llama-cpp-python
+- **Structured logging** — Standard library logging with SharedFileHandler for real-time log visibility
+- **Rich CLI** — Interactive prompt with tab completion, spinner, and slash commands
 
 ## Quick Start
 
@@ -37,11 +35,6 @@ Create `qd-evolve.json` in the project root (see `qd-evolve.json.example`):
   "default_provider": "my-provider",
   "default_model": "my-model",
   "log_level": "INFO",
-  "skills_dir": "tools/skills",
-  "cli_tools_dir": "tools/cli",
-  "preload_skills": ["cli-register"],
-  "preload_tools": ["load_tool_detail", "load_skill_detail", "load_cli_detail", "recall_memory"],
-  "preload_cli": [],
   "env_vars": {
     "SERPER_API_KEY": "sk-xxx",
     "BAIDU_API_KEY": "sk-xxx"
@@ -84,7 +77,10 @@ Create `qd-evolve.json` in the project root (see `qd-evolve.json.example`):
 Run:
 
 ```bash
-qd-evolve    # start chat with defaults
+qd-evolve                  # start chat with defaults
+qd-evolve toolbox          # interactive tool manager (Textual TUI)
+qd-evolve --replay in.txt  # replay inputs from file (for automated testing)
+qd-evolve --replay in.txt --output out.txt  # replay + capture output
 ```
 
 ## Chat Commands
@@ -97,6 +93,7 @@ qd-evolve    # start chat with defaults
 | `/tools` | List available tools |
 | `/skills` | List available skills |
 | `/cli` | List registered CLI tools |
+| `/status` | Show runtime status (loaded tools, skills, CLI) |
 | `/models` | Switch model interactively |
 | `/memory` | List saved memories |
 
@@ -131,7 +128,7 @@ Place JSON config files in `tools/mcp/`. Supported formats:
 { "command": "...", "args": [...] }
 ```
 
-MCP tools are registered with prefix `{server_name}__{tool_name}`.
+MCP tools use original names (no prefix). Disabled servers are skipped entirely.
 
 ## CLI Tools
 
@@ -157,7 +154,7 @@ Use the `cli-register` skill to generate YAML from `--help` output automatically
 
 ## Skills
 
-Skills are directories under `tools/skills/` containing a `SKILL.md` file. They are **not** tool calls — the LLM reads the summary in the system prompt and uses `load_skill_detail` to get full instructions when needed. Preloaded skills (configured in `preload_skills`) have their full content injected into the system prompt.
+Skills are directories under `tools/skills/` containing a `SKILL.md` file. They are **not** tool calls — the LLM reads the summary in the system prompt and uses `load_skill_detail` to get full instructions when needed. Skill state (enabled/disabled/preloaded) is managed via `toolbox.json` or `qd-evolve toolbox`.
 
 ```
 tools/skills/
@@ -175,15 +172,29 @@ Included skills:
 | `find-skills` | Discover and install new agent skills |
 | `self-improvement` | Capture learnings and corrections for continuous improvement |
 
+## BOAT Integration
+
+basic-open-agent-tools (442 local tools: file ops, PDF, Excel, image, crypto, etc.) via MCP:
+
+```bash
+pip install basic-open-agent-tools[all]
+# boat.json already in tools/mcp/ — qd-evolve picks it up on start
+```
+
+Edit `tools/mcp/boat.json` to change `--loadout` (coder, docs, data_analyst, all, etc.). Remove the file to disable BOAT.
+
 ## Prompt Templates
 
 Jinja2 templates in `templates/` (user) or `qd_evolve/_templates/` (builtin fallback). The default template receives these variables:
 
 | Variable | Description |
 |----------|-------------|
-| `skills` | Formatted skill summary list |
-| `cli_tools` | Formatted CLI tools summary list |
-| `tools_summary` | Formatted tool name + description list |
+| `unloaded_skills` | Skill summaries not yet loaded (use `load_skill_detail`) |
+| `unloaded_cli` | CLI tool summaries not yet loaded (use `load_cli_detail`) |
+| `unloaded_tools` | Tool name + description list not yet loaded (use `load_tool_detail`) |
+| `loaded_skills` | Full content of preloaded or previously loaded skills |
+| `loaded_cli` | Full content of preloaded or previously loaded CLI tools |
+| `memory_section` | Auto-recalled relevant past conversations (if any) |
 | `os_name` | Platform name (e.g. Windows, Linux) |
 | `python_cmd` | Detected python command |
 | `cwd` | Current working directory |
@@ -198,11 +209,7 @@ All config via `qd-evolve.json`. Key fields:
 | `default_provider` | Default provider name |
 | `default_model` | Default model name |
 | `log_level` | Logging level (DEBUG/INFO/WARNING/ERROR) |
-| `skills_dir` | Skills directory path (default: `skills`) |
-| `cli_tools_dir` | CLI tools directory path (default: `tools/cli`) |
-| `preload_skills` | List of skill names to always inject into system prompt |
-| `preload_tools` | List of tool names that are preloaded (no on-demand loading) |
-| `preload_cli` | List of CLI tool names to always inject into system prompt |
+| `max_iterations` | Maximum tool-calling iterations per turn (default: 20) |
 | `env_vars` | Environment variables to inject at startup |
 | `memory_search.default_embeddings_backend` | Name of the embeddings backend to use |
 | `memory_search.compress_threshold` | Token ratio to trigger context compression (default: 0.7) |
@@ -219,9 +226,10 @@ Provider `api` field: `openai-completions` | `openai-response` | `anthropic`
 ```
 qd_evolve/
   config.py          — Settings, ProviderConfig, ModelConfig, load/save
-  logger.py          — loguru setup with file rotation
+  logger.py          — Standard logging with SharedFileHandler
   prompts.py         — Jinja2 template manager (user + builtin fallback)
   providers.py       — Provider/ProviderRegistry, client creation
+  memory.py          — SQLite + sqlite-vec persistent memory store
   skills.py          — SkillRegistry, SKILL.md discovery, active skill injection
   cli_tools.py       — CLIRegistry, YAML-based CLI tool definitions
   tools/
@@ -236,7 +244,10 @@ qd_evolve/
     recall_memory.py — recall_memory (semantic + keyword search)
     _mcp_client.py   — MCP server discovery, bridge, incremental reload
   agent.py           — Agent loop (openai_completion, openai_response, anthropic)
-  cli.py             — typer CLI with slash commands and Rich UI
+  cli.py             — typer CLI with slash commands, toolbox subcommand
+  toolbox.py         — Toolbox state management (toolbox.json)
+  toolbox_tui.py     — Textual TUI for interactive tool management
+  boat_mcp_server.py — MCP server wrapping basic-open-agent-tools
   _templates/        — builtin Jinja2 templates
 main.py              — thin launcher
 ```
@@ -248,8 +259,8 @@ main.py              — thin launcher
 | LLM API | anthropic + openai |
 | Config | JSON + pydantic |
 | Templates | Jinja2 |
-| CLI | typer + rich + prompt-toolkit |
-| Logging | loguru |
+| CLI | typer + rich + prompt-toolkit + textual |
+| Logging | standard library (logging) |
 | HTTP | httpx |
 | Search | serper-toolkit |
 | MCP | mcp (Model Context Protocol) |

@@ -1,11 +1,11 @@
-"""CLI tool registry — discovers and manages CLI tool definitions from yaml files."""
+﻿"""CLI tool registry —discovers and manages CLI tool definitions from yaml files."""
 
 from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
 
-from loguru import logger
+from qd_evolve.logger import logger
 from pydantic import BaseModel
 import yaml
 
@@ -24,6 +24,7 @@ class CLIRegistry:
     def __init__(self) -> None:
         self._tools: dict[str, CLIToolDef] = {}
         self._cli_dir: Path | None = None
+        self._disabled: set[str] = set()
 
     def discover(self, cli_dir: str | Path) -> None:
         self._cli_dir = Path(cli_dir)
@@ -36,29 +37,31 @@ class CLIRegistry:
     def _load(self) -> None:
         self._tools.clear()
         if self._cli_dir is None or not self._cli_dir.is_dir():
-            logger.debug("CLI tools dir {} not found, skipping", self._cli_dir)
+            logger.debug("CLI tools dir %s not found, skipping", self._cli_dir)
             return
 
         for yaml_file in sorted(self._cli_dir.glob("*.yaml")):
             try:
                 data = yaml.safe_load(yaml_file.read_text(encoding="utf-8"))
                 if not isinstance(data, dict) or "name" not in data:
-                    logger.warning("CLI: invalid yaml {}", yaml_file.name)
+                    logger.warning("CLI: invalid yaml %s", yaml_file.name)
                     continue
                 tool = CLIToolDef.model_validate(data)
                 self._tools[tool.name] = tool
-                logger.debug("CLI: discovered tool {}", tool.name)
+                logger.debug("CLI: discovered tool %s", tool.name)
             except Exception as e:
-                logger.error("CLI: failed to load {}: {}", yaml_file.name, e)
+                logger.error("CLI: failed to load %s: %s", yaml_file.name, e)
 
     def get_detail(self, name: str) -> dict[str, Any] | None:
+        if name in self._disabled:
+            return None
         tool = self._tools.get(name)
         if tool is None:
             return None
         return tool.model_dump()
 
     def list_tools(self) -> list[CLIToolDef]:
-        return list(self._tools.values())
+        return [t for t in self._tools.values() if t.name not in self._disabled]
 
     def format_for_prompt(self, loaded: set[str] | None = None) -> str:
         """Format unloaded CLI tools as summary list for the system prompt."""
@@ -67,7 +70,7 @@ class CLIRegistry:
         loaded = loaded or set()
         lines = []
         for tool in self._tools.values():
-            if tool.name in loaded:
+            if tool.name in loaded or tool.name in self._disabled:
                 continue
             line = f"- {tool.name}: {tool.description or tool.command}"
             if tool.examples:

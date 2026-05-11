@@ -50,8 +50,6 @@
   ],
   "default_provider": "baiduqianfancodingplan",
   "default_model": "qianfan-code-latest",
-  "skills_dir": "tools/skills",
-  "memory_db": "memory.db",
   "embeddings_backends": {
     "bge-m3-local": {
       "model_path": "BAAI/bge-m3",
@@ -73,8 +71,5 @@
     "auto_recall": true,
     "auto_recall_top_k": 5
   },
-  "max_iterations": 20,
-  "preload_skills": ["cli-register"],
-  "preload_tools": ["load_tool_detail", "load_skill_detail", "load_cli_detail", "recall_memory"],
-  "preload_cli": []
+  "max_iterations": 20
 }

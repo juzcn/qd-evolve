@@ -1,11 +1,11 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from datetime import date
 from pathlib import Path
 from typing import Any
 
 from jinja2 import BaseLoader, Environment, TemplateNotFound
-from loguru import logger
+from qd_evolve.logger import logger
 
 TEMPLATES_DIR = Path("templates")
 
@@ -52,7 +52,7 @@ class PromptTemplateManager:
         ctx = self._default_context()
         ctx.update(context)
         result = template.render(**ctx)
-        logger.debug("Rendered template '{}' ({} chars)", name, len(result))
+        logger.debug("Rendered template '%s' (%s chars)", name, len(result))
         return result
 
     @staticmethod

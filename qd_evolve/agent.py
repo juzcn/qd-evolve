@@ -1,9 +1,9 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 from typing import TYPE_CHECKING, Any, Callable
 
-from loguru import logger
+from qd_evolve.logger import logger
 
 from qd_evolve.config import Settings
 from qd_evolve.memory import RecalledMemoryRegistry
@@ -15,13 +15,16 @@ if TYPE_CHECKING:
 
 
 class Agent:
-    def __init__(self, settings: Settings, registry: ToolRegistry, providers: ProviderRegistry, memory: MemoryStore | None = None, default_system_prompt: str = "") -> None:
+    def __init__(self, settings: Settings, registry: ToolRegistry, providers: ProviderRegistry,
+                 memory: MemoryStore | None = None, default_system_prompt: str = "",
+                 preload_tools: set[str] | None = None,
+                 preload_skills: set[str] | None = None,
+                 preload_cli: set[str] | None = None) -> None:
         self.settings = settings
         self.registry = registry
         self.default_system_prompt = default_system_prompt
         self._active_tools: set[str] = set()
-        # preload_tools are always active (need full schema from start)
-        self._always_active: set[str] = set(settings.preload_tools)
+        self._always_active: set[str] = preload_tools or set()
         self.providers = providers
         self.memory = memory
         self.messages: list[dict[str, Any]] = []
@@ -37,8 +40,8 @@ class Agent:
         self._recalled = RecalledMemoryRegistry()
         self._loaded_skills: dict[str, str] = {}
         self._loaded_cli: dict[str, str] = {}
-        self._preload_skills: set[str] = set(settings.preload_skills)
-        self._preload_cli: set[str] = set(settings.preload_cli)
+        self._preload_skills: set[str] = preload_skills or set()
+        self._preload_cli: set[str] = preload_cli or set()
 
     def set_status_callback(self, cb: Callable[[str], None]) -> None:
         self._on_status = cb
@@ -63,7 +66,7 @@ class Agent:
         system_prompt = system or self.default_system_prompt
         self.messages.append({"role": "user", "content": user_input})
         self.iteration = 0
-        logger.info("User input: {}", user_input)
+        logger.info("User input: %s", user_input)
 
         # Auto recall: inject relevant memory into system prompt
         system_prompt = self._auto_recall(user_input, system_prompt)
@@ -77,16 +80,11 @@ class Agent:
             self.iteration += 1
             client = prov.create_client()
             active = self._active_tools | self._always_active
-            logger.info(
-                    "\n=== LLM Request #{} ===\nProvider: {} / {} ({})\nActive tools: {}\n\n--- System Prompt ---\n{}\n\n--- Messages ---\n  {}",
-                    self.iteration,
-                    self._provider_name,
-                    self._model,
-                    self._api_type,
-                    active,
-                    system_prompt,
-                    self._format_messages_log(),
-                )
+            msg = self._format_messages_log()
+            logger.info("=== LLM Request #%s === Provider: %s / %s (%s), Active tools: %s\n"
+                        "--- Messages ---\n  %s",
+                        self.iteration, self._provider_name, self._model, self._api_type, active,
+                        msg)
 
             if self._api_type == "anthropic":
                 result = self._run_anthropic(client, system_prompt, max_tokens)
@@ -145,15 +143,17 @@ class Agent:
             self.memory.new_session()
 
         logger.info(
-            "Context compressed: removed {} messages, {} -> {} tokens (target={})",
+            "Context compressed: removed %s messages, %s -> %s tokens (target=%s)",
             removed, int(current_ratio * context_window), self.last_input_tokens, target_tokens,
         )
 
     def _inject_loaded_content(self, system_prompt: str) -> str:
-        """Inject loaded skill and CLI content into the system prompt sections."""
+        """Inject loaded skill/CLI content and remove them from unloaded sections."""
+        updated = False
+
         if self._loaded_skills:
             skills_content = "\n".join(self._loaded_skills.values())
-            marker = "## Loaded SKILL.md — follow these instructions."
+            marker = "## Loaded skills details: SKILL.md — follow these instructions."
             if marker in system_prompt:
                 parts = system_prompt.split(marker, 1)
                 after = parts[1]
@@ -163,11 +163,16 @@ class Agent:
                 else:
                     after = ""
                 system_prompt = parts[0] + marker + "\n" + skills_content + after
-                logger.info("Injected loaded skills: {}", list(self._loaded_skills.keys()))
+                updated = True
+            system_prompt = self._remove_from_unloaded(
+                system_prompt,
+                "## Unloaded Skills Summary",
+                self._loaded_skills.keys(),
+            )
 
         if self._loaded_cli:
             cli_content = "\n".join(self._loaded_cli.values())
-            marker = "## Loaded CLI Tools Help — use them to construct correct command arguments."
+            marker = "## Loaded CLI details: Help — use them to construct correct command arguments."
             if marker in system_prompt:
                 parts = system_prompt.split(marker, 1)
                 after = parts[1]
@@ -177,9 +182,55 @@ class Agent:
                 else:
                     after = ""
                 system_prompt = parts[0] + marker + "\n" + cli_content + after
-                logger.info("Injected loaded CLI tools: {}", list(self._loaded_cli.keys()))
+                updated = True
+            system_prompt = self._remove_from_unloaded(
+                system_prompt,
+                "## Unloaded CLI Tools Summary",
+                self._loaded_cli.keys(),
+            )
+
+        if updated:
+            logger.info("System prompt updated:\n%s", system_prompt)
+
+        # Also remove activated tools from unloaded section
+        if self._active_tools:
+            system_prompt = self._remove_from_unloaded(
+                system_prompt,
+                "## Unloaded Tools Summary",
+                self._active_tools,
+            )
 
         return system_prompt
+
+    @staticmethod
+    def _remove_from_unloaded(text: str, section_header: str, loaded_names: Any) -> str:
+        """Remove lines matching loaded_names from an unloaded section."""
+        idx = text.find(section_header)
+        if idx < 0:
+            return text
+        # Find end of section (next ## or end of text)
+        end = text.find("\n## ", idx + len(section_header))
+        if end < 0:
+            end = len(text)
+        section = text[idx:end]
+        lines = section.split("\n")
+        # Keep header line, filter out lines starting with "- name:"
+        kept = [lines[0]]  # header
+        for line in lines[1:]:
+            stripped = line.strip()
+            if stripped.startswith("- "):
+                name = stripped[2:].split(":")[0].strip()
+                if name in loaded_names:
+                    continue
+            kept.append(line)
+        # If only header remains, remove entire section
+        if len(kept) <= 1:
+            # Remove the section + trailing newlines
+            before = text[:idx].rstrip("\n") + "\n"
+            after = text[end:]
+            return before + after.lstrip("\n")
+        new_section = "\n".join(kept)
+        return text[:idx] + new_section + text[end:]
 
     def _auto_recall(self, user_input: str, system_prompt: str) -> str:
         if not self.memory or not self.settings.memory_search.auto_recall:
@@ -190,10 +241,12 @@ class Agent:
         if not new_entries:
             return system_prompt
 
-        logger.info("Auto-recalled {} new memory entries for query: {}", len(new_entries), user_input[:50])
+        logger.info("Auto-recalled %s new memory entries for query: %s", len(new_entries), user_input[:50])
         for entry in new_entries:
-            logger.info("  Memory [{}] user: {} | assistant: {} (distance: {})",
-                        entry.session_id, entry.user_msg[:100], entry.assistant_msg[:100], entry.distance)
+            u = entry.user_msg.replace("\n", " ")[:60]
+            a = entry.assistant_msg.replace("\n", " ")[:60]
+            logger.info("  Memory [%s] user: %s | assistant: %s (distance: %s)",
+                        entry.session_id, u, a, entry.distance)
 
         # Rebuild entire memory section from registry
         memory_text = self._recalled.format_section()
@@ -215,6 +268,8 @@ class Agent:
         return system_prompt
 
     def _run_anthropic(self, client: Any, system_prompt: str, max_tokens: int, _iter: int = 0) -> str:
+        if _iter > 0:
+            logger.info("=== LLM Request #%s (tool) ===", self.iteration)
         response = client.messages.create(
             model=self._model,
             max_tokens=max_tokens,
@@ -228,7 +283,7 @@ class Agent:
 
         if response.stop_reason != "tool_use":
             text = self._extract_text(response.content)
-            logger.info("\n=== LLM Response ===\n{}", self._format_completion_log(response))
+            logger.info("\n=== LLM Response ===\n%s", self._format_completion_log(response))
             return text
 
         results = self._execute_tools_anthropic(response.content)
@@ -240,11 +295,13 @@ class Agent:
         return self._run_anthropic(client, system_prompt, max_tokens, _iter + 1)
 
     def _run_openai_completion(self, client: Any, system_prompt: str, max_tokens: int, _iter: int = 0) -> str:
+        if _iter > 0:
+            logger.info("=== LLM Request #%s (tool) ===", self.iteration)
         openai_messages: list[dict[str, Any]] = [{"role": "system", "content": system_prompt}]
         openai_messages.extend(self.messages)
 
         tool_defs = self.registry.definitions("openai", active_tools=self._active_tools | self._always_active)
-        logger.info("Tool defs for API (count={}): {}", len(tool_defs), json.dumps(tool_defs, ensure_ascii=False, indent=2))
+        logger.info("Tool defs for API (count=%s): %s", len(tool_defs), json.dumps(tool_defs, ensure_ascii=False, indent=2))
         kwargs: dict[str, Any] = {
             "model": self._model,
             "messages": openai_messages,
@@ -277,11 +334,11 @@ class Agent:
             })
             for tc in msg.tool_calls:
                 args = json.loads(tc.function.arguments)
-                logger.info("Tool call: {}({})", tc.function.name, json.dumps(args, ensure_ascii=False))
+                logger.info("Tool call: %s(%s)",tc.function.name, json.dumps(args, ensure_ascii=False))
                 args_brief = json.dumps(args, ensure_ascii=False)[:60]
                 self._update_status(f"Tool: {tc.function.name}({args_brief})")
                 output = self.registry.call(tc.function.name, **args)
-                logger.info("Tool result: {} -> {}", tc.function.name, output)
+                logger.info("Tool result: %s -> %s",tc.function.name, output)
                 self._activate_tool(tc.function.name, args, output)
                 self.messages.append({
                     "role": "tool",
@@ -295,10 +352,12 @@ class Agent:
             return self._run_openai_completion(client, system_prompt, max_tokens, _iter + 1)
 
         self.messages.append({"role": "assistant", "content": msg.content or ""})
-        logger.info("\n=== LLM Response ===\n{}", self._format_completion_log(response))
+        logger.info("\n=== LLM Response ===\n%s", self._format_completion_log(response))
         return msg.content or ""
 
     def _run_openai_response(self, client: Any, system_prompt: str, max_tokens: int, _iter: int = 0) -> str:
+        if _iter > 0:
+            logger.info("=== LLM Request #%s (tool) ===", self.iteration)
         response = client.responses.create(
             model=self._model,
             instructions=system_prompt,
@@ -311,11 +370,11 @@ class Agent:
         for item in response.output:
             if item.type == "function_call":
                 args = json.loads(item.arguments)
-                logger.info("Tool call: {}({})", item.name, json.dumps(args, ensure_ascii=False))
+                logger.info("Tool call: %s(%s)",item.name, json.dumps(args, ensure_ascii=False))
                 args_brief = json.dumps(args, ensure_ascii=False)[:60]
                 self._update_status(f"Tool: {item.name}({args_brief})")
                 result = self.registry.call(item.name, **args)
-                logger.info("Tool result: {} -> {}", item.name, result)
+                logger.info("Tool result: %s -> %s",item.name, str(result))
                 self._activate_tool(item.name, args, result)
                 self.messages.append({"role": "assistant", "content": None, "tool_calls": [item]})
                 self.messages.append({
@@ -335,21 +394,21 @@ class Agent:
         self.last_output_tokens = usage.output_tokens
         self.total_input_tokens += usage.input_tokens
         self.total_output_tokens += usage.output_tokens
-        logger.info("Token usage: input={}, output={}, total={}", usage.input_tokens, usage.output_tokens, self.total_tokens)
+        logger.info("Token usage: input=%s, output=%s, total=%s",usage.input_tokens, usage.output_tokens, self.total_tokens)
 
     def _track_tokens_openai_completion(self, usage: Any) -> None:
         self.last_input_tokens = usage.prompt_tokens
         self.last_output_tokens = usage.completion_tokens
         self.total_input_tokens += usage.prompt_tokens
         self.total_output_tokens += usage.completion_tokens
-        logger.info("Token usage: input={}, output={}, total={}", usage.prompt_tokens, usage.completion_tokens, self.total_tokens)
+        logger.info("Token usage: input=%s, output=%s, total=%s",usage.prompt_tokens, usage.completion_tokens, self.total_tokens)
 
     def _track_tokens_openai_response(self, usage: Any) -> None:
         self.last_input_tokens = usage.input_tokens
         self.last_output_tokens = usage.output_tokens
         self.total_input_tokens += usage.input_tokens
         self.total_output_tokens += usage.output_tokens
-        logger.info("Token usage: input={}, output={}, total={}", usage.input_tokens, usage.output_tokens, self.total_tokens)
+        logger.info("Token usage: input=%s, output=%s, total=%s",usage.input_tokens, usage.output_tokens, self.total_tokens)
 
     def _activate_tool(self, tool_name: str, tool_args: dict, result: str = "") -> None:
         """After a tool call, activate tools and track loaded skill/CLI content."""
@@ -358,7 +417,7 @@ class Agent:
             target = tool_args.get("name", "")
             if target:
                 self._active_tools.add(target)
-                logger.debug("Activated tool: {}", target)
+                logger.debug("Activated tool: %s", target)
         elif tool_name == "load_skill_detail" and result:
             name = tool_args.get("name", "")
             if name:
@@ -372,11 +431,11 @@ class Agent:
         results: list[dict] = []
         for block in content:
             if block.type == "tool_use":
-                logger.info("Tool call: {}({})", block.name, json.dumps(block.input, ensure_ascii=False))
+                logger.info("Tool call: %s(%s)",block.name, json.dumps(block.input, ensure_ascii=False))
                 args_brief = json.dumps(block.input, ensure_ascii=False)[:60]
                 self._update_status(f"Tool: {block.name}({args_brief})")
                 output = self.registry.call(block.name, **block.input)
-                logger.info("Tool result: {} -> {}", block.name, output)
+                logger.info("Tool result: %s -> %s",block.name, str(output))
                 self._activate_tool(block.name, block.input, output)
                 results.append({
                     "type": "tool_result",

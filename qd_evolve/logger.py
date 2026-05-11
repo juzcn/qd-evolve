@@ -1,12 +1,24 @@
 from __future__ import annotations
 
+import logging
 import sys
 from datetime import datetime
 from pathlib import Path
 
-from loguru import logger
-
 LOG_DIR = Path(__file__).resolve().parent.parent / "logs"
+
+
+class _SharedFileHandler(logging.FileHandler):
+    """Opens the file per-write instead of holding it open, allowing external
+    readers/watchers to see every line immediately and delete the file freely."""
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            with open(self.baseFilename, self.mode, encoding=self.encoding) as f:
+                f.write(self.format(record) + self.terminator)
+                f.flush()
+        except Exception:
+            self.handleError(record)
 
 
 def setup_logging(level: str = "INFO") -> None:
@@ -14,18 +26,28 @@ def setup_logging(level: str = "INFO") -> None:
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     log_file = LOG_DIR / f"{timestamp}.log"
 
-    logger.remove()
-    logger.add(
-        sys.stderr,
-        level="CRITICAL",
-        format="<green>{time:HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan> - <level>{message}</level>",
-    )
-    logger.add(
-        str(log_file),
-        level=level,
-        rotation="10 MB",
-        retention="7 days",
-        encoding="utf-8",
-        buffering=1,
-        format="{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {name}:{function}:{line} - {message}",
-    )
+    lvl = getattr(logging, level.upper(), logging.INFO)
+
+    root = logging.getLogger("qd_evolve")
+    root.setLevel(lvl)
+    root.handlers.clear()
+    root.propagate = False
+
+    file_handler = _SharedFileHandler(str(log_file), encoding="utf-8")
+    file_handler.setLevel(logging.DEBUG)
+    file_handler.setFormatter(logging.Formatter(
+        "%(asctime)s | %(levelname)-8s | %(name)s:%(funcName)s:%(lineno)d - %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    ))
+    root.addHandler(file_handler)
+
+    stderr_handler = logging.StreamHandler(sys.stderr)
+    stderr_handler.setLevel(logging.CRITICAL)
+    stderr_handler.setFormatter(logging.Formatter(
+        "%(asctime)s | %(levelname)-8s | %(name)s:%(funcName)s - %(message)s",
+        datefmt="%H:%M:%S",
+    ))
+    root.addHandler(stderr_handler)
+
+
+logger = logging.getLogger("qd_evolve")

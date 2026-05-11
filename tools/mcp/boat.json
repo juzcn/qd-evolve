@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "boat": {
+      "command": "python",
+      "args": ["-m", "qd_evolve.boat_mcp_server", "--loadout", "coder"]
+    }
+  }
+}

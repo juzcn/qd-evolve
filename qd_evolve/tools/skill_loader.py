@@ -16,10 +16,12 @@ def set_skill_registry(registry) -> None:
 def _load_skill_detail(name: str) -> str:
     if _skill_registry is None:
         return "Error: skill registry not initialized"
-    detail = _skill_registry.get_detail(name)
-    if detail is None:
+    skill = _skill_registry.get_skill(name)
+    if skill is None:
         return f"Error: skill '{name}' not found. Available: {', '.join(s.name for s in _skill_registry.get_all_skills())}"
-    return detail
+    if skill.active:
+        return f"(already preloaded — full content is in the system prompt)\n\n{skill.content}"
+    return skill.content
 
 
 registry = get_registry()

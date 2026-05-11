@@ -1,10 +1,8 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import asyncio
 import json
 import logging
-
-from loguru import logger
 
 from qd_evolve.tools import get_registry
 
