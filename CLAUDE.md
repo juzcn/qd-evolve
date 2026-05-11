@@ -8,8 +8,8 @@
 - **Multi-provider, multi-model.** Each provider has an api_key, base_url, api type, and multiple models with full metadata.
 - **Three API types supported.** `openai-completions`, `openai-response`, `anthropic`. Set at provider level via `api` field.
 - **Logging is structured.** loguru with file rotation. No print statements for debugging.
-- **CLI is minimal.** Just `qd-evolve` to start chat. No CLI options for provider/model — edit `qd-evolve.json` or use `/models` at runtime.
-- **Agent loop is simple and explicit.** Call API → check stop_reason → execute tools → append results → repeat.
+- **CLI is minimal.** Just `qd-evolve` to start chat. `--replay` for automated testing, `--output` to capture. No CLI options for provider/model — edit `qd-evolve.json` or use `/models` at runtime.
+- **Agent loop is simple and explicit.** Call API → check stop_reason → execute tools → append results → repeat. Capped at `max_iterations` (default 20) to prevent infinite loops.
 - **Type everything.** Python 3.13 with full type annotations. pydantic models for all data boundaries.
 
 ## Design Decisions
@@ -33,3 +33,4 @@
 - **File paths relative to CWD.** Tools never hardcode paths; everything resolves against current working directory.
 - **Shell encoding.** `run_shell` uses `locale.getpreferredencoding()` to decode subprocess output, handling Windows GBK/cp936 correctly.
 - **Don't auto push.** Commit is fine, but never push to remote unless the user explicitly asks.
+- **Replay mode for testing.** `--replay <file>` feeds pre-recorded inputs instead of interactive prompt, with optional `--output` to capture. Used for automated CLI testing without an LLM dependency.

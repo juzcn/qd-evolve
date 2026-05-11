@@ -84,7 +84,9 @@ Create `qd-evolve.json` in the project root (see `qd-evolve.json.example`):
 Run:
 
 ```bash
-qd-evolve    # start chat with defaults
+qd-evolve                  # start chat with defaults
+qd-evolve --replay in.txt  # replay inputs from file (for automated testing)
+qd-evolve --replay in.txt --output out.txt  # replay + capture output
 ```
 
 ## Chat Commands
@@ -97,6 +99,7 @@ qd-evolve    # start chat with defaults
 | `/tools` | List available tools |
 | `/skills` | List available skills |
 | `/cli` | List registered CLI tools |
+| `/status` | Show runtime status (loaded tools, skills, CLI) |
 | `/models` | Switch model interactively |
 | `/memory` | List saved memories |
 
@@ -181,9 +184,12 @@ Jinja2 templates in `templates/` (user) or `qd_evolve/_templates/` (builtin fall
 
 | Variable | Description |
 |----------|-------------|
-| `skills` | Formatted skill summary list |
-| `cli_tools` | Formatted CLI tools summary list |
-| `tools_summary` | Formatted tool name + description list |
+| `unloaded_skills` | Skill summaries not yet loaded (use `load_skill_detail`) |
+| `unloaded_cli` | CLI tool summaries not yet loaded (use `load_cli_detail`) |
+| `unloaded_tools` | Tool name + description list not yet loaded (use `load_tool_detail`) |
+| `loaded_skills` | Full content of preloaded or previously loaded skills |
+| `loaded_cli` | Full content of preloaded or previously loaded CLI tools |
+| `memory_section` | Auto-recalled relevant past conversations (if any) |
 | `os_name` | Platform name (e.g. Windows, Linux) |
 | `python_cmd` | Detected python command |
 | `cwd` | Current working directory |
@@ -198,7 +204,8 @@ All config via `qd-evolve.json`. Key fields:
 | `default_provider` | Default provider name |
 | `default_model` | Default model name |
 | `log_level` | Logging level (DEBUG/INFO/WARNING/ERROR) |
-| `skills_dir` | Skills directory path (default: `skills`) |
+| `max_iterations` | Maximum tool-calling iterations per turn (default: 20) |
+| `skills_dir` | Skills directory path (default: `tools/skills`) |
 | `cli_tools_dir` | CLI tools directory path (default: `tools/cli`) |
 | `preload_skills` | List of skill names to always inject into system prompt |
 | `preload_tools` | List of tool names that are preloaded (no on-demand loading) |
@@ -222,6 +229,7 @@ qd_evolve/
   logger.py          — loguru setup with file rotation
   prompts.py         — Jinja2 template manager (user + builtin fallback)
   providers.py       — Provider/ProviderRegistry, client creation
+  memory.py          — SQLite + sqlite-vec persistent memory store
   skills.py          — SkillRegistry, SKILL.md discovery, active skill injection
   cli_tools.py       — CLIRegistry, YAML-based CLI tool definitions
   tools/
