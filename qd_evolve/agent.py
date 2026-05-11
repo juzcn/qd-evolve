@@ -190,8 +190,10 @@ class Agent:
 
         logger.info("Auto-recalled %s new memory entries for query: %s", len(new_entries), user_input[:50])
         for entry in new_entries:
+            u = entry.user_msg.replace("\n", " ")[:60]
+            a = entry.assistant_msg.replace("\n", " ")[:60]
             logger.info("  Memory [%s] user: %s | assistant: %s (distance: %s)",
-                        entry.session_id, entry.user_msg[:100], entry.assistant_msg[:100], entry.distance)
+                        entry.session_id, u, a, entry.distance)
 
         # Rebuild entire memory section from registry
         memory_text = self._recalled.format_section()

@@ -31,6 +31,7 @@ def setup_logging(level: str = "INFO") -> None:
     root = logging.getLogger("qd_evolve")
     root.setLevel(lvl)
     root.handlers.clear()
+    root.propagate = False
 
     file_handler = _SharedFileHandler(str(log_file), encoding="utf-8")
     file_handler.setLevel(logging.DEBUG)
