@@ -80,10 +80,11 @@ class Agent:
             self.iteration += 1
             client = prov.create_client()
             active = self._active_tools | self._always_active
-            logger.info("=== LLM Request #%s === Provider: %s / %s (%s), Active tools: %s",
-                        self.iteration, self._provider_name, self._model, self._api_type, active)
-            logger.debug("--- System Prompt ---\n%s\n\n--- Messages ---\n  %s",
-                         system_prompt, self._format_messages_log())
+            logger.info("=== LLM Request #%s === Provider: %s / %s (%s), Active tools: %s\n"
+                        "--- System Prompt ---\n%s\n"
+                        "--- Messages ---\n  %s",
+                        self.iteration, self._provider_name, self._model, self._api_type, active,
+                        system_prompt, self._format_messages_log())
 
             if self._api_type == "anthropic":
                 result = self._run_anthropic(client, system_prompt, max_tokens)
@@ -241,7 +242,7 @@ class Agent:
         openai_messages.extend(self.messages)
 
         tool_defs = self.registry.definitions("openai", active_tools=self._active_tools | self._always_active)
-        logger.debug("Tool defs for API (count=%s): %s", len(tool_defs), json.dumps(tool_defs, ensure_ascii=False, indent=2))
+        logger.info("Tool defs for API (count=%s): %s", len(tool_defs), json.dumps(tool_defs, ensure_ascii=False, indent=2))
         kwargs: dict[str, Any] = {
             "model": self._model,
             "messages": openai_messages,
@@ -278,7 +279,7 @@ class Agent:
                 args_brief = json.dumps(args, ensure_ascii=False)[:60]
                 self._update_status(f"Tool: {tc.function.name}({args_brief})")
                 output = self.registry.call(tc.function.name, **args)
-                logger.info("Tool result: %s -> %s",tc.function.name, output)
+                logger.info("Tool result: %s -> %s",tc.function.name, output[:500])
                 self._activate_tool(tc.function.name, args, output)
                 self.messages.append({
                     "role": "tool",
@@ -312,7 +313,7 @@ class Agent:
                 args_brief = json.dumps(args, ensure_ascii=False)[:60]
                 self._update_status(f"Tool: {item.name}({args_brief})")
                 result = self.registry.call(item.name, **args)
-                logger.info("Tool result: %s -> %s",item.name, result)
+                logger.info("Tool result: %s -> %s",item.name, str(result)[:500])
                 self._activate_tool(item.name, args, result)
                 self.messages.append({"role": "assistant", "content": None, "tool_calls": [item]})
                 self.messages.append({
@@ -373,7 +374,7 @@ class Agent:
                 args_brief = json.dumps(block.input, ensure_ascii=False)[:60]
                 self._update_status(f"Tool: {block.name}({args_brief})")
                 output = self.registry.call(block.name, **block.input)
-                logger.info("Tool result: %s -> %s",block.name, output)
+                logger.info("Tool result: %s -> %s",block.name, str(output)[:500])
                 self._activate_tool(block.name, block.input, output)
                 results.append({
                     "type": "tool_result",

@@ -8,19 +8,28 @@ from __future__ import annotations
 import argparse
 import functools
 import inspect
+import json
 from typing import Any
 
 import basic_open_agent_tools as boat
 from mcp.server.fastmcp import FastMCP
 
 
+_DEFAULTS: dict[type, Any] = {bool: False}
+
+
 def _make_wrapper(fn: Any) -> tuple[Any, str]:
-    """Wrap a BOAT function: strip skip_confirm from signature, set it True at call time."""
+    """Wrap a BOAT function: strip skip_confirm, add defaults for optional params."""
     sig = inspect.signature(fn)
-    new_params = [
-        p for name, p in sig.parameters.items()
-        if name != "skip_confirm"
-    ]
+    new_params = []
+    for name, p in sig.parameters.items():
+        if name == "skip_confirm":
+            continue
+        # If non-string param has no default, give it one (bool/int/float)
+        if p.default is inspect.Parameter.empty and p.annotation in _DEFAULTS:
+            new_params.append(p.replace(default=_DEFAULTS[p.annotation]))
+        else:
+            new_params.append(p)
     new_sig = sig.replace(parameters=new_params)
 
     # First non-empty line of docstring as description
@@ -38,9 +47,13 @@ def _make_wrapper(fn: Any) -> tuple[Any, str]:
             kwargs["skip_confirm"] = True
         try:
             result = fn(**kwargs)
-            return str(result) if result is not None else "(done)"
+            if result is None:
+                return "(done)"
+            if isinstance(result, (dict, list)):
+                return json.dumps(result, ensure_ascii=False, indent=2)
+            return str(result)
         except Exception as exc:
-            return f"Error: {exc}"
+            return f"Error: {type(exc).__name__}: {exc}"
 
     wrapper.__signature__ = new_sig  # type: ignore[attr-defined]
     return wrapper, doc
