@@ -91,6 +91,10 @@ class SkillRegistry:
     def get_all_skills(self) -> list[SkillInfo]:
         return list(self._skills.values())
 
+    def get_skill(self, name: str) -> SkillInfo | None:
+        """Return SkillInfo for a skill, or None if not found."""
+        return self._skills.get(name)
+
     def get_detail(self, name: str) -> str | None:
         """Return full SKILL.md content for a skill, or None if not found."""
         skill = self._skills.get(name)

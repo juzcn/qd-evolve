@@ -280,8 +280,10 @@ def chat(
     # 6. Inject registries into loader tools
     from qd_evolve.tools.skill_loader import set_skill_registry
     set_skill_registry(skill_registry)
+    from qd_evolve.tools.tool_loader import set_preload_tools
+    set_preload_tools(set(settings.preload_tools))
     from qd_evolve.tools.cli_loader import set_cli_registry
-    set_cli_registry(cli_registry)
+    set_cli_registry(cli_registry, set(settings.preload_cli))
 
     # 7. System prompt via Jinja2 template
     python_cmd = _detect_python_cmd()
