@@ -97,11 +97,10 @@ class OATBridge:
                 json_schema = google_adk_to_openai_schema(fn)
                 handler = make_handler(fn)
 
-                # Prefix with bridge name to avoid collisions between packages
-                tool_name = f"{self.config.name}__{fn.__name__}"
+                tool_name = fn.__name__
                 self._registry.register(
                     name=tool_name,
-                    description=f"[{self.config.name}] {desc or fn.__name__}",
+                    description=f"[{self.config.name}] {desc or tool_name}",
                     input_schema=json_schema,
                     handler=handler,
                 )
