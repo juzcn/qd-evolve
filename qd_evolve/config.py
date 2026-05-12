@@ -59,8 +59,13 @@ class MemorySearchConfig(BaseModel):
     list_all_limit: int = 50
 
 
+class LogConfig(BaseModel):
+    level: str = "INFO"
+    truncation: int = 500
+
+
 class Settings(BaseModel):
-    log_level: str = "INFO"
+    log: LogConfig = LogConfig()
     env_vars: dict[str, str] = {}
     providers: list[ProviderConfig] = []
     default_provider: str = ""

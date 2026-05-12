@@ -66,6 +66,7 @@ class Agent:
         system_prompt = system or self.default_system_prompt
         self.messages.append({"role": "user", "content": user_input})
         self.iteration = 0
+        self._log_limit = self.settings.log.truncation
         logger.info("Agent: user input: %s", user_input)
 
         # Auto recall: inject relevant memory into system prompt
@@ -84,7 +85,7 @@ class Agent:
             logger.debug("Agent: === LLM Request #%s === Provider: %s / %s (%s), Active tools: %s\n"
                         "--- Messages ---\n  %s",
                         self.iteration, self._provider_name, self._model, self._api_type, active,
-                        msg)
+                        self._trunc(msg))
 
             if self._api_type == "anthropic":
                 result = self._run_anthropic(client, system_prompt, max_tokens)
@@ -147,6 +148,14 @@ class Agent:
             removed, int(current_ratio * context_window), self.last_input_tokens, target_tokens,
         )
 
+    def _trunc(self, text: str) -> str:
+        """Truncate for logging. 0 means no limit."""
+        if self._log_limit <= 0:
+            return text
+        if len(text) > self._log_limit:
+            return text[:self._log_limit] + "..."
+        return text
+
     def _inject_loaded_content(self, system_prompt: str) -> str:
         """Inject loaded skill/CLI content and remove them from unloaded sections."""
         updated = False
@@ -190,7 +199,8 @@ class Agent:
             )
 
         if updated:
-            logger.debug("Agent: system prompt updated (%s chars)", len(system_prompt))
+            logger.debug("Agent: system prompt updated — %d loaded skills, %d loaded cli (%d chars)",
+                         len(self._loaded_skills), len(self._loaded_cli), len(system_prompt))
 
         # Also remove activated tools from unloaded section
         if self._active_tools:
@@ -199,6 +209,7 @@ class Agent:
                 "## Unloaded Tools Summary",
                 self._active_tools,
             )
+            logger.debug("Agent: removed %d active tools from unloaded section", len(self._active_tools))
 
         return system_prompt
 
@@ -301,7 +312,8 @@ class Agent:
         openai_messages.extend(self.messages)
 
         tool_defs = self.registry.definitions("openai", active_tools=self._active_tools | self._always_active)
-        logger.debug("Agent: tool defs for API (count=%s): %s", len(tool_defs), json.dumps(tool_defs, ensure_ascii=False, indent=2))
+        logger.debug("Agent: tool defs for API (count=%s): %s", len(tool_defs),
+                     self._trunc(json.dumps(tool_defs, ensure_ascii=False, indent=2)))
         kwargs: dict[str, Any] = {
             "model": self._model,
             "messages": openai_messages,
@@ -338,7 +350,8 @@ class Agent:
                 args_brief = json.dumps(args, ensure_ascii=False)[:60]
                 self._update_status(f"Tool: {tc.function.name}({args_brief})")
                 output = self.registry.call(tc.function.name, **args)
-                logger.info("Agent: tool result: %s -> %s",tc.function.name, output)
+                logger.info("Agent: tool result: %s -> %s", tc.function.name,
+                            self._trunc(str(output)))
                 self._activate_tool(tc.function.name, args, output)
                 self.messages.append({
                     "role": "tool",
@@ -374,7 +387,8 @@ class Agent:
                 args_brief = json.dumps(args, ensure_ascii=False)[:60]
                 self._update_status(f"Tool: {item.name}({args_brief})")
                 result = self.registry.call(item.name, **args)
-                logger.info("Agent: tool result: %s -> %s",item.name, str(result))
+                logger.info("Agent: tool result: %s -> %s", item.name,
+                            self._trunc(str(result)))
                 self._activate_tool(item.name, args, result)
                 self.messages.append({"role": "assistant", "content": None, "tool_calls": [item]})
                 self.messages.append({
@@ -438,7 +452,8 @@ class Agent:
                 limit = self.settings.tool_output_limit
                 if len(output) > limit:
                     output = output[:limit] + "\n... (truncated)"
-                logger.info("Agent: tool result: %s -> %s",block.name, str(output))
+                logger.info("Agent: tool result: %s -> %s", block.name,
+                            self._trunc(str(output)))
                 self._activate_tool(block.name, block.input, output)
                 results.append({
                     "type": "tool_result",

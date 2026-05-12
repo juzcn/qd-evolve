@@ -487,7 +487,7 @@ def chat(
     # 1. Config & logging
     setup_logging("WARNING")
     settings = load_settings()
-    setup_logging(settings.log_level)
+    setup_logging(settings.log.level)
 
     # Inject env_vars from config into os.environ
     import os
@@ -564,6 +564,17 @@ def chat(
     unloaded_skills = skill_registry.format_for_prompt(loaded=loaded_skill_names)
     unloaded_cli = cli_registry.format_for_prompt(loaded=loaded_cli_names)
     unloaded_tools = registry.format_tools_summary(loaded=loaded_tool_names)
+
+    # Summarise system prompt composition
+    total_tools = len(registry.list_tools())
+    unloaded_count = sum(1 for l in (unloaded_tools or "").splitlines() if l.startswith("- "))
+    unloaded_skill_count = sum(1 for l in (unloaded_skills or "").splitlines() if l.startswith("- "))
+    unloaded_cli_count = sum(1 for l in (unloaded_cli or "").splitlines() if l.startswith("- "))
+    logger.debug(
+        "Prompt: %d tools total (%d preload, %d unloaded), %d unloaded skills, %d unloaded cli",
+        total_tools, len(loaded_tool_names), unloaded_count,
+        unloaded_skill_count, unloaded_cli_count,
+    )
 
     system_prompt = template_mgr.render(
         "default",

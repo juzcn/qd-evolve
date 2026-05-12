@@ -35,7 +35,9 @@ Create `qd-evolve.json` in the project root (see `qd-evolve.json.example`):
 {
   "default_provider": "my-provider",
   "default_model": "my-model",
-  "log_level": "INFO",
+  "log": {
+    "level": "INFO"
+  },
   "env_vars": {
     "SERPER_API_KEY": "sk-xxx",
     "BAIDU_API_KEY": "sk-xxx"
@@ -240,7 +242,8 @@ All config via `qd-evolve.json`. Key fields:
 |-------|-------------|
 | `default_provider` | Default provider name |
 | `default_model` | Default model name |
-| `log_level` | Logging level (DEBUG/INFO/WARNING/ERROR) |
+| `log.level` | Logging level (DEBUG/INFO/WARNING/ERROR) |
+| `log.truncation` | Max chars per log entry, 0 to disable (default: 500) |
 | `max_iterations` | Maximum tool-calling iterations per turn (default: 20) |
 | `tool_output_limit` | Max characters per tool response before truncation (default: 50000) |
 | `env_vars` | Environment variables to inject at startup |
