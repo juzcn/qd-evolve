@@ -268,6 +268,15 @@ wheels = [
 ]
 
 [[package]]
+name = "coding-open-agent-tools"
+version = "0.14.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/23/62/2b9e231c6e7fc591e59000dbd158505a86316b44593db2d1f8b566383cd6/coding_open_agent_tools-0.14.1.tar.gz", hash = "sha256:532d5bea35dc8e63224274a6dbb69c7c212bdfeb3f4f994343d3f8a08ed7f13a", size = 231584, upload-time = "2026-01-06T16:59:17.769Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/fa/d8/794ac659ed2f4d71b1a2d8f08117a65a2f99d5b9c8bff23151cc968897e7/coding_open_agent_tools-0.14.1-py3-none-any.whl", hash = "sha256:4ca3b39114582effd0ca171ca9f2c023374698b78fabf42da90036547fd5907e", size = 259871, upload-time = "2026-01-06T16:59:16.238Z" },
+]
+
+[[package]]
 name = "colorama"
 version = "0.4.6"
 source = { registry = "https://pypi.org/simple" }
@@ -1804,6 +1813,7 @@ source = { editable = "." }
 dependencies = [
     { name = "anthropic" },
     { name = "basic-open-agent-tools" },
+    { name = "coding-open-agent-tools" },
     { name = "jinja2" },
     { name = "llama-cpp-python" },
     { name = "mcp" },
@@ -1831,6 +1841,7 @@ requires-dist = [
     { name = "anthropic", specifier = ">=0.52.0" },
     { name = "basic-open-agent-tools", specifier = ">=1.3.2" },
     { name = "basic-open-agent-tools", extras = ["all"], marker = "extra == 'boat'", specifier = ">=1.3" },
+    { name = "coding-open-agent-tools", specifier = ">=0.14.1" },
     { name = "jinja2", specifier = ">=3.1" },
     { name = "llama-cpp-python", specifier = ">=0.3.23" },
     { name = "mcp", specifier = ">=1.0" },
