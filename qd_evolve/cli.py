@@ -23,7 +23,7 @@ from qd_evolve.providers import ProviderRegistry
 from qd_evolve.skills import SkillRegistry
 from qd_evolve.tools import get_registry
 from qd_evolve.toolbox import state_mark
-from qd_evolve.tools._mcp_client import connect_mcp_servers, discover_mcp_servers, reload_mcp_servers
+from tools.bridge import BridgeManager
 
 try:
     from importlib.metadata import version as _pkg_version
@@ -120,9 +120,9 @@ def toolbox(
     if tui:
         from qd_evolve.toolbox_tui import _build_data, ToolboxApp
         console.print("Loading tools...", end="\r")
-        data, bridges = _build_data(connect_mcp=True)
+        data, bridges, bridge_entries = _build_data(connect_bridges=True)
         console.print(f"Loaded {sum(len(v) for v in data.values())} items across {len(data)} categories")
-        ToolboxApp(data, bridges).run()
+        ToolboxApp(data, bridges, bridge_entries).run()
     else:
         _toolbox_interactive()
 
@@ -222,12 +222,12 @@ def _toolbox_help() -> None:
 
 
 def _toolbox_list(args: list[str]) -> None:
-    from qd_evolve.toolbox import get_state, get_disabled_mcp_servers
+    from qd_evolve.toolbox import get_state, get_disabled_bridges
     from qd_evolve.tools import get_registry
     from qd_evolve.skills import SkillRegistry
     from qd_evolve.cli_tools import CLIRegistry
     from qd_evolve.config import load_settings
-    from qd_evolve.tools._mcp_client import discover_mcp_servers
+    from tools.bridge import BridgeManager
 
     PAGE_SIZE = 20
     settings = load_settings()
@@ -236,14 +236,17 @@ def _toolbox_list(args: list[str]) -> None:
     # Build data
     registry = get_registry()
     builtin: list[tuple[str, str, str]] = []
-    mcp_tools: dict[str, list[tuple[str, str, str]]] = {}
+    bridge_tools: dict[str, list[tuple[str, str, str]]] = {}
     for td in registry.list_tools():
         state = get_state("tools", td.name)
-        if "__" in td.name:
-            server = td.name.split("__")[0]
-            mcp_tools.setdefault(server, []).append((td.name, td.description or "", state))
+        # Bridge tools have [name] prefix in description
+        desc = td.description or ""
+        if desc.startswith("[") and "]" in desc:
+            bracket_end = desc.index("]")
+            server = desc[1:bracket_end]
+            bridge_tools.setdefault(server, []).append((td.name, desc, state))
         else:
-            builtin.append((td.name, td.description or "", state))
+            builtin.append((td.name, desc, state))
 
     # Skills
     sr = SkillRegistry()
@@ -259,9 +262,9 @@ def _toolbox_list(args: list[str]) -> None:
     for t in cr._tools.values():
         cli_data.append((t.name, t.description or t.command, get_state("cli", t.name)))
 
-    # MCP servers
-    mcp_configs = discover_mcp_servers()
-    disabled_srv = get_disabled_mcp_servers()
+    # Bridge entries
+    bridge_entries = BridgeManager.list_all(settings)
+    disabled_bridges = get_disabled_bridges()
 
     def _print_items(title: str, items: list[tuple[str, str, str]], page: int = 0) -> None:
         if not items:
@@ -278,21 +281,21 @@ def _toolbox_list(args: list[str]) -> None:
         if total_pages > 1 and page < total_pages - 1:
             console.print(f"  [dim]... ls {section_arg} page {page + 2} for more[/dim]")
 
-    def _print_servers() -> None:
-        if not mcp_configs:
+    def _print_bridge_entries() -> None:
+        if not bridge_entries:
             return
-        console.print("\n[bold]MCP Servers[/bold]")
-        for cfg in mcp_configs:
-            tools = mcp_tools.get(cfg.name, [])
-            srv_state = "disabled" if cfg.name in disabled_srv else "enabled"
+        console.print("\n[bold]Bridges[/bold]")
+        for be in bridge_entries:
+            tools = bridge_tools.get(be.name, [])
+            srv_state = "disabled" if f"{be.bridge_type}:{be.name}" in disabled_bridges else "enabled"
             mark = state_mark(srv_state)
             style = "dim" if srv_state == "disabled" else ""
             total = len(tools)
             active = sum(1 for _, _, s in tools if s != "disabled")
             summary = f"{active}/{total} tools" if total else "tools visible during chat"
-            console.print(f"  {mark} [cyan]mcp:{cfg.name}[/cyan] {style}—{summary}")
+            console.print(f"  {mark} [cyan]{be.bridge_type}:{be.name}[/cyan] {style}—{summary}")
             if total > 0:
-                console.print(f"    [dim]ls mcp:{cfg.name} to expand[/dim]")
+                console.print(f"    [dim]ls {be.name} to expand[/dim]")
 
     page = 0
     if len(args) > 1 and args[1].isdigit():
@@ -304,19 +307,18 @@ def _toolbox_list(args: list[str]) -> None:
         _print_items("CLI Tools", cli_data, page)
     if section_arg in ("all", "skills"):
         _print_items("Skills", skills_data, page)
-    if section_arg in ("all", "mcp"):
-        _print_servers()
-    if section_arg.startswith("mcp:") and section_arg != "mcp":
-        server = section_arg.split(":", 1)[1]
-        if server in mcp_tools:
-            _print_items(f"MCP: {server}", mcp_tools[server], page)
-        else:
-            console.print(f"  MCP server '{server}' has no tools registered (run chat first)")
+    if section_arg in ("all", "bridge"):
+        _print_bridge_entries()
+    # Expand a specific bridge's tools
+    for be in bridge_entries:
+        if section_arg == be.name and be.name in bridge_tools:
+            _print_items(f"Bridge: {be.name} ({be.bridge_type})", bridge_tools[be.name], page)
+            break
 
 
 def _resolve_section(name: str) -> str:
-    if name.startswith("mcp:"):
-        return "mcp_servers"
+    if name.startswith("mcp:") or name.startswith("oat:") or ":" in name:
+        return name.split(":")[0] + "_bridge" if not name.startswith("mcp:") and not name.startswith("oat:") else "bridge"
     return "tools"
 
 
@@ -507,9 +509,8 @@ def chat(
     cli_registry = CLIRegistry()
     cli_registry.discover(settings.cli_tools_dir)
 
-    # 5. MCP servers
-    mcp_configs = discover_mcp_servers()
-    mcp_bridges = connect_mcp_servers(mcp_configs)
+    # 5. Bridges (MCP + OAT + ...)
+    bridges = BridgeManager.connect_all(settings)
 
     # 5b. Apply toolbox state from toolbox.json
     from qd_evolve.toolbox import (
@@ -663,7 +664,7 @@ def chat(
                 # Reload registries to pick up any new tools/skills/cli added during this turn
                 skill_registry.reload()
                 cli_registry.reload()
-                mcp_bridges = reload_mcp_servers(discover_mcp_servers(), mcp_bridges)
+                bridges = BridgeManager.reload(settings, bridges)
             except KeyboardInterrupt:
                 console.print("\n[dim]Interrupted.[/dim]")
                 continue

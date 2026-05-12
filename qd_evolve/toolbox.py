@@ -5,7 +5,7 @@ State is persisted to toolbox.json. Three states per item:
   - "preload"  — full schema/definition in system prompt
   - "disabled" — hidden from LLM entirely
 
-MCP servers only support "enabled"/"disabled" (no preload concept).
+Bridges only support "enabled"/"disabled" (no preload concept).
 """
 
 from __future__ import annotations
@@ -17,13 +17,13 @@ from typing import Any
 TOOLBOX_PATH = Path("toolbox.json")
 
 VALID_STATES = ("enabled", "preload", "disabled")
-MCP_VALID_STATES = ("enabled", "disabled")
+BRIDGE_VALID_STATES = ("enabled", "disabled")
 
 
 def _load() -> dict[str, Any]:
     if TOOLBOX_PATH.is_file():
         return json.loads(TOOLBOX_PATH.read_text(encoding="utf-8"))
-    return {"tools": {}, "mcp_servers": {}, "cli": {}, "skills": {}}
+    return {"tools": {}, "mcp_servers": {}, "bridge": {}, "cli": {}, "skills": {}}
 
 
 def _save(data: dict[str, Any]) -> None:
@@ -54,8 +54,8 @@ def get_preloaded(section: str) -> set[str]:
 
 def set_state(section: str, name: str, state: str) -> bool:
     """Set state for an item. Returns False if state is invalid."""
-    if section == "mcp_servers":
-        if state not in MCP_VALID_STATES:
+    if section in ("mcp_servers", "bridge"):
+        if state not in BRIDGE_VALID_STATES:
             return False
     elif state not in VALID_STATES:
         return False
@@ -73,7 +73,7 @@ def set_state(section: str, name: str, state: str) -> bool:
 
 def toggle(section: str, name: str) -> str:
     """Cycle state. Returns the new state."""
-    if section == "mcp_servers":
+    if section in ("mcp_servers", "bridge"):
         current = get_state(section, name)
         new_state = "disabled" if current != "disabled" else "enabled"
     else:
@@ -124,8 +124,18 @@ def apply_to_skill_registry(registry: Any, preload_skills_config: set[str]) -> N
 
 
 def get_disabled_mcp_servers() -> set[str]:
-    """Return names of disabled MCP servers."""
+    """Return names of disabled MCP servers. (legacy)"""
     return get_disabled("mcp_servers")
+
+
+def get_disabled_bridges() -> set[str]:
+    """Return keys of disabled bridges (format: 'type:name')."""
+    # Returns entries from "bridge" section and legacy "mcp_servers" section
+    disabled = get_disabled("bridge")
+    # Also check legacy mcp_servers section
+    for name in get_disabled("mcp_servers"):
+        disabled.add(f"mcp:{name}")
+    return disabled
 
 
 # ── display helpers ────────────────────────────────────────────

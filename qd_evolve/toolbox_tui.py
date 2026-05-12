@@ -11,58 +11,62 @@ from textual.widgets import DataTable, Footer, Header, Input, Static
 from qd_evolve.toolbox import get_state, set_state
 
 
-def _build_data(connect_mcp: bool = True) -> tuple[dict, list]:
-    """Build category → [(name, desc, state), ...] and return (data, mcp_bridges)."""
+def _build_data(connect_bridges: bool = True) -> tuple[dict, list, list]:
+    """Build category → [(name, desc, state), ...] and return (data, bridges, entries)."""
     from qd_evolve.tools import get_registry
     from qd_evolve.skills import SkillRegistry
     from qd_evolve.cli_tools import CLIRegistry
     from qd_evolve.config import load_settings
-    from qd_evolve.tools._mcp_client import connect_mcp_servers, discover_mcp_servers
+    from tools.bridge import BridgeManager, BridgeEntry
 
     categories: dict[str, list[tuple[str, str, str]]] = {}
     settings = load_settings()
-    bridges = []
+    bridges: list = []
 
-    # Discover MCP servers (always) and optionally connect
-    mcp_configs = discover_mcp_servers()
-    if connect_mcp:
-        bridges = connect_mcp_servers(mcp_configs)
+    # Discover and optionally connect all bridges
+    bridge_entries: list[BridgeEntry] = BridgeManager.list_all(settings)
+    if connect_bridges:
+        bridges = BridgeManager.connect_all(settings)
 
     # Collect all tools from the global registry
     registry = get_registry()
 
-    # Build tool → server map from bridges (handles unprefixed tools)
-    tool_server: dict[str, str] = {}
+    # Build tool → bridge name map from bridges
+    tool_bridge: dict[str, str] = {}
     for b in bridges:
-        for tname in b._tool_names:
-            tool_server[tname] = b._config.name
+        for tname in b.tool_names:
+            tool_bridge[tname] = getattr(b.config, "name", "")
 
-    # Builtin tools (not from any MCP server)
+    # Builtin tools (not from any bridge)
     builtin = []
     for td in registry.list_tools():
-        if td.name not in tool_server:
+        if td.name not in tool_bridge:
             builtin.append((td.name, td.description or "", get_state("tools", td.name)))
     if builtin:
         categories["Builtin Tools"] = builtin
 
-    # MCP tools grouped by server
-    mcp_tools: dict[str, list[tuple[str, str, str]]] = {}
+    # Bridge tools grouped by bridge name
+    bridge_tool_groups: dict[str, list[tuple[str, str, str]]] = {}
     for td in registry.list_tools():
-        server = tool_server.get(td.name)
-        if server:
-            mcp_tools.setdefault(server, []).append(
+        bname = tool_bridge.get(td.name)
+        if bname:
+            bridge_tool_groups.setdefault(bname, []).append(
                 (td.name, td.description or "", get_state("tools", td.name))
             )
 
-    # MCP servers (with server-level state)
-    from qd_evolve.toolbox import get_disabled_mcp_servers
-    disabled_srv = get_disabled_mcp_servers()
-    for cfg in mcp_configs:
-        srv_state = "disabled" if cfg.name in disabled_srv else "enabled"
-        key = f"MCP: {cfg.name}"
-        categories[key] = [(f"+ mcp:{cfg.name} (server)", cfg.command, srv_state)]
-        if cfg.name in mcp_tools:
-            categories[key].extend(mcp_tools[cfg.name])
+    # Bridge entries (with bridge-level state)
+    from qd_evolve.toolbox import get_disabled_bridges
+    disabled_br = get_disabled_bridges()
+    for be in bridge_entries:
+        bridge_key = f"{be.bridge_type}:{be.name}"
+        srv_state = "disabled" if bridge_key in disabled_br else "enabled"
+        key = f"Bridge: {be.name} ({be.bridge_type})"
+        group = bridge_tool_groups.get(be.name, [])
+        display_name = f"+ {be.bridge_type}:{be.name} (bridge)"
+        desc = be.description or f"{len(group)} tools"
+        categories[key] = [(display_name, desc, srv_state)]
+        if group:
+            categories[key].extend(group)
 
     # CLI tools
     cr = CLIRegistry()
@@ -80,7 +84,7 @@ def _build_data(connect_mcp: bool = True) -> tuple[dict, list]:
     if skills:
         categories["Skills"] = skills
 
-    return categories, bridges
+    return categories, bridges, bridge_entries
 
 
 class HelpScreen(ModalScreen):
@@ -92,18 +96,18 @@ class HelpScreen(ModalScreen):
             " [bold]Navigation[/bold]\n"
             "   ↑↓ / jk     Move selection\n"
             "   Tab         Switch panels (categories ↔ tools)\n"
-            "   Space       Expand / collapse MCP server\n"
+            "   Space       Expand / collapse bridge\n"
             "   /           Filter tools\n"
             "\n"
             " [bold]Actions[/bold]\n"
             "   e           Toggle enable / disable\n"
             "   p           Toggle preload on / off\n"
-            "   Space       Expand / collapse MCP server\n"
-            "   s           Shrink all MCP servers\n"
+            "   Space       Expand / collapse bridge\n"
+            "   s           Shrink all bridges\n"
             "\n"
             " [bold]Columns[/bold]\n"
             "   ✓/✗ = enabled/disabled   ⚡ = preloaded\n"
-            "   +/v = collapsed/expanded (MCP servers)\n"
+            "   +/v = collapsed/expanded (bridges)\n"
             "\n"
             " [bold]Other[/bold]\n"
             "   ?           This help\n"
@@ -132,17 +136,18 @@ class ToolboxApp(App):
         Binding("q", "quit", "Quit"),
     ]
 
-    def __init__(self, data: dict, bridges: list) -> None:
+    def __init__(self, data: dict, bridges: list, bridge_entries: list | None = None) -> None:
         super().__init__()
         self._data = data
-        self._mcp_bridges = bridges
+        self._bridges = bridges
+        self._bridge_entries = bridge_entries or []
         self._categories = list(data.keys())
         self._cat_index = 0
         self._filter = ""
         self._expanded: set[str] = set()
 
     def on_unmount(self) -> None:
-        for bridge in self._mcp_bridges:
+        for bridge in self._bridges:
             try:
                 bridge.disconnect()
             except Exception:
@@ -180,7 +185,7 @@ class ToolboxApp(App):
             items = self._data[cat]
             active = sum(1 for _, _, s in items if s != "disabled")
             total = len(items)
-            if cat.startswith("MCP:"):
+            if cat.startswith("Bridge:"):
                 total -= 1
                 active = max(0, active - 1)
             expanded = "v " if cat in self._expanded else ""
@@ -195,15 +200,15 @@ class ToolboxApp(App):
         if not self._categories:
             return
         cat = self._categories[self._cat_index]
-        is_mcp = cat.startswith("MCP:")
+        is_bridge = cat.startswith("Bridge:")
         expanded = cat in self._expanded
 
         for i, (name, desc, state) in enumerate(self._data[cat]):
             if self._filter and self._filter.lower() not in name.lower():
                 continue
 
-            # MCP category: server header always shown, tools only when expanded
-            if is_mcp:
+            # bridge category: server header always shown, tools only when expanded
+            if is_b:
                 if i == 0:
                     # Server header row — aggregate state from subtools
                     arrow = "v" if expanded else "+"
@@ -235,10 +240,10 @@ class ToolboxApp(App):
         elif table.row_count > 0:
             table.move_cursor(row=table.row_count - 1)
 
-    def _current_category_is_mcp(self) -> bool:
+    def _current_category_is_bridge(self) -> bool:
         if not self._categories:
             return False
-        return self._categories[self._cat_index].startswith("MCP:")
+        return self._categories[self._cat_index].startswith("Bridge:")
 
     # ── actions ──────────────────────────────────────────────
 
@@ -261,18 +266,18 @@ class ToolboxApp(App):
             cat.focus()
 
     def action_expand(self) -> None:
-        """Expand/collapse the MCP server on the currently selected row."""
+        """Expand/collapse the bridge on the currently selected row."""
         if not self._categories:
             return
         cat = self._categories[self._cat_index]
-        # Only works for MCP categories
-        if not cat.startswith("MCP:"):
+        # Only works for bridge categories
+        if not cat.startswith("Bridge:"):
             return
         # If focus is on tools table, only expand if on the server header row
         tools = self.query_one("#tools", DataTable)
         if tools.has_focus:
             name, _ = self._selected_item()
-            if not name or "(server)" not in name:
+            if not name or "(bridge)" not in name:
                 return  # not on server header row
         if cat in self._expanded:
             self._expanded.discard(cat)
@@ -282,30 +287,30 @@ class ToolboxApp(App):
         self._load_tools()
 
     def action_shrink_all(self) -> None:
-        """Collapse all expanded MCP servers."""
+        """Collapse all expanded bridges."""
         self._expanded.clear()
         self._load_categories()
         self._load_tools()
 
     def action_toggle_enabled(self) -> None:
-        """Toggle enabled ↔ disabled. On server row, propagates to all subtools."""
+        """Toggle enabled ↔ disabled. On bridge row, propagates to all subtools."""
         name, section = self._selected_item()
         if not name:
             return
-        if "(server)" in name:
-            server = self._server_name(name)
-            current = get_state("mcp_servers", server)
+        if "(bridge)" in name:
+            bridge_key = self._bridge_name(name)
+            current = get_state("bridge", bridge_key)
             new_state = "disabled" if current != "disabled" else "enabled"
-            set_state("mcp_servers", server, new_state)
-            # Propagate to all subtools
-            cat_key = f"MCP: {server}"
-            if cat_key in self._data:
-                for tool_name, _, _ in self._data[cat_key]:
-                    if "(server)" in tool_name:
+            set_state("bridge", bridge_key, new_state)
+            # Propagate to all subtools: find matching category
+            cat_name = self._categories[self._cat_index]
+            if cat_name in self._data:
+                for tool_name, _, _ in self._data[cat_name]:
+                    if "(bridge)" in tool_name:
                         continue
                     clean = tool_name.strip()
                     set_state("tools", clean, "disabled" if new_state == "disabled" else "enabled")
-            self.notify(f"mcp:{server} → {new_state} (all tools)")
+            self.notify(f"{bridge_key} → {new_state} (all tools)")
         else:
             current = get_state(section, name)
             new_state = "enabled" if current == "disabled" else "disabled"
@@ -318,8 +323,8 @@ class ToolboxApp(App):
         name, section = self._selected_item()
         if not name:
             return
-        if "(server)" in name:
-            self.notify("MCP servers don't support preload", severity="warning")
+        if "(bridge)" in name:
+            self.notify("bridges don't support preload", severity="warning")
             return
         current = get_state(section, name)
         if current == "disabled":
@@ -341,9 +346,12 @@ class ToolboxApp(App):
         self.push_screen(HelpScreen())
 
     @staticmethod
-    def _server_name(name: str) -> str:
-        """Extract server name from display row like '+ mcp:boat (server)' → 'boat'."""
-        return name.replace("+", "").replace("v", "").strip().removeprefix("mcp:").split(" ")[0]
+    def _bridge_name(name: str) -> str:
+        """Extract bridge key from display row like '+ oat:boat (bridge)' → 'oat:boat'."""
+        name = name.removeprefix("+ ").removeprefix("v ")
+        if " (" in name:
+            name = name.split(" (")[0]
+        return name
 
     # ── helpers ──────────────────────────────────────────────
 
@@ -358,14 +366,14 @@ class ToolboxApp(App):
         row_idx = table.cursor_coordinate.row
 
         # Rebuild the visible filtered list (same logic as _load_tools)
-        is_mcp = cat_name.startswith("MCP:")
+        is_bridge = cat_name.startswith("Bridge:")
         expanded = cat_name in self._expanded
         visible: list[tuple[str, str, str]] = []
         for i, item in enumerate(cat):
             name = item[0]
             if self._filter and self._filter.lower() not in name.lower():
                 continue
-            if is_mcp:
+            if is_bridge:
                 if i == 0:
                     visible.append(item)
                 elif expanded:
@@ -376,8 +384,8 @@ class ToolboxApp(App):
         if row_idx < len(visible):
             name = visible[row_idx][0]
             section = "tools"
-            if "(server)" in name:
-                section = "mcp_servers"
+            if "(bridge)" in name:
+                section = "bridge"
             elif cat_name == "CLI Tools":
                 section = "cli"
             elif cat_name == "Skills":
@@ -389,15 +397,15 @@ class ToolboxApp(App):
         """Refresh states from toolbox.json without rebuilding registries."""
         for cat, items in self._data.items():
             for i, (name, desc, _) in enumerate(items):
-                if cat.startswith("MCP:") and i == 0:
+                if cat.startswith("Bridge:") and i == 0:
                     continue  # server header — aggregate, not stored
                 section = "tools"
                 if cat == "CLI Tools":
                     section = "cli"
                 elif cat == "Skills":
                     section = "skills"
-                elif "(server)" in name:
-                    section = "mcp_servers"
+                elif "(bridge)" in name:
+                    section = "bridge"
                 items[i] = (name, desc, get_state(section, name))
         self._load_categories()
         self._load_tools()
