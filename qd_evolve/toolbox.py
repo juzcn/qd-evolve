@@ -150,8 +150,5 @@ def get_default(key: str, fallback: Any = None) -> Any:
 
 _STATE_MARK = {"enabled": "[✓]", "preload": "[P]", "disabled": "[✗]"}
 
-STATE_MARK = _STATE_MARK
-
-
 def state_mark(state: str) -> str:
     return _STATE_MARK.get(state, "[?]")

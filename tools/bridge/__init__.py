@@ -140,9 +140,9 @@ class _BridgeManager:
                         new_bridges.extend(e_bridges)
                         logger.debug("BridgeManager: [%s] keeping %s", bt_name, e_name)
                     else:
-                        for b in e_bridges:
+                        if spec.disconnect:
                             try:
-                                b.disconnect()
+                                spec.disconnect(e_bridges)
                             except Exception:
                                 logger.exception("BridgeManager: [%s] disconnect failed", bt_name)
 

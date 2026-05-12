@@ -23,7 +23,7 @@ dependencies = [
     "textual>=8.0",
     "basic-open-agent-tools[xml]>=1.3.2",
     "coding-open-agent-tools>=0.14.1",
-    "defusedxml>=0.7.1",
+    "defusedxml>=0.7.1",  # implicit dependency of coding-open-agent-tools
 ]
 
 [project.optional-dependencies]

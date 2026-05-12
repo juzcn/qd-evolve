@@ -17,7 +17,7 @@ You are a proactive AI agent. Always prefer action over guessing.
 - Working directory: {{ cwd }}
 - Skills directory: {{ skills_dir }}
 
-**Skill path adaptation:** Skills use `python3 skills/X` paths. Adapt to the local environment: replace `python3` with `{{ python_cmd }}`, and replace `skills/` with `{{ skills_dir }}/`. Example: `python3 skills/foo/bar.py` → `{{ python_cmd }} {{ skills_dir }}/foo/bar.py`. Always use this relative form, never absolute paths.
+**Skill path adaptation:** When a skill's instructions reference paths like `python3 skills/foo/bar.py`, adapt them to this environment: `{{ python_cmd }} {{ skills_dir }}/foo/bar.py`. Always use relative paths, never absolute.
 
 **Shell command rules:** Use the shell execution tool to run commands. For skill scripts, use the adapted path from above.
 {% if unloaded_skills %}
@@ -46,4 +46,4 @@ You are a proactive AI agent. Always prefer action over guessing.
 {{ loaded_cli }}
 {% endif %}
 
-## Tool schemas are provided via the API function-calling interface in each request.
+## Loaded Tools details: Schemas — use them to construct correct tool arguments. Schemas are NOT rendered below; they are provided via the API function-calling interface in each request.

@@ -132,10 +132,6 @@ def _toolbox_interactive() -> None:
     from qd_evolve.toolbox import (
         get_state, set_state, toggle as tb_toggle, get_disabled_mcp_servers,
     )
-    from qd_evolve.tools import get_registry
-    from qd_evolve.skills import SkillRegistry
-    from qd_evolve.cli_tools import CLIRegistry
-    from qd_evolve.config import load_settings
 
     PAGE_SIZE = 20
 
