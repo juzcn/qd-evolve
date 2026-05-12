@@ -588,6 +588,7 @@ def chat(
         cwd=str(Path.cwd()),
         skills_dir=settings.skills_dir,
     )
+    logger.debug("Agent: system prompt (%d chars)\n%s", len(system_prompt), system_prompt)
 
     # 8. Provider
     providers = ProviderRegistry(settings)
