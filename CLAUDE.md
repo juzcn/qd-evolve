@@ -14,13 +14,15 @@
 
 ## Design Decisions
 
-- **Tools are auto-discovered.** Builtin tools from `qd_evolve/tools/`, MCP tools from `tools/mcp/*.json`, CLI tools from `tools/cli/*.yaml`. No manual registration.
+- **Tools are auto-discovered.** Builtin tools from `qd_evolve/tools/`, MCP tools from `tools/mcp/*.json`, CLI tools from `tools/cli/*.yaml`, OAT tools from `tools/bridge/oat.json`. No manual registration.
+- **Bridge protocol.** qd-evolve's own protocol for tool source integration. Each bridge type self-registers with `BridgeManager` (discover/connect/disconnect). `cli.py` only talks to `BridgeManager` — adding a new bridge type never touches `cli.py` or `toolbox.py`. Current bridges: `mcp` (external subprocess), `oat` (in-process boat + coat). Bridge modules live in `tools/bridge/_*.py`, config files in `tools/bridge/*.json`.
+- **OAT bridge (in-process).** `basic-open-agent-tools` (boat) and `coding-open-agent-tools` (coat) are loaded in-process via `tools/bridge/_oat.py`. No subprocess, no MCP serialization overhead. Wrapped functions get Google ADK → OpenAI JSON Schema conversion via `qd_evolve/utils/adk_schema.py`, output normalization via `qd_evolve/utils/adk_output.py`. Config in `tools/bridge/oat.json` — edit loadout per package without touching Settings model.
 - **On-demand tool loading.** Tools start with name+description only. The LLM calls `load_tool_detail` to get the full schema, then the tool is activated for subsequent turns. This reduces prompt size.
 - **Dynamic system prompt sections.** The system prompt has three dynamic injection sections: "Loaded SKILL.md", "Loaded Cli Tools help", and "Loaded Tools Schemas". When `load_skill_detail`, `load_cli_detail`, or `load_tool_detail` is called, the returned content is injected into the corresponding section on the next iteration, so the LLM has the full context without re-fetching.
-- **Toolbox manages tool state.** `toolbox.json` controls enable/disable/preload for tools, skills, CLI tools, and MCP servers. Managed interactively via `qd-evolve toolbox` (Textual TUI).
+- **Toolbox manages tool state.** `toolbox.json` controls enable/disable/preload for tools, skills, CLI tools, MCP servers, and bridges. Managed interactively via `qd-evolve toolbox` (Textual TUI).
 - **Skills are non-callable.** SKILL.md files injected into system prompt as summaries — the LLM calls `load_skill_detail` to get full instructions and uses callable tools to execute.
 - **CLI tools are non-callable definitions.** YAML files in `tools/cli/` describe CLI commands (name, command, help_summary, examples). The LLM calls `load_cli_detail` to get usage info, then executes via `run_shell`.
-- **MCP tools use original names.** No prefix — clean tool names for the LLM. Disabled MCP servers are skipped entirely (no subprocess spawned).
+- **MCP tools use original names.** No prefix on tool names. Disabled MCP servers are skipped entirely (no subprocess spawned). Disabled bridges are skipped by BridgeManager.
 - **Templates are Jinja2.** User templates in `templates/` override builtin fallbacks in `qd_evolve/_templates/`. System prompt is rendered from template and passed to Agent at startup.
 - **Per-turn and cumulative token stats.** Track input/output tokens and context window usage each turn, plus running session total.
 - **Persistent memory.** SQLite + sqlite-vec for cross-session memory storage. Each user+assistant message pair is auto-saved with BGE-M3 embedding. Supports semantic + keyword hybrid search, time-range filtering, and session exclusion.
@@ -28,9 +30,11 @@
 - **Auto recall.** Before each LLM call, user input is used as query to automatically retrieve relevant past conversations from MemoryStore. Results are injected into a dedicated memory section in the system prompt, with deduplication via `RecalledMemoryRegistry` (keyed by memory id). All recall queries exclude the current session. Configurable via `auto_recall` (on/off) and `auto_recall_top_k`.
 - **Embedder selection by config.** `embeddings_backends` section in `qd-evolve.json` defines named backends with `backend` field (`sentence-transformers` or `llama-cpp-python`). `memory_search.default_embeddings_backend` selects which to use. No file-suffix auto-detection.
 - **Env vars from config.** `env_vars` in `qd-evolve.json` are injected into `os.environ` at startup, so tools can access API keys without .env files.
-- **Config is read once at startup.** No runtime config changes — edit `qd-evolve.json` and restart. However, registries (skills, CLI tools, MCP) are reloaded after each conversation turn to pick up new files without restart.
+- **Config is read once at startup.** No runtime config changes — edit `qd-evolve.json` and restart. However, registries (skills, CLI tools, bridges) are reloaded after each conversation turn to pick up new files without restart.
 - **File paths relative to CWD.** Tools never hardcode paths; everything resolves against current working directory.
 - **Shell encoding.** `run_shell` uses `locale.getpreferredencoding()` to decode subprocess output, handling Windows GBK/cp936 correctly.
-- **BOAT via MCP.** basic-open-agent-tools (442 tools) exposed as MCP server (`boat_mcp_server.py`). `tools/mcp/boat.json` enables plug-and-play. `--loadout` selects tool subset.
+- **BOAT via OAT bridge.** basic-open-agent-tools loaded in-process, no subprocess latency. Config in `tools/bridge/oat.json` — set `loadout` per package (coder, python, all, etc.).
+- **COAT via OAT bridge.** coding-open-agent-tools (485 code analysis functions) loaded in-process alongside boat. Same Google ADK format, same bridge, same schema/output converters.
+- **Bridge toolbox.** `toolbox.json` `bridge` section controls bridge enable/disable (e.g. `"oat:boat": "disabled"`). Bridges don't support preload — too many tools.
 - **Don't auto push.** Commit is fine, but never push to remote unless the user explicitly asks.
 - **Replay mode for testing.** `--replay <file>` feeds pre-recorded inputs instead of interactive prompt, with optional `--output` to capture. Used for automated CLI testing without an LLM dependency.

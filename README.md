@@ -5,14 +5,15 @@ Multi-provider AI agent with tool use, skills, MCP integration, and CLI interfac
 ## Features
 
 - **Multi-provider, multi-model** — OpenAI Chat Completions, OpenAI Responses API, Anthropic Messages API
-- **Tool system** — Builtin tools + MCP tools from `tools/mcp/*.json` + BOAT (basic-open-agent-tools via MCP)
+- **Tool system** — Builtin tools + MCP (external processes) + OAT bridge (in-process boat + coat)
+- **Bridge protocol** — qd-evolve's own protocol for tool source integration; new bridge types never touch `cli.py`
+- **OAT bridge** — basic-open-agent-tools (boat) + coding-open-agent-tools (coat) loaded in-process, no subprocess latency
 - **Toolbox TUI** — `qd-evolve toolbox` (Textual) for interactive enable/disable/preload management across all tool types
-- **Toolbox config** — `toolbox.json` manages which tools/skills/CLI/MCP are enabled, disabled, or preloaded
+- **Toolbox config** — `toolbox.json` manages which tools/skills/CLI/bridges/MCP are enabled, disabled, or preloaded
 - **On-demand tool loading** — Tools start with name+description only; full schema loaded via `load_tool_detail`
 - **Skill system** — SKILL.md files from `tools/skills/`, injected into system prompt; `load_skill_detail` for full content
 - **CLI tools** — YAML definitions in `tools/cli/`, loaded via `load_cli_detail`
 - **MCP integration** — Stdio-based MCP servers; clean tool names (no prefix); disabled servers skipped entirely
-- **BOAT integration** — 442 basic-open-agent-tools exposed as MCP server; `tools/mcp/boat.json` for config
 - **Jinja2 prompt templates** — `.j2` files in `templates/`, with builtin fallbacks
 - **Persistent memory** — SQLite + sqlite-vec with BGE-M3 semantic + keyword hybrid search
 - **Context compression** — Auto Q/A removal when tokens exceed threshold
@@ -116,7 +117,11 @@ qd-evolve --replay in.txt --output out.txt  # replay + capture output
 | `load_cli_detail` | Load full definition for a CLI tool on demand |
 | `recall_memory` | Search past conversations by query, keywords, and time range |
 
-## MCP Integration
+## Bridge Protocol
+
+qd-evolve's own generic tool integration protocol. Each bridge type self-registers with `BridgeManager` via three functions: `discover` → `connect` → `disconnect`. Adding a new bridge type only requires a `_*.py` module in `tools/bridge/` — `cli.py` never changes.
+
+### MCP Bridge (external processes)
 
 Place JSON config files in `tools/mcp/`. Supported formats:
 
@@ -131,7 +136,42 @@ Place JSON config files in `tools/mcp/`. Supported formats:
 { "command": "...", "args": [...] }
 ```
 
-MCP tools use original names (no prefix). Disabled servers are skipped entirely.
+### OAT Bridge (in-process)
+
+Loads `basic-open-agent-tools` (boat) and `coding-open-agent-tools` (coat) directly in-process — no subprocess, no MCP serialization overhead.
+
+Config in `tools/bridge/oat.json`:
+
+```json
+{
+  "boat": {
+    "package": "basic_open_agent_tools",
+    "loadout": "coder"
+  },
+  "coat": {
+    "package": "coding_open_agent_tools",
+    "loadout": "python"
+  }
+}
+```
+
+- `loadout` selects tool subset per package (coder, python, all, etc.)
+- Schema: Google ADK → OpenAI JSON Schema via `qd_evolve/utils/adk_schema.py`
+- Output: auto-normalized via `qd_evolve/utils/adk_output.py`
+- Remove an entry to disable that package; edit `loadout` to change tool subset
+
+### Bridge Toolbox
+
+`toolbox.json` `bridge` section controls bridge enable/disable:
+
+```json
+{
+  "bridge": {
+    "oat:boat": "enabled",
+    "mcp:github-fetcher": "disabled"
+  }
+}
+```
 
 ## CLI Tools
 
@@ -174,17 +214,6 @@ Included skills:
 | `cli-register` | Register CLI tools by analyzing `--help` output and generating YAML definitions |
 | `find-skills` | Discover and install new agent skills |
 | `self-improvement` | Capture learnings and corrections for continuous improvement |
-
-## BOAT Integration
-
-basic-open-agent-tools (442 local tools: file ops, PDF, Excel, image, crypto, etc.) via MCP:
-
-```bash
-pip install basic-open-agent-tools[all]
-# boat.json already in tools/mcp/ — qd-evolve picks it up on start
-```
-
-Edit `tools/mcp/boat.json` to change `--loadout` (coder, docs, data_analyst, all, etc.). Remove the file to disable BOAT.
 
 ## Prompt Templates
 
@@ -239,6 +268,9 @@ qd_evolve/
   memory.py          — SQLite + sqlite-vec persistent memory store
   skills.py          — SkillRegistry, SKILL.md discovery, active skill injection
   cli_tools.py       — CLIRegistry, YAML-based CLI tool definitions
+  utils/
+    adk_schema.py    — Google ADK → OpenAI JSON Schema converter
+    adk_output.py    — Output normalizer + handler factory
   tools/
     __init__.py      — ToolRegistry, tool registration, on-demand loading
     shell.py         — run_shell (auto-detects system encoding)
@@ -249,13 +281,20 @@ qd_evolve/
     skill_loader.py  — load_skill_detail (on-demand skill content)
     cli_loader.py    — load_cli_detail (on-demand CLI tool info)
     recall_memory.py — recall_memory (semantic + keyword search)
-    _mcp_client.py   — MCP server discovery, bridge, incremental reload
   agent.py           — Agent loop (openai_completion, openai_response, anthropic)
   cli.py             — typer CLI with slash commands, toolbox subcommand
   toolbox.py         — Toolbox state management (toolbox.json)
   toolbox_tui.py     — Textual TUI for interactive tool management
-  boat_mcp_server.py — MCP server wrapping basic-open-agent-tools
   _templates/        — builtin Jinja2 templates
+tools/
+  mcp/               — MCP server configs (*.json)
+  cli/               — CLI tool definitions (*.yaml)
+  skills/            — SKILL.md skills
+  bridge/            — Bridge protocol modules
+    __init__.py      — BridgeManager (discover/connect/reload/list_all)
+    _mcp.py          — MCP bridge (external subprocess)
+    _oat.py          — OAT bridge (in-process boat + coat)
+    oat.json         — OAT bridge config
 main.py              — thin launcher
 ```
 
@@ -271,3 +310,5 @@ main.py              — thin launcher
 | HTTP | httpx |
 | Search | serper-toolkit |
 | MCP | mcp (Model Context Protocol) |
+| Bridge | qd-evolve Bridge Protocol |
+| OAT | basic-open-agent-tools + coding-open-agent-tools |
