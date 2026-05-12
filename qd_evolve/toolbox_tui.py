@@ -207,8 +207,8 @@ class ToolboxApp(App):
             if self._filter and self._filter.lower() not in name.lower():
                 continue
 
-            # bridge category: server header always shown, tools only when expanded
-            if is_b:
+            # bridge category: header always shown, tools only when expanded
+            if is_bridge:
                 if i == 0:
                     # Server header row — aggregate state from subtools
                     arrow = "v" if expanded else "+"
