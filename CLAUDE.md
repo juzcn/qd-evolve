@@ -36,5 +36,7 @@
 - **BOAT via OAT bridge.** basic-open-agent-tools loaded in-process, no subprocess latency. Config in `tools/bridge/oat.json` — set `loadout` per package (coder, python, all, etc.).
 - **COAT via OAT bridge.** coding-open-agent-tools (485 code analysis functions) loaded in-process alongside boat. Same Google ADK format, same bridge, same schema/output converters.
 - **Bridge toolbox.** `toolbox.json` `bridge` section controls bridge enable/disable (e.g. `"oat:boat": "disabled"`). Bridges don't support preload — too many tools.
+## Rules
+
 - **Don't auto push.** Commit is fine, but never push to remote unless the user explicitly asks.
 - **Replay mode for testing.** `--replay <file>` feeds pre-recorded inputs instead of interactive prompt, with optional `--output` to capture. Used for automated CLI testing without an LLM dependency.
