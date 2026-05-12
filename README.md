@@ -26,59 +26,23 @@ Multi-provider AI agent with tool use, skills, MCP integration, and CLI interfac
 ## Quick Start
 
 ```bash
-pip install -e .
+# Local development (editable)
+uv tool install -e .
+qd-evolve
+
+# Or remote — no clone needed
+uvx --from git+https://github.com/juzcn/qd-evolve qd-evolve
 ```
 
-Create `qd-evolve.json` in the project root (see `qd-evolve.json.example`):
+Create `qd-evolve.json` in your working directory (copy from `qd-evolve.json.example`, then add your API keys):
 
-```json
-{
-  "default_provider": "my-provider",
-  "default_model": "my-model",
-  "log": {
-    "level": "INFO"
-  },
-  "env_vars": {
-    "SERPER_API_KEY": "sk-xxx",
-    "BAIDU_API_KEY": "sk-xxx"
-  },
-  "providers": [
-    {
-      "name": "my-provider",
-      "api_key": "sk-xxx",
-      "base_url": "https://api.example.com/v1",
-      "api": "openai-completions",
-      "models": [
-        {
-          "name": "my-model",
-          "reasoning": false,
-          "input": ["text"],
-          "cost": { "input": 0.0025, "output": 0.01, "cache_read": 0, "cache_write": 0 },
-          "context_window": 128000,
-          "max_tokens": 4096
-        }
-      ]
-    }
-  ],
-  "memory_search": {
-    "default_embeddings_backend": "default",
-    "compress_threshold": 0.7,
-    "target_threshold": 0.5,
-    "auto_recall": true,
-    "auto_recall_top_k": 1,
-    "recall_memory_limit": 5,
-    "search_by_time_limit": 20,
-    "list_all_limit": 50
-  },
-  "embeddings_backends": {
-    "default": {
-      "model_path": "BAAI/bge-m3",
-      "dim": 1024,
-      "backend": "sentence-transformers"
-    }
-  }
-}
+```bash
+curl -O https://raw.githubusercontent.com/juzcn/qd-evolve/main/qd-evolve.json.example
+mv qd-evolve.json.example qd-evolve.json
+# edit qd-evolve.json with your keys
 ```
+
+See `qd-evolve.json.example` for the full config structure. At minimum you need a provider with `api_key`, `base_url`, `api`, and at least one model.
 
 Run:
 
