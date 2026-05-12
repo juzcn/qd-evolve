@@ -16,33 +16,24 @@ registry.register(
                 "type": "string",
                 "description": "The shell command to execute",
             },
-            "timeout": {
-                "type": "integer",
-                "description": "Timeout in seconds (default 30)",
-                "default": 30,
-            },
         },
         "required": ["command"],
     },
-    handler=lambda command, timeout=30: _run_shell(command, timeout),
+    handler=lambda command: _run_shell(command),
 )
 
 
-def _run_shell(command: str, timeout: int = 30) -> str:
+def _run_shell(command: str) -> str:
     import locale
     import os
 
     env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
-    try:
-        result = subprocess.run(
-            command,
-            shell=True,
-            capture_output=True,
-            timeout=timeout,
-            env=env,
-        )
-    except subprocess.TimeoutExpired:
-        return f"Command timed out after {timeout}s"
+    result = subprocess.run(
+        command,
+        shell=True,
+        capture_output=True,
+        env=env,
+    )
 
     stdout_bytes = result.stdout or b""
     stderr_bytes = result.stderr or b""

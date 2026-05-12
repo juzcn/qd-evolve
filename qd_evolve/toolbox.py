@@ -138,6 +138,14 @@ def get_disabled_bridges() -> set[str]:
     return disabled
 
 
+# ── tool defaults ─────────────────────────────────────────────
+
+def get_default(key: str, fallback: Any = None) -> Any:
+    """Read a global default value from toolbox.json."""
+    data = _load()
+    return data.get("defaults", {}).get(key, fallback)
+
+
 # ── display helpers ────────────────────────────────────────────
 
 _STATE_MARK = {"enabled": "[✓]", "preload": "[P]", "disabled": "[✗]"}

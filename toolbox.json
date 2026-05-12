@@ -13,5 +13,8 @@
   "cli": {},
   "skills": {
     "cli-register": "preload"
+  },
+  "defaults": {
+    "timeout": 60
   }
 }
