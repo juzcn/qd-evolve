@@ -13,7 +13,7 @@ Multi-provider AI agent with tool use, skills, MCP integration, and CLI interfac
 - **On-demand tool loading** — Tools start with name+description only; full schema loaded via `load_tool_detail`
 - **Skill system** — SKILL.md files from `tools/skills/`, injected into system prompt; `load_skill_detail` for full content
 - **CLI tools** — YAML definitions in `tools/cli/`, loaded via `load_cli_detail`
-- **MCP integration** — Stdio-based MCP servers; clean tool names (no prefix); disabled servers skipped entirely
+- **MCP integration** — stdio, SSE, StreamableHTTP, WebSocket; env var expansion in config; clean tool names (no prefix); disabled servers skipped entirely
 - **Jinja2 prompt templates** — `.j2` files in `templates/`, with builtin fallbacks
 - **Persistent memory** — SQLite + sqlite-vec with BGE-M3 semantic + keyword hybrid search
 - **Context compression** — Auto Q/A removal when tokens exceed threshold
@@ -123,20 +123,40 @@ qd-evolve --replay in.txt --output out.txt  # replay + capture output
 
 qd-evolve's own generic tool integration protocol. Each bridge type self-registers with `BridgeManager` via three functions: `discover` → `connect` → `disconnect`. Adding a new bridge type only requires a `_*.py` module in `tools/bridge/` — `cli.py` never changes.
 
-### MCP Bridge (external processes)
+### MCP Bridge (external)
 
-Place JSON config files in `tools/mcp/`. Supported formats:
+Place JSON config files in `tools/mcp/`. Supports 4 transport types:
 
+**stdio** (default) — local subprocess:
 ```json
-// Format 1: Claude Desktop style
-{ "mcpServers": { "name": { "command": "...", "args": [...] } } }
-
-// Format 2: Nested mcp.servers style
-{ "mcp": { "servers": { "name": { "command": "...", "args": [...] } } } }
-
-// Format 3: Bare server config (filename used as name)
-{ "command": "...", "args": [...] }
+{ "mcpServers": { "name": { "command": "npx", "args": ["-y", "server"] } } }
 ```
+
+**sse** — Server-Sent Events (GET):
+```json
+{ "mcpServers": { "name": {
+  "type": "sse", "url": "https://example.com/sse",
+  "headers": { "Authorization": "Bearer $API_KEY" }
+} } }
+```
+
+**http** / **streamable-http** — Streamable HTTP (POST):
+```json
+{ "mcpServers": { "name": {
+  "type": "http", "url": "https://example.com/mcp/",
+  "headers": { "Authorization": "Bearer $API_KEY" },
+  "timeout": 30, "sse_read_timeout": 300
+} } }
+```
+
+**ws** / **websocket** — WebSocket:
+```json
+{ "mcpServers": { "name": { "type": "ws", "url": "wss://example.com/mcp" } } }
+```
+
+All string values (`command`, `url`, `headers`, `args`) support `$VAR`/`${VAR}` expansion from `os.environ`. API keys should be defined in `qd-evolve.json` `env_vars` and referenced via `$VAR` in MCP config.
+
+Also supports legacy formats: nested `mcp.servers` and bare `{ "command": "...", "args": [...] }`.
 
 ### OAT Bridge (in-process)
 

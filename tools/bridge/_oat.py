@@ -145,13 +145,15 @@ class OATBridge:
 
         return loader
 
-    def disconnect(self) -> None:
-        """Unregister all tools from ToolRegistry."""
-        registry = get_registry()
-        for tool_name in self.tool_names:
-            registry.unregister(tool_name)
+    def disconnect(self, shutdown: bool = False) -> None:
+        """Unregister all tools from ToolRegistry. If shutdown, skip registry cleanup."""
+        count = len(self.tool_names)
+        if not shutdown:
+            registry = get_registry()
+            for tool_name in self.tool_names:
+                registry.unregister(tool_name)
         self.tool_names.clear()
-        logger.info("OAT: disconnected %s (%d tools)", self.config.name, len(self.tool_names))
+        logger.info("OAT: disconnected %s (%d tools)", self.config.name, count)
 
 
 # ── Bridge protocol functions ─────────────────────────────────────

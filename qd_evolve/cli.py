@@ -691,6 +691,11 @@ def chat(
         console.print(f"[dim]This turn: {last_in} in{pct_ctx} + {last_out} out{pct_max}[/dim]")
         console.print(f"[dim]Cumulative: {agent.total_input_tokens + agent.total_output_tokens} tokens used[/dim]")
 
+    for b in bridges:
+        try:
+            b.disconnect(shutdown=True)
+        except Exception:
+            pass
     memory.close()
     if output_file:
         output_file.close()

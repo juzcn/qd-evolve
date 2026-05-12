@@ -12,12 +12,25 @@ import threading
 from pathlib import Path
 from typing import Any
 
+import os as _os
+import re
+
 from qd_evolve.config import MCPServerConfig
 from qd_evolve.logger import logger
 from qd_evolve.tools import ToolRegistry, get_registry
 from tools.bridge import BridgeManager
 
 MCP_DIR = Path.cwd() / "tools" / "mcp"
+
+
+def _expand_env(value: str) -> str:
+    """Expand $VAR / ${VAR} references in a string from os.environ."""
+
+    def _replace(match: re.Match) -> str:
+        var = match.group(1) or match.group(2)
+        return _os.environ.get(var, match.group(0))
+
+    return re.sub(r"\$\{(\w+)\}|\$(\w+)", _replace, value)
 
 
 # ── discovery ────────────────────────────────────────────────────
@@ -36,9 +49,15 @@ def discover_mcp_servers(_settings: Any = None) -> list[MCPServerConfig]:
             for name, srv in servers.items():
                 config = MCPServerConfig(
                     name=name,
-                    command=srv.get("command", ""),
-                    args=srv.get("args", []),
+                    command=_expand_env(srv.get("command", "")),
+                    args=[_expand_env(a) for a in srv.get("args", [])],
                     env=srv.get("env", {}),
+                    type=srv.get("type", "stdio"),
+                    url=_expand_env(srv.get("url", "")),
+                    headers={k: _expand_env(v) for k, v in srv.get("headers", {}).items()},
+                    timeout=float(srv.get("timeout", 30)),
+                    sse_read_timeout=float(srv.get("sse_read_timeout", 300)),
+                    terminate_on_close=bool(srv.get("terminate_on_close", True)),
                 )
                 configs.append(config)
                 logger.info("MCP: discovered server '%s' from %s", name, json_file.name)
@@ -68,7 +87,7 @@ class MCPToolBridge:
         self.config = config
         self._registry = registry or get_registry()
         self._session: Any = None
-        self._stdio_context: Any = None
+        self._transport_ctx: Any = None
         self._session_context: Any = None
         self.tool_names: list[str] = []
         self._loop: asyncio.AbstractEventLoop | None = None
@@ -99,21 +118,19 @@ class MCPToolBridge:
             raise error[0]
 
     async def _async_connect(self) -> None:
-        from mcp import ClientSession, StdioServerParameters
-        from mcp.client.stdio import stdio_client
+        from mcp import ClientSession
 
-        import os as _os
-        merged_env = {**_os.environ, "PYTHONIOENCODING": "utf-8", **self.config.env}
-        server_params = StdioServerParameters(
-            command=self.config.command,
-            args=self.config.args,
-            env=merged_env,
-        )
-
-        logger.info("MCP: connecting to %s (%s)", self.config.name, self.config.command)
-
-        self._stdio_context = stdio_client(server_params)
-        self._read_stream, self._write_stream = await self._stdio_context.__aenter__()
+        transport = self.config.type
+        if transport == "stdio":
+            await self._connect_stdio()
+        elif transport == "sse":
+            await self._connect_sse()
+        elif transport in ("http", "streamable-http"):
+            await self._connect_streamable_http()
+        elif transport in ("ws", "websocket"):
+            await self._connect_websocket()
+        else:
+            raise ValueError(f"Unsupported MCP transport: {transport}")
 
         self._session_context = ClientSession(self._read_stream, self._write_stream)
         self._session = await self._session_context.__aenter__()
@@ -131,6 +148,63 @@ class MCPToolBridge:
             )
             self.tool_names.append(tool.name)
             logger.debug("MCP: registered tool %s", tool.name)
+
+    async def _connect_stdio(self) -> None:
+        from mcp import StdioServerParameters
+        from mcp.client.stdio import stdio_client
+
+        merged_env = {**_os.environ, "PYTHONIOENCODING": "utf-8", **self.config.env}
+        server_params = StdioServerParameters(
+            command=self.config.command,
+            args=self.config.args,
+            env=merged_env,
+        )
+
+        logger.info("MCP: connecting to %s via stdio (%s)", self.config.name, self.config.command)
+
+        self._transport_ctx = stdio_client(server_params)
+        self._read_stream, self._write_stream = await self._transport_ctx.__aenter__()
+
+    async def _connect_sse(self) -> None:
+        from mcp.client.sse import sse_client
+
+        url = self.config.url
+        headers = self.config.headers if self.config.headers else None
+
+        logger.info("MCP: connecting to %s via SSE (%s)", self.config.name, url)
+
+        self._transport_ctx = sse_client(
+            url, headers=headers,
+            timeout=self.config.timeout,
+            sse_read_timeout=self.config.sse_read_timeout,
+        )
+        self._read_stream, self._write_stream = await self._transport_ctx.__aenter__()
+
+    async def _connect_streamable_http(self) -> None:
+        from mcp.client.streamable_http import streamablehttp_client
+
+        url = self.config.url
+        headers = self.config.headers if self.config.headers else None
+
+        logger.info("MCP: connecting to %s via StreamableHTTP (%s)", self.config.name, url)
+
+        self._transport_ctx = streamablehttp_client(
+            url, headers=headers,
+            timeout=self.config.timeout,
+            sse_read_timeout=self.config.sse_read_timeout,
+            terminate_on_close=self.config.terminate_on_close,
+        )
+        self._read_stream, self._write_stream, _ = await self._transport_ctx.__aenter__()
+
+    async def _connect_websocket(self) -> None:
+        from mcp.client.websocket import websocket_client
+
+        url = self.config.url
+
+        logger.info("MCP: connecting to %s via WebSocket (%s)", self.config.name, url)
+
+        self._transport_ctx = websocket_client(url)
+        self._read_stream, self._write_stream = await self._transport_ctx.__aenter__()
 
     def _make_handler(self, tool_name: str):
         def handler(**kwargs: Any) -> str:
@@ -158,15 +232,15 @@ class MCPToolBridge:
                 parts.append(str(content))
         return "\n".join(parts)
 
-    def disconnect(self) -> None:
-        """Disconnect from MCP server and unregister tools."""
+    def disconnect(self, shutdown: bool = False) -> None:
+        """Disconnect from MCP server. If shutdown, skip registry cleanup."""
         if not self._loop:
             return
-        # Unregister tools
-        registry = get_registry()
-        for tool_name in self.tool_names:
-            registry.unregister(tool_name)
-        self.tool_names.clear()
+        if not shutdown:
+            registry = get_registry()
+            for tool_name in self.tool_names:
+                registry.unregister(tool_name)
+            self.tool_names.clear()
         # Stop the event loop
         try:
             future = asyncio.run_coroutine_threadsafe(self._async_disconnect(), self._loop)
@@ -182,8 +256,8 @@ class MCPToolBridge:
         except Exception:
             pass
         try:
-            if self._stdio_context:
-                await self._stdio_context.__aexit__(None, None, None)
+            if self._transport_ctx:
+                await self._transport_ctx.__aexit__(None, None, None)
         except Exception:
             pass
         logger.info("MCP: disconnected from %s", self.config.name)

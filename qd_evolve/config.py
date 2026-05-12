@@ -35,9 +35,15 @@ class ProviderConfig(BaseModel):
 
 class MCPServerConfig(BaseModel):
     name: str
-    command: str
+    command: str = ""
     args: list[str] = []
     env: dict[str, str] = {}
+    type: str = "stdio"  # stdio | sse | http | ws
+    url: str = ""
+    headers: dict[str, str] = {}
+    timeout: float = 30.0
+    sse_read_timeout: float = 300.0
+    terminate_on_close: bool = True
 
 
 class EmbeddingsBackend(BaseModel):

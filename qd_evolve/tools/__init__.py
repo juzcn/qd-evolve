@@ -89,7 +89,6 @@ class ToolRegistry:
         """Remove a tool from the registry."""
         if name in self._tools:
             del self._tools[name]
-            logger.debug("Tools: unregistered tool: %s", name)
 
     def definitions(self, api_format: str = "openai", active_tools: set[str] | None = None) -> list[dict[str, Any]]:
         """Build tool definitions for API calls.
