@@ -662,11 +662,17 @@ def chat(
             continue
 
         spinner = Spinner("dots", text=Text("Thinking...", style="bold green"))
+        output_lines: list[str] = []
         def _on_status(text: str) -> None:
             spinner.update(text=Text(text, style="bold green"))
+        def _refresh() -> None:
+            items = [spinner]
+            for line in output_lines:
+                items.append(Text(line, style="dim cyan"))
+            live.update(Group(*items))
         agent.set_status_callback(_on_status)
-        agent.set_print_callback(lambda text: console.print(text, style="dim cyan", markup=True))
-        with Live(spinner, console=console, transient=True):
+        agent.set_print_callback(lambda text: (output_lines.append(text), _refresh()))
+        with Live(Group(spinner), console=console, refresh_per_second=10) as live:
             try:
                 response = agent.run(user_input)
 
