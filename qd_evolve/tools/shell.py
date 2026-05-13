@@ -32,7 +32,11 @@ registry.register(
         },
         "required": ["command"],
     },
-    handler=lambda command, shell=True, timeout=None: _run_shell(command, shell, timeout),
+    handler=lambda **kwargs: _run_shell(
+        kwargs.get("command") or kwargs.get("cmd", ""),
+        kwargs.get("shell", True),
+        kwargs.get("timeout", None),
+    ),
 )
 
 
