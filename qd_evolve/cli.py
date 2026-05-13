@@ -7,7 +7,7 @@ from typing import Any
 
 import typer
 from qd_evolve.logger import logger
-from rich.console import Console
+from rich.console import Console, Group
 from rich.live import Live
 from rich.markup import escape
 from rich.panel import Panel
