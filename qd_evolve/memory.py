@@ -97,7 +97,7 @@ class MemoryStore:
         self._db_path = Path(db_path)
         self._embedding_dim = backend.dim
         self._session_id = datetime.now().isoformat(timespec="seconds")
-        self._db = sqlite3.connect(str(self._db_path))
+        self._db = sqlite3.connect(str(self._db_path), check_same_thread=False)
         self._embedder = _create_embedder(backend)
         self._search_by_time_limit = search_by_time_limit
         self._list_all_limit = list_all_limit

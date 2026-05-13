@@ -335,7 +335,7 @@ class Agent:
         reasoning = getattr(msg, "reasoning_content", "") or ""
 
         if msg.tool_calls:
-            self.messages.append({
+            msg_dict: dict[str, Any] = {
                 "role": "assistant",
                 "content": msg.content or "",
                 "tool_calls": [
@@ -349,7 +349,10 @@ class Agent:
                     }
                     for tc in msg.tool_calls
                 ],
-            })
+            }
+            if reasoning:
+                msg_dict["reasoning_content"] = reasoning
+            self.messages.append(msg_dict)
             for tc in msg.tool_calls:
                 args = json.loads(tc.function.arguments)
                 logger.info("Agent: tool call: %s(%s)",tc.function.name, json.dumps(args, ensure_ascii=False))
@@ -370,7 +373,10 @@ class Agent:
             system_prompt = self._inject_loaded_content(system_prompt)
             return self._run_openai_completion(client, system_prompt, max_tokens, _iter + 1)
 
-        self.messages.append({"role": "assistant", "content": msg.content or ""})
+        final_msg: dict[str, Any] = {"role": "assistant", "content": msg.content or ""}
+        if reasoning:
+            final_msg["reasoning_content"] = reasoning
+        self.messages.append(final_msg)
         logger.debug("Agent:\n=== LLM Response ===\n%s", self._format_completion_log(response))
         return msg.content or ""
 
