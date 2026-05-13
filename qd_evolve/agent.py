@@ -323,17 +323,26 @@ class Agent:
             kwargs["tools"] = tool_defs
 
         prov = self.providers.get(self._provider_name)
-        if prov.get_reasoning(self._model):
+        _reasoning_model = prov.get_reasoning(self._model)
+        if _reasoning_model:
             kwargs["extra_body"] = {"thinking": {"type": "enabled"}}
 
+        _use_stream = prov.get_stream(self._model)
+        if _use_stream:
+            kwargs["stream"] = True
+            kwargs["stream_options"] = {"include_usage": True}
+
         response = client.chat.completions.create(**kwargs)
+
+        if _use_stream:
+            return self._process_stream(response, prov, _reasoning_model, client, system_prompt, max_tokens, _iter)
+
         self._track_tokens_openai_completion(response.usage)
 
         choice = response.choices[0]
         msg = choice.message
 
         reasoning = ""
-        _reasoning_model = prov.get_reasoning(self._model)
         if _reasoning_model:
             reasoning = getattr(msg, "reasoning_content", "") or ""
             if reasoning:
@@ -385,6 +394,102 @@ class Agent:
         self.messages.append(final_msg)
         logger.debug("Agent:\n=== LLM Response ===\n%s", self._format_completion_log(response))
         return msg.content or ""
+
+    def _process_stream(self, response: Any, prov: Any, reasoning_model: bool,
+                        client: Any, system_prompt: str, max_tokens: int, _iter: int) -> str:
+        """Process a streaming OpenAI-compatible response, accumulating content/reasoning/tool_calls."""
+        content_parts: list[str] = []
+        reasoning_parts: list[str] = []
+        tool_call_chunks: dict[int, dict[str, Any]] = {}
+        usage: Any = None
+
+        for chunk in response:
+            if not chunk.choices:
+                continue
+            delta = chunk.choices[0].delta
+
+            if getattr(delta, "content", None):
+                content_parts.append(delta.content)
+
+            if reasoning_model:
+                rc = getattr(delta, "reasoning_content", None)
+                if rc:
+                    reasoning_parts.append(rc)
+
+            if getattr(delta, "tool_calls", None):
+                for tc in delta.tool_calls:
+                    idx = tc.index
+                    if idx not in tool_call_chunks:
+                        tool_call_chunks[idx] = {"id": tc.id or "", "function": {"name": "", "arguments": ""}}
+                    if tc.id:
+                        tool_call_chunks[idx]["id"] = tc.id
+                    if tc.function:
+                        if tc.function.name:
+                            tool_call_chunks[idx]["function"]["name"] += tc.function.name
+                        if tc.function.arguments:
+                            tool_call_chunks[idx]["function"]["arguments"] += tc.function.arguments
+
+            if chunk.usage:
+                usage = chunk.usage
+
+        content = "".join(content_parts)
+        reasoning = "".join(reasoning_parts)
+
+        if reasoning:
+            logger.debug("Agent: reasoning (%d chars):\n%s", len(reasoning), reasoning)
+
+        if usage:
+            self.last_input_tokens = usage.prompt_tokens or 0
+            self.last_output_tokens = usage.completion_tokens or 0
+            self.total_input_tokens += self.last_input_tokens
+            self.total_output_tokens += self.last_output_tokens
+            logger.debug("Agent: token usage: input=%s, output=%s, total=%s",
+                        self.last_input_tokens, self.last_output_tokens, self.total_tokens)
+
+        if tool_call_chunks:
+            tool_calls = sorted(tool_call_chunks.values(), key=lambda t: t.get("index", 0))
+            msg_dict: dict[str, Any] = {
+                "role": "assistant",
+                "content": content or None,
+                "tool_calls": [
+                    {
+                        "id": tc["id"],
+                        "type": "function",
+                        "function": tc["function"],
+                    }
+                    for tc in tool_calls
+                ],
+            }
+            if reasoning:
+                msg_dict["reasoning_content"] = reasoning
+            self.messages.append(msg_dict)
+            for tc in tool_calls:
+                args = json.loads(tc["function"]["arguments"])
+                name = tc["function"]["name"]
+                logger.info("Agent: tool call: %s(%s)", name, json.dumps(args, ensure_ascii=False))
+                args_brief = json.dumps(args, ensure_ascii=False)[:60]
+                self._update_status(f"Tool: {name}({args_brief})")
+                output = self.registry.call(name, **args)
+                logger.info("Agent: tool result: %s -> %s", name, self._trunc(str(output)))
+                self._activate_tool(name, args, output)
+                self.messages.append({
+                    "role": "tool",
+                    "tool_call_id": tc["id"],
+                    "content": output,
+                })
+            if _iter >= self.settings.max_iterations:
+                return "Max tool iterations reached. Please simplify your request."
+            self.iteration += 1
+            system_prompt = self._inject_loaded_content(system_prompt)
+            return self._run_openai_completion(client, system_prompt, max_tokens, _iter + 1)
+
+        final_msg: dict[str, Any] = {"role": "assistant", "content": content or ""}
+        if reasoning:
+            final_msg["reasoning_content"] = reasoning
+            logger.debug("Agent: reasoning (%d chars):\n%s", len(reasoning), reasoning)
+        self.messages.append(final_msg)
+        logger.debug("Agent:\n=== LLM Response (stream) ===\n%s", content)
+        return content or ""
 
     def _run_openai_response(self, client: Any, system_prompt: str, max_tokens: int, _iter: int = 0) -> str:
         if _iter > 0:

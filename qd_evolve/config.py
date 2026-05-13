@@ -19,6 +19,7 @@ class ModelCost(BaseModel):
 class ModelConfig(BaseModel):
     name: str = ""
     reasoning: bool = False
+    stream: bool = False
     input: list[str] = ["text"]
     cost: ModelCost = ModelCost()
     context_window: int = 0

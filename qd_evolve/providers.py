@@ -61,6 +61,10 @@ class Provider:
         m = self._find_model(model)
         return m.reasoning if m else False
 
+    def get_stream(self, model: str) -> bool:
+        m = self._find_model(model)
+        return m.stream if m else False
+
     def _find_model(self, model: str) -> Any:
         for m in self.config.models:
             if m.name == model:
