@@ -668,7 +668,7 @@ def chat(
         def _refresh() -> None:
             items = [spinner]
             for line in output_lines:
-                items.append(Text(line, style="dim cyan"))
+                items.append(Text.from_markup(line, style="dim cyan"))
             live.update(Group(*items))
         agent.set_status_callback(_on_status)
         agent.set_print_callback(lambda text: (output_lines.append(text), _refresh()))
