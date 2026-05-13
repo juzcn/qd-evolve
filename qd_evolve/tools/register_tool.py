@@ -35,9 +35,7 @@ def _make_shell_handler(template: str) -> Any:
     def handler(**kwargs: Any) -> str:
         cmd = template.format(**{k: str(v) for k, v in kwargs.items()})
         import locale
-        import os
-        env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
-        result = subprocess.run(cmd, shell=True, capture_output=True, env=env)
+        result = subprocess.run(cmd, shell=True, capture_output=True)
         enc = locale.getpreferredencoding(False)
         out = _decode(result.stdout, enc)
         if result.stderr:

@@ -27,11 +27,9 @@ _PYTHON_EXE = _detect_python()
 def _run_python(code: str) -> str:
     import locale
 
-    env = {**subprocess.os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"}
     result = subprocess.run(
         [_PYTHON_EXE, "-c", code],
         capture_output=True,
-        env=env,
     )
 
     stdout_bytes = result.stdout or b""

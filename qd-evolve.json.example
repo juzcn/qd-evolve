@@ -8,7 +8,9 @@
   "env_vars": {
     "SERPER_API_KEY": "sk-xxx",
     "BAIDU_API_KEY": "sk-xxx",
-    "TAVILY_API_KEY": "sk-xxx"
+    "TAVILY_API_KEY": "sk-xxx",
+    "PYTHONIOENCODING": "utf-8",
+    "PYTHONUTF8": "1"
   },
   "providers": [
     {

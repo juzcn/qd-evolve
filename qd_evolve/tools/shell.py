@@ -38,20 +38,17 @@ registry.register(
 
 def _run_shell(command: str, shell: bool = True, timeout: int | None = None) -> str:
     import locale
-    import os
 
     if timeout is None:
         from qd_evolve.toolbox import get_default
         timeout = get_default("timeout", 0) or None
 
-    env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
-
     try:
         if shell:
-            result = subprocess.run(command, shell=True, capture_output=True, env=env, timeout=timeout)
+            result = subprocess.run(command, shell=True, capture_output=True, timeout=timeout)
         else:
             args = shlex.split(command)
-            result = subprocess.run(args, capture_output=True, env=env, timeout=timeout)
+            result = subprocess.run(args, capture_output=True, timeout=timeout)
     except subprocess.TimeoutExpired:
         return f"Command timed out after {timeout}s"
 
