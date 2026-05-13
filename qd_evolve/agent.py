@@ -347,6 +347,7 @@ class Agent:
             reasoning = getattr(msg, "reasoning_content", "") or ""
             if reasoning:
                 logger.debug("Agent: reasoning (%d chars):\n%s", len(reasoning), reasoning)
+                self._update_status(f"Reasoning: {reasoning[:200]}{'...' if len(reasoning) > 200 else ''}")
 
         if msg.tool_calls:
             msg_dict: dict[str, Any] = {
@@ -391,6 +392,7 @@ class Agent:
         if reasoning:
             final_msg["reasoning_content"] = reasoning
             logger.debug("Agent: reasoning (%d chars):\n%s", len(reasoning), reasoning)
+            self._update_status(f"Reasoning: {reasoning[:200]}{'...' if len(reasoning) > 200 else ''}")
         self.messages.append(final_msg)
         logger.debug("Agent:\n=== LLM Response ===\n%s", self._format_completion_log(response))
         return msg.content or ""
@@ -437,6 +439,7 @@ class Agent:
 
         if reasoning:
             logger.debug("Agent: reasoning (%d chars):\n%s", len(reasoning), reasoning)
+            self._update_status(f"Reasoning: {reasoning[:200]}{'...' if len(reasoning) > 200 else ''}")
 
         if usage:
             self.last_input_tokens = usage.prompt_tokens or 0
@@ -487,6 +490,7 @@ class Agent:
         if reasoning:
             final_msg["reasoning_content"] = reasoning
             logger.debug("Agent: reasoning (%d chars):\n%s", len(reasoning), reasoning)
+            self._update_status(f"Reasoning: {reasoning[:200]}{'...' if len(reasoning) > 200 else ''}")
         self.messages.append(final_msg)
         logger.debug("Agent:\n=== LLM Response (stream) ===\n%s", content)
         return content or ""
