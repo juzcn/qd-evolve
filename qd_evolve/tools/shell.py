@@ -25,24 +25,35 @@ registry.register(
                 "type": "boolean",
                 "description": "Whether to run through the system shell. Default true. Set false when calling interpreters (python, node, ruby) to avoid cmd.exe escaping issues.",
             },
+            "timeout": {
+                "type": "integer",
+                "description": "Timeout in seconds. Defaults to the global toolbox timeout if not specified.",
+            },
         },
         "required": ["command"],
     },
-    handler=lambda command, shell=True: _run_shell(command, shell),
+    handler=lambda command, shell=True, timeout=None: _run_shell(command, shell, timeout),
 )
 
 
-def _run_shell(command: str, shell: bool = True) -> str:
+def _run_shell(command: str, shell: bool = True, timeout: int | None = None) -> str:
     import locale
     import os
 
+    if timeout is None:
+        from qd_evolve.toolbox import get_default
+        timeout = get_default("timeout", 0) or None
+
     env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
 
-    if shell:
-        result = subprocess.run(command, shell=True, capture_output=True, env=env)
-    else:
-        args = shlex.split(command)
-        result = subprocess.run(args, capture_output=True, env=env)
+    try:
+        if shell:
+            result = subprocess.run(command, shell=True, capture_output=True, env=env, timeout=timeout)
+        else:
+            args = shlex.split(command)
+            result = subprocess.run(args, capture_output=True, env=env, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        return f"Command timed out after {timeout}s"
 
     stdout_bytes = result.stdout or b""
     stderr_bytes = result.stderr or b""
