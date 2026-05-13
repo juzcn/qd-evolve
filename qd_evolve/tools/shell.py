@@ -59,6 +59,8 @@ def _run_shell(command: str, shell: bool = True, timeout: int | None = None) -> 
         return f"Command not found: {e}"
     except subprocess.TimeoutExpired:
         return f"Command timed out after {timeout}s"
+    except OSError as e:
+        return f"Command failed: {type(e).__name__}: {e}"
 
     stdout_bytes = result.stdout or b""
     stderr_bytes = result.stderr or b""

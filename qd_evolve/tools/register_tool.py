@@ -35,7 +35,10 @@ def _make_shell_handler(template: str) -> Any:
     def handler(**kwargs: Any) -> str:
         cmd = template.format(**{k: str(v) for k, v in kwargs.items()})
         import locale
-        result = subprocess.run(cmd, shell=True, capture_output=True)
+        try:
+            result = subprocess.run(cmd, shell=True, capture_output=True)
+        except OSError as e:
+            return f"Command failed: {type(e).__name__}: {e}"
         enc = locale.getpreferredencoding(False)
         out = _decode(result.stdout, enc)
         if result.stderr:

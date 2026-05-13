@@ -27,10 +27,15 @@ _PYTHON_EXE = _detect_python()
 def _run_python(code: str) -> str:
     import locale
 
-    result = subprocess.run(
-        [_PYTHON_EXE, "-c", code],
-        capture_output=True,
-    )
+    try:
+        result = subprocess.run(
+            [_PYTHON_EXE, "-c", code],
+            capture_output=True,
+        )
+    except FileNotFoundError:
+        return f"Python executable not found: {_PYTHON_EXE}"
+    except OSError as e:
+        return f"Failed to run Python: {type(e).__name__}: {e}"
 
     stdout_bytes = result.stdout or b""
     stderr_bytes = result.stderr or b""
