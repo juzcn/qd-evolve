@@ -43,7 +43,6 @@
         {
           "name": "deepseek-v4-pro",
           "reasoning": true,
-          "stream": true,
           "input": ["text"],
           "cost": {
             "input": 0.28,
@@ -105,5 +104,6 @@
     "list_all_limit": 50
   },
   "max_iterations": 20,
-  "tool_output_limit": 50000
+  "tool_output_limit": 50000,
+  "stream": false
 }

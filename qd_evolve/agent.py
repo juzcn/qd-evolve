@@ -327,7 +327,7 @@ class Agent:
         if _reasoning_model:
             kwargs["extra_body"] = {"thinking": {"type": "enabled"}}
 
-        _use_stream = prov.get_stream(self._model)
+        _use_stream = self.settings.stream
         if _use_stream:
             kwargs["stream"] = True
             kwargs["stream_options"] = {"include_usage": True}

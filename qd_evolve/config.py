@@ -19,7 +19,6 @@ class ModelCost(BaseModel):
 class ModelConfig(BaseModel):
     name: str = ""
     reasoning: bool = False
-    stream: bool = False
     input: list[str] = ["text"]
     cost: ModelCost = ModelCost()
     context_window: int = 0
@@ -87,6 +86,7 @@ class Settings(BaseModel):
     memory_search: MemorySearchConfig = MemorySearchConfig()
     max_iterations: int = 20
     tool_output_limit: int = 50000
+    stream: bool = False
 
     def get_provider(self, name: str | None = None) -> ProviderConfig | None:
         target = name or self.default_provider
