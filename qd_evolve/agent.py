@@ -322,11 +322,17 @@ class Agent:
         if tool_defs:
             kwargs["tools"] = tool_defs
 
+        prov = self.providers.get(self._provider_name)
+        if prov.get_reasoning(self._model):
+            kwargs["extra_body"] = {"thinking": {"type": "enabled"}}
+
         response = client.chat.completions.create(**kwargs)
         self._track_tokens_openai_completion(response.usage)
 
         choice = response.choices[0]
         msg = choice.message
+
+        reasoning = getattr(msg, "reasoning_content", "") or ""
 
         if msg.tool_calls:
             self.messages.append({

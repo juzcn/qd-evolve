@@ -57,6 +57,10 @@ class Provider:
     def get_api_type(self, model: str) -> str:
         return self.api_type
 
+    def get_reasoning(self, model: str) -> bool:
+        m = self._find_model(model)
+        return m.reasoning if m else False
+
     def _find_model(self, model: str) -> Any:
         for m in self.config.models:
             if m.name == model:
