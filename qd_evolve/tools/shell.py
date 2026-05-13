@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shlex
 import subprocess
 
 from qd_evolve.tools import get_registry
@@ -8,32 +9,40 @@ registry = get_registry()
 
 registry.register(
     name="run_shell",
-    description="Execute a shell command and return stdout/stderr. Use for running system commands.",
+    description=(
+        "Execute a command and return stdout/stderr. "
+        "Set shell=false to bypass cmd.exe (preferred for calling interpreters: python, node, ruby, etc. — avoids escaping issues). "
+        "Set shell=true for CLI tools, pipelines, redirects, and system commands."
+    ),
     input_schema={
         "type": "object",
         "properties": {
             "command": {
                 "type": "string",
-                "description": "The shell command to execute",
+                "description": "The command to execute. With shell=true: a shell command string (pipes, redirects OK). With shell=false: a command line like 'python -c \"...\"' or 'node -e \"...\"' — will be split safely.",
+            },
+            "shell": {
+                "type": "boolean",
+                "description": "Whether to run through the system shell. Default true. Set false when calling interpreters (python, node, ruby) to avoid cmd.exe escaping issues.",
             },
         },
         "required": ["command"],
     },
-    handler=lambda command: _run_shell(command),
+    handler=lambda command, shell=True: _run_shell(command, shell),
 )
 
 
-def _run_shell(command: str) -> str:
+def _run_shell(command: str, shell: bool = True) -> str:
     import locale
     import os
 
     env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
-    result = subprocess.run(
-        command,
-        shell=True,
-        capture_output=True,
-        env=env,
-    )
+
+    if shell:
+        result = subprocess.run(command, shell=True, capture_output=True, env=env)
+    else:
+        args = shlex.split(command)
+        result = subprocess.run(args, capture_output=True, env=env)
 
     stdout_bytes = result.stdout or b""
     stderr_bytes = result.stderr or b""
