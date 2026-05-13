@@ -665,6 +665,7 @@ def chat(
         def _on_status(text: str) -> None:
             spinner.update(text=Text(text, style="bold green"))
         agent.set_status_callback(_on_status)
+        agent.set_print_callback(lambda text: console.print(Text(text, style="dim cyan")))
         with Live(spinner, console=console, transient=True):
             try:
                 response = agent.run(user_input)

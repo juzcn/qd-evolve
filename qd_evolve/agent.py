@@ -37,6 +37,7 @@ class Agent:
         self.last_output_tokens: int = 0
         self.iteration: int = 0
         self._on_status: Callable[[str], None] | None = None
+        self._on_print: Callable[[str], None] | None = None
         self._recalled = RecalledMemoryRegistry()
         self._loaded_skills: dict[str, str] = {}
         self._loaded_cli: dict[str, str] = {}
@@ -46,9 +47,16 @@ class Agent:
     def set_status_callback(self, cb: Callable[[str], None]) -> None:
         self._on_status = cb
 
+    def set_print_callback(self, cb: Callable[[str], None]) -> None:
+        self._on_print = cb
+
     def _update_status(self, text: str) -> None:
         if self._on_status:
             self._on_status(f"[#{self.iteration}] {text}")
+
+    def _print(self, text: str) -> None:
+        if self._on_print:
+            self._on_print(text)
 
     @property
     def total_tokens(self) -> int:
@@ -347,7 +355,7 @@ class Agent:
             reasoning = getattr(msg, "reasoning_content", "") or ""
             if reasoning:
                 logger.debug("Agent: reasoning (%d chars):\n%s", len(reasoning), reasoning)
-                self._update_status(f"Reasoning: {reasoning[:200]}{'...' if len(reasoning) > 200 else ''}")
+                self._print(f"\n{reasoning}\n")
 
         if msg.tool_calls:
             msg_dict: dict[str, Any] = {
@@ -392,7 +400,7 @@ class Agent:
         if reasoning:
             final_msg["reasoning_content"] = reasoning
             logger.debug("Agent: reasoning (%d chars):\n%s", len(reasoning), reasoning)
-            self._update_status(f"Reasoning: {reasoning[:200]}{'...' if len(reasoning) > 200 else ''}")
+            self._print(f"\n{reasoning}\n")
         self.messages.append(final_msg)
         logger.debug("Agent:\n=== LLM Response ===\n%s", self._format_completion_log(response))
         return msg.content or ""
@@ -439,7 +447,7 @@ class Agent:
 
         if reasoning:
             logger.debug("Agent: reasoning (%d chars):\n%s", len(reasoning), reasoning)
-            self._update_status(f"Reasoning: {reasoning[:200]}{'...' if len(reasoning) > 200 else ''}")
+            self._print(f"\n{reasoning}\n")
 
         if usage:
             self.last_input_tokens = usage.prompt_tokens or 0
@@ -490,7 +498,7 @@ class Agent:
         if reasoning:
             final_msg["reasoning_content"] = reasoning
             logger.debug("Agent: reasoning (%d chars):\n%s", len(reasoning), reasoning)
-            self._update_status(f"Reasoning: {reasoning[:200]}{'...' if len(reasoning) > 200 else ''}")
+            self._print(f"\n{reasoning}\n")
         self.messages.append(final_msg)
         logger.debug("Agent:\n=== LLM Response (stream) ===\n%s", content)
         return content or ""
