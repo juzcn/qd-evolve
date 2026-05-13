@@ -35,6 +35,27 @@
       ]
     },
     {
+      "name": "deepseek",
+      "api_key": "sk-xxx",
+      "base_url": "https://api.deepseek.com",
+      "api": "openai-completions",
+      "models": [
+        {
+          "name": "deepseek-v4-pro",
+          "reasoning": true,
+          "input": ["text"],
+          "cost": {
+            "input": 0.28,
+            "output": 1.10,
+            "cache_read": 0.07,
+            "cache_write": 0.56
+          },
+          "context_window": 1000000,
+          "max_tokens": 131072
+        }
+      ]
+    },
+    {
       "name": "astroncodingplan",
       "api_key": "sk-xxx:sk-xxx",
       "base_url": "https://maas-coding-api.cn-huabei-1.xf-yun.com/v2",
