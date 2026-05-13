@@ -41,7 +41,7 @@
       "api": "openai-completions",
       "models": [
         {
-          "name": "deepseek-v4-pro[1m]",
+          "name": "deepseek-v4-pro",
           "reasoning": true,
           "input": ["text"],
           "cost": {
