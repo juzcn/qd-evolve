@@ -39,12 +39,23 @@ def _run_shell(command: str) -> str:
     stderr_bytes = result.stderr or b""
     locale_enc = locale.getpreferredencoding(False)
 
-    output = _decode(stdout_bytes, locale_enc)
+    parts: list[str] = []
+
+    stdout_text = _decode(stdout_bytes, locale_enc).strip()
+    if stdout_text:
+        parts.append(stdout_text)
+
     if stderr_bytes:
-        output += f"\nSTDERR:\n{_decode(stderr_bytes, locale_enc)}"
+        stderr_text = _decode(stderr_bytes, locale_enc).strip()
+        parts.append(f"STDERR:\n{stderr_text}")
+
     if result.returncode != 0:
-        output += f"\nExit code: {result.returncode}"
-    return output.strip() or "(no output)"
+        parts.append(f"Exit code: {result.returncode}")
+
+    if not parts:
+        parts.append(f"(no output, exit code: {result.returncode})")
+
+    return "\n".join(parts)
 
 
 def _decode(data: bytes, fallback_enc: str) -> str:

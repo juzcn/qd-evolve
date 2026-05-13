@@ -436,6 +436,11 @@ class Agent:
             name = tool_args.get("name", "")
             if name:
                 self._loaded_skills[name] = result
+        elif tool_name == "register_tool":
+            target = tool_args.get("name", "")
+            if target:
+                self._active_tools.add(target)
+                logger.debug("Agent: activated registered tool: %s", target)
         elif tool_name == "load_cli_detail" and result:
             name = tool_args.get("name", "")
             if name:
