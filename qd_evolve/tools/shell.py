@@ -53,6 +53,10 @@ def _run_shell(command: str, shell: bool = True, timeout: int | None = None) -> 
         else:
             args = shlex.split(command)
             result = subprocess.run(args, capture_output=True, timeout=timeout)
+    except FileNotFoundError as e:
+        if not shell:
+            return f"Command not found: {e}\n(hint: this is a CLI tool — try shell=true to use the system PATH)"
+        return f"Command not found: {e}"
     except subprocess.TimeoutExpired:
         return f"Command timed out after {timeout}s"
 
