@@ -333,10 +333,11 @@ class Agent:
         msg = choice.message
 
         reasoning = ""
-        if prov.get_reasoning(self._model):
+        _reasoning_model = prov.get_reasoning(self._model)
+        if _reasoning_model:
             reasoning = getattr(msg, "reasoning_content", "") or ""
             if reasoning:
-                logger.debug("Agent: reasoning (%d chars)", len(reasoning))
+                logger.debug("Agent: reasoning (%d chars):\n%s", len(reasoning), reasoning)
 
         if msg.tool_calls:
             msg_dict: dict[str, Any] = {
@@ -380,9 +381,8 @@ class Agent:
         final_msg: dict[str, Any] = {"role": "assistant", "content": msg.content or ""}
         if reasoning:
             final_msg["reasoning_content"] = reasoning
+            logger.debug("Agent: reasoning (%d chars):\n%s", len(reasoning), reasoning)
         self.messages.append(final_msg)
-        if reasoning:
-            logger.debug("Agent: reasoning (%d chars)", len(reasoning))
         logger.debug("Agent:\n=== LLM Response ===\n%s", self._format_completion_log(response))
         return msg.content or ""
 
