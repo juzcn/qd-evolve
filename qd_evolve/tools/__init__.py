@@ -1,6 +1,5 @@
 ﻿"""Tool registry —discovers, registers, and manages callable tools."""
 
-from __future__ import annotations
 
 import importlib
 from pathlib import Path
@@ -164,3 +163,13 @@ def get_registry() -> ToolRegistry:
         _registry = ToolRegistry()
         _registry.discover_tools()
     return _registry
+
+
+def decode_output(data: bytes, fallback_enc: str) -> str:
+    """Decode subprocess output bytes, falling back with error replacement."""
+    if not data:
+        return ""
+    try:
+        return data.decode("utf-8")
+    except UnicodeDecodeError:
+        return data.decode(fallback_enc, errors="replace")

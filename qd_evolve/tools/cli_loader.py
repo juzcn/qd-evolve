@@ -1,6 +1,5 @@
-"""Dynamic CLI tool detail loader — loads full CLI tool definition on demand."""
+﻿"""Dynamic CLI tool detail loader 鈥?loads full CLI tool definition on demand."""
 
-from __future__ import annotations
 
 import json
 
@@ -25,7 +24,7 @@ def _load_cli_detail(name: str) -> str:
         available = ", ".join(t.name for t in _cli_registry.list_tools())
         return f"Error: CLI tool '{name}' not found. Available: {available}"
     if name in _preload_cli:
-        return f"(already preloaded — full definition is in the system prompt)\n\n{json.dumps(detail, ensure_ascii=False)}"
+        return f"(already preloaded 鈥?full definition is in the system prompt)\n\n{json.dumps(detail, ensure_ascii=False)}"
     return json.dumps(detail, ensure_ascii=False)
 
 

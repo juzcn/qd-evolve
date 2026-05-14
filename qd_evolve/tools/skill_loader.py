@@ -1,6 +1,5 @@
-"""Dynamic skill loader tool — loads full SKILL.md content on demand."""
+﻿"""Dynamic skill loader tool 鈥?loads full SKILL.md content on demand."""
 
-from __future__ import annotations
 
 from qd_evolve.tools import get_registry
 
@@ -20,7 +19,7 @@ def _load_skill_detail(name: str) -> str:
     if skill is None:
         return f"Error: skill '{name}' not found. Available: {', '.join(s.name for s in _skill_registry.get_all_skills())}"
     if skill.active:
-        return f"(already preloaded — full content is in the system prompt)\n\n{skill.content}"
+        return f"(already preloaded 鈥?full content is in the system prompt)\n\n{skill.content}"
     return skill.content
 
 

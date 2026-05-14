@@ -1,10 +1,9 @@
-"""Output normalizer for Google ADK tool functions.
+﻿"""Output normalizer for Google ADK tool functions.
 
 Converts any return value to a string safe for LLM consumption.
 Provides make_handler factory for wrapping boat/coat functions.
 """
 
-from __future__ import annotations
 
 import functools
 import inspect

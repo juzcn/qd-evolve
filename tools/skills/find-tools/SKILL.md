@@ -15,14 +15,23 @@ Web search to identify the best tool. Don't guess tool names from memory — you
 ### 2. Try it first — don't ask yet
 Install and execute the tool. Confirm it works before discussing registration. The user doesn't need to be involved at this stage.
 
-### 3. Report the result
-Tell the user what happened. If it worked, present the output. If it failed, explain why and try alternatives.
+### 3. Report the result (then continue to step 4)
+Tell the user what happened:
+- If it worked: present the output clearly, then **immediately proceed to step 4 without stopping**.
+- If it failed: explain why and try alternatives. In this case, step 4 is skipped.
 
-### 4. Offer to register (only after success)
-Once the tool runs successfully, tell the user what you installed and ask whether to register it for future sessions.
+Do not end your response after reporting success. You must go to step 4.
 
-**Registration paths:**
-- Python libraries → `qd_evolve/tools/<name>.py`
-- CLI tools → use cli-register → `tools/cli/<name>.yaml`
-- MCP servers → `tools/mcp/<name>.json`
-- Skills → `tools/skills/<name>/`
+### 4. MUST ask about registration (only after success)
+**This step is mandatory.** Once the tool runs successfully, you MUST output the following, word for word:
+
+> "I successfully installed and ran [tool name]. Would you like me to register this tool so I can reuse it in future sessions?"
+
+Then present the registration options (choose the most relevant one based on what you installed):
+
+- Python library → `qd_evolve/tools/<name>.py`
+- CLI tool → use cli-register → `tools/cli/<name>.yaml`
+- MCP server → `tools/mcp/<name>.json`
+- Skill → `tools/skills/<name>/`
+
+Do not finish your response without asking this registration question. If you skip this, you have not followed the skill correctly.

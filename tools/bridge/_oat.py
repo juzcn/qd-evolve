@@ -1,10 +1,9 @@
-"""OAT bridge — in-process Open-Agent-Tools (boat + coat).
+﻿"""OAT bridge 鈥?in-process Open-Agent-Tools (boat + coat).
 
 Reads tools/bridge/oat.json for config. Imports packages directly,
 wraps functions as ToolRegistry handlers with no subprocess overhead.
 """
 
-from __future__ import annotations
 
 import importlib
 import json
@@ -28,7 +27,7 @@ class OATBridgeConfig:
     loadout: str
 
 
-# ── discovery ────────────────────────────────────────────────────
+# 鈹€鈹€ discovery 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 
 def discover_oat_bridges(_settings: Any = None) -> list[OATBridgeConfig]:
     """Read tools/bridge/oat.json for OAT bridge configs."""
@@ -49,11 +48,11 @@ def discover_oat_bridges(_settings: Any = None) -> list[OATBridgeConfig]:
             package=entry.get("package", ""),
             loadout=entry.get("loadout", "all"),
         ))
-        logger.debug("OAT: discovered '%s' → %s/%s", name, entry.get("package"), entry.get("loadout"))
+        logger.debug("OAT: discovered '%s' 鈫?%s/%s", name, entry.get("package"), entry.get("loadout"))
     return configs
 
 
-# ── OATBridge ─────────────────────────────────────────────────────
+# 鈹€鈹€ OATBridge 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 
 class OATBridge:
     """Wraps one OAT package loadout, registers tools in-process."""
@@ -80,7 +79,7 @@ class OATBridge:
             return
 
         tools = loader()
-        logger.info("OAT: [%s] %s:%s → %d tools", self.config.name,
+        logger.info("OAT: [%s] %s:%s 鈫?%d tools", self.config.name,
                     self.config.package, self.config.loadout, len(tools))
 
         for fn in tools:
@@ -113,7 +112,7 @@ class OATBridge:
         """Find the loadout function in the package."""
         name = self.config.loadout
 
-        # "all" → load_all_tools
+        # "all" 鈫?load_all_tools
         if name == "all":
             return getattr(self._pkg, "load_all_tools", None)
 
@@ -156,7 +155,7 @@ class OATBridge:
         logger.info("OAT: disconnected %s (%d tools)", self.config.name, count)
 
 
-# ── Bridge protocol functions ─────────────────────────────────────
+# 鈹€鈹€ Bridge protocol functions 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 
 def _connect_oat_bridges(configs: list[OATBridgeConfig]) -> list[OATBridge]:
     bridges: list[OATBridge] = []
@@ -178,7 +177,7 @@ def _disconnect_oat_bridges(bridges: list[OATBridge]) -> None:
             logger.exception("OAT: disconnect error for %s", bridge.config.name)
 
 
-# ── Register with BridgeManager ───────────────────────────────────
+# 鈹€鈹€ Register with BridgeManager 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 
 BridgeManager.register(
     name="oat",

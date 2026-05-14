@@ -1,5 +1,4 @@
-﻿from __future__ import annotations
-
+﻿
 import json
 import logging
 
@@ -60,7 +59,6 @@ def _fetch(url: str, method: str = "GET", headers: dict | None = None, body: str
             timeout=timeout,
         )
 
-        content_type = resp.headers.get("content-type", "")
         text = resp.text
 
         return text

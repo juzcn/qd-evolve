@@ -1,5 +1,4 @@
-from __future__ import annotations
-
+﻿
 from pathlib import Path
 
 from qd_evolve.tools import get_registry

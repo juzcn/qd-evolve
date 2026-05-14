@@ -1,6 +1,5 @@
 ﻿"""Persistent memory store —SQLite + sqlite-vec for semantic + keyword search."""
 
-from __future__ import annotations
 
 import re
 import sqlite3
@@ -202,7 +201,7 @@ class MemoryStore:
         try:
             self._db.execute("DELETE FROM memory_vec WHERE rowid = ?", (memory_id,))
         except Exception:
-            pass
+            logger.debug("memory: delete vec rowid=%s failed", memory_id, exc_info=True)
         self._db.commit()
         return True
 
@@ -429,6 +428,6 @@ class MemoryStore:
             try:
                 self._embedder._llm.close()
             except Exception:
-                pass
+                logger.warning("memory: failed to close LlamaCpp embedder", exc_info=True)
         self._db.close()
         logger.info("Memory: store closed")

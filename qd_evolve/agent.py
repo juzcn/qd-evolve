@@ -1,6 +1,4 @@
-﻿from __future__ import annotations
-
-import json
+﻿import json
 from typing import TYPE_CHECKING, Any, Callable
 
 from qd_evolve.logger import logger
@@ -79,7 +77,6 @@ class Agent:
 
         # Auto recall: inject relevant memory into system prompt
         system_prompt = self._auto_recall(user_input, system_prompt)
-        system_prompt = self._inject_loaded_content(system_prompt)
 
         prov = self.providers.get(self._provider_name)
         max_tokens = prov.get_max_tokens(self._model)

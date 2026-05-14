@@ -1,11 +1,10 @@
-"""Direct Python code execution — no shell layer, clean error capture."""
+﻿"""Direct Python code execution 鈥?no shell layer, clean error capture."""
 
-from __future__ import annotations
 
 import subprocess
 import sys
 
-from qd_evolve.tools import get_registry
+from qd_evolve.tools import get_registry, decode_output
 
 registry = get_registry()
 
@@ -41,8 +40,8 @@ def _run_python(code: str) -> str:
     stderr_bytes = result.stderr or b""
     locale_enc = locale.getpreferredencoding(False)
 
-    out = _decode(stdout_bytes, locale_enc)
-    err = _decode(stderr_bytes, locale_enc)
+    out = decode_output(stdout_bytes, locale_enc)
+    err = decode_output(stderr_bytes, locale_enc)
 
     parts: list[str] = []
     stdout_stripped = out.strip()
@@ -58,19 +57,10 @@ def _run_python(code: str) -> str:
     return "\n".join(parts)
 
 
-def _decode(data: bytes, fallback_enc: str) -> str:
-    if not data:
-        return ""
-    try:
-        return data.decode("utf-8")
-    except UnicodeDecodeError:
-        return data.decode(fallback_enc, errors="replace")
-
-
 registry.register(
     name="run_python",
     description=(
-        "Execute Python code directly. Prefer this over run_shell for Python scripts — "
+        "Execute Python code directly. Prefer this over run_shell for Python scripts 鈥?"
         "it bypasses the shell layer, avoiding escaping and encoding issues. "
         "Multi-line code is fine; use standard Python indentation."
     ),

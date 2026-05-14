@@ -1,6 +1,5 @@
-"""Dynamic tool detail loader — loads full tool schema on demand."""
+﻿"""Dynamic tool detail loader 鈥?loads full tool schema on demand."""
 
-from __future__ import annotations
 
 import json
 
@@ -21,7 +20,7 @@ def _load_tool_detail(name: str) -> str:
         available = ", ".join(t.name for t in registry.list_tools())
         return f"Error: tool '{name}' not found. Available: {available}"
     if name in _preload_tools:
-        return f"(already preloaded — schema is already available in API tool definitions)\n\n{json.dumps(detail, ensure_ascii=False)}"
+        return f"(already preloaded 鈥?schema is already available in API tool definitions)\n\n{json.dumps(detail, ensure_ascii=False)}"
     return json.dumps(detail, ensure_ascii=False)
 
 

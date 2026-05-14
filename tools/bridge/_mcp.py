@@ -1,10 +1,9 @@
-"""MCP bridge — external process tools via stdin/stdout transport.
+﻿"""MCP bridge 鈥?external process tools via stdin/stdout transport.
 
 Scans tools/mcp/*.json for MCP server configs, spawns subprocesses,
 discovers tools via MCP list_tools, and registers them in ToolRegistry.
 """
 
-from __future__ import annotations
 
 import asyncio
 import json
@@ -33,7 +32,7 @@ def _expand_env(value: str) -> str:
     return re.sub(r"\$\{(\w+)\}|\$(\w+)", _replace, value)
 
 
-# ── discovery ────────────────────────────────────────────────────
+# 鈹€鈹€ discovery 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 
 def discover_mcp_servers(_settings: Any = None) -> list[MCPServerConfig]:
     """Scan tools/mcp/*.json for MCP server configs."""
@@ -78,10 +77,10 @@ def _extract_servers(data: dict, fallback_name: str) -> dict[str, dict]:
     return {}
 
 
-# ── MCPToolBridge ─────────────────────────────────────────────────
+# 鈹€鈹€ MCPToolBridge 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 
 class MCPToolBridge:
-    """Manages one MCP server — spawns subprocess, discovers tools, dispatches calls."""
+    """Manages one MCP server 鈥?spawns subprocess, discovers tools, dispatches calls."""
 
     def __init__(self, config: MCPServerConfig, registry: ToolRegistry | None = None) -> None:
         self.config = config
@@ -263,7 +262,7 @@ class MCPToolBridge:
         logger.info("MCP: disconnected from %s", self.config.name)
 
 
-# ── Bridge protocol functions ─────────────────────────────────────
+# 鈹€鈹€ Bridge protocol functions 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 
 def _connect_mcp_servers(configs: list[MCPServerConfig]) -> list[MCPToolBridge]:
     bridges: list[MCPToolBridge] = []
@@ -285,7 +284,7 @@ def _disconnect_mcp_servers(bridges: list[MCPToolBridge]) -> None:
             logger.exception("MCP: disconnect error for %s", bridge.config.name)
 
 
-# ── Register with BridgeManager ───────────────────────────────────
+# 鈹€鈹€ Register with BridgeManager 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 
 BridgeManager.register(
     name="mcp",

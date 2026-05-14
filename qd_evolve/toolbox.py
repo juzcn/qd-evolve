@@ -8,8 +8,6 @@ State is persisted to toolbox.json. Three states per item:
 Bridges only support "enabled"/"disabled" (no preload concept).
 """
 
-from __future__ import annotations
-
 import json
 from pathlib import Path
 from typing import Any
@@ -121,11 +119,6 @@ def apply_to_skill_registry(registry: Any, preload_skills_config: set[str]) -> N
             registry._disabled.discard(skill.name)
             if state == "preload":
                 preload_skills_config.add(skill.name)
-
-
-def get_disabled_mcp_servers() -> set[str]:
-    """Return names of disabled MCP servers. (legacy)"""
-    return get_disabled("mcp_servers")
 
 
 def get_disabled_bridges() -> set[str]:

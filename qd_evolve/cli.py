@@ -1,6 +1,4 @@
-﻿from __future__ import annotations
-
-import platform
+﻿import platform
 import sys
 from pathlib import Path
 from typing import Any
@@ -130,10 +128,8 @@ def toolbox(
 def _toolbox_interactive() -> None:
     """Interactive toolbox shell."""
     from qd_evolve.toolbox import (
-        get_state, set_state, toggle as tb_toggle, get_disabled_mcp_servers,
+        get_state, set_state, toggle as tb_toggle,
     )
-
-    PAGE_SIZE = 20
 
     console.print("[bold]Toolbox[/bold] — manage tool state (enabled / preload / disabled)")
     console.print("Type [cyan]help[/cyan] for commands, [cyan]quit[/cyan] to exit\n")
@@ -702,7 +698,7 @@ def chat(
         try:
             b.disconnect(shutdown=True)
         except Exception:
-            pass
+            logger.debug("shutdown: bridge disconnect failed for %s", b, exc_info=True)
     memory.close()
     if output_file:
         output_file.close()

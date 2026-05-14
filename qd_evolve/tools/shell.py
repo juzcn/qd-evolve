@@ -1,9 +1,8 @@
-from __future__ import annotations
-
+﻿
 import shlex
 import subprocess
 
-from qd_evolve.tools import get_registry
+from qd_evolve.tools import get_registry, decode_output
 
 registry = get_registry()
 
@@ -11,7 +10,7 @@ registry.register(
     name="run_shell",
     description=(
         "Execute a command and return stdout/stderr. "
-        "Set shell=false to bypass cmd.exe (preferred for calling interpreters: python, node, ruby, etc. — avoids escaping issues). "
+        "Set shell=false to bypass cmd.exe (preferred for calling interpreters: python, node, ruby, etc. 鈥?avoids escaping issues). "
         "Set shell=true for CLI tools, pipelines, redirects, and system commands."
     ),
     input_schema={
@@ -19,7 +18,7 @@ registry.register(
         "properties": {
             "command": {
                 "type": "string",
-                "description": "The command to execute. With shell=true: a shell command string (pipes, redirects OK). With shell=false: a command line like 'python -c \"...\"' or 'node -e \"...\"' — will be split safely.",
+                "description": "The command to execute. With shell=true: a shell command string (pipes, redirects OK). With shell=false: a command line like 'python -c \"...\"' or 'node -e \"...\"' 鈥?will be split safely.",
             },
             "shell": {
                 "type": "boolean",
@@ -55,7 +54,7 @@ def _run_shell(command: str, shell: bool = True, timeout: int | None = None) -> 
             result = subprocess.run(args, capture_output=True, timeout=timeout)
     except FileNotFoundError as e:
         if not shell:
-            return f"Command not found: {e}\n(hint: this is a CLI tool — try shell=true to use the system PATH)"
+            return f"Command not found: {e}\n(hint: this is a CLI tool 鈥?try shell=true to use the system PATH)"
         return f"Command not found: {e}"
     except subprocess.TimeoutExpired:
         return f"Command timed out after {timeout}s"
@@ -68,12 +67,12 @@ def _run_shell(command: str, shell: bool = True, timeout: int | None = None) -> 
 
     parts: list[str] = []
 
-    stdout_text = _decode(stdout_bytes, locale_enc).strip()
+    stdout_text = decode_output(stdout_bytes, locale_enc).strip()
     if stdout_text:
         parts.append(stdout_text)
 
     if stderr_bytes:
-        stderr_text = _decode(stderr_bytes, locale_enc).strip()
+        stderr_text = decode_output(stderr_bytes, locale_enc).strip()
         parts.append(f"STDERR:\n{stderr_text}")
 
     if result.returncode != 0:
@@ -85,8 +84,6 @@ def _run_shell(command: str, shell: bool = True, timeout: int | None = None) -> 
     return "\n".join(parts)
 
 
-def _decode(data: bytes, fallback_enc: str) -> str:
-    try:
-        return data.decode("utf-8")
-    except UnicodeDecodeError:
-        return data.decode(fallback_enc, errors="replace")
+def decode_output(data: bytes, fallback_enc: str) -> str:
+    """Deprecated: use decode_output from qd_evolve.tools instead."""
+    return decode_output(data, fallback_enc)

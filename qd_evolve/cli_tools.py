@@ -1,6 +1,5 @@
 ﻿"""CLI tool registry —discovers and manages CLI tool definitions from yaml files."""
 
-from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
