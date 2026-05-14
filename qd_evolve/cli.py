@@ -335,12 +335,31 @@ def _make_prompt_session() -> "PromptSession":
     return PromptSession("You> ", completer=completer)
 
 
-async def _read_input_async(session: "PromptSession | ReplayInput") -> str:
-    """Read user input from prompt_toolkit or replay session."""
+async def _read_input_async(session: "PromptSession | ReplayInput", dot_counter: list[int] | None = None) -> str:
+    """Read user input from prompt_toolkit or replay session.
+
+    When dot_counter is a list, its [0] element tracks silent heartbeat count.
+    A bottom_toolbar renders accumulated dots without disturbing the prompt area.
+    """
     if isinstance(session, ReplayInput):
         result = await asyncio.to_thread(session.prompt)
         return result.strip()
-    result = await session.prompt_async()
+    if dot_counter is not None:
+        def _rprompt() -> str:
+            n = dot_counter[0]
+            return f"♡ {n}" if n else ""
+        try:
+            result = await session.prompt_async(
+                rprompt=_rprompt,
+                refresh_interval=0.5,
+            )
+        except KeyboardInterrupt:
+            raise EOFError
+    else:
+        try:
+            result = await session.prompt_async()
+        except KeyboardInterrupt:
+            raise EOFError
     return result.strip()
 
 
@@ -483,12 +502,17 @@ async def _async_chat_loop(
 ) -> None:
     """Async main chat loop — event-driven: each event is processed independently."""
 
-    while True:
-        input_task = asyncio.ensure_future(_read_input_async(input_session))
+    dot_counter = [0]  # mutable counter for silent heartbeats → toolbar dots
+    input_task = hb_task = None
+
+    try:
+      while True:
+        input_task = asyncio.ensure_future(_read_input_async(input_session, dot_counter))
 
         while True:
             hb_coro = agent.create_heartbeat_coro()
             if hb_coro is None:
+                dot_counter[0] = 0
                 try:
                     user_input = (await input_task).strip()
                 except (EOFError, KeyboardInterrupt):
@@ -505,9 +529,18 @@ async def _async_chat_loop(
                 console.print("\n[dim]Goodbye![/dim]")
                 return
 
+            # If input_task died unexpectedly (not cancelled), exit
+            if input_task.done():
+                exc = input_task.exception()
+                if exc is not None and not isinstance(exc, CancelledError):
+                    console.print("\n[dim]Goodbye![/dim]")
+                    return
+
             if hb_task in done:
                 response = hb_task.result()
                 if response is not None:
+                    # Case 3: speaking heartbeat → display as assistant message
+                    dot_counter[0] = 0
                     input_task.cancel()
                     try:
                         await input_task
@@ -515,10 +548,13 @@ async def _async_chat_loop(
                         pass
                     console.print(response)
                     break  # exit inner loop → recreate input_task
-                # Silent: input_task stays alive, inner loop continues
+                else:
+                    # Case 2: silent heartbeat → increment dot counter
+                    dot_counter[0] += 1
                 continue
 
             # User input arrived
+            dot_counter[0] = 0
             hb_task.cancel()
             try:
                 await hb_task
@@ -578,6 +614,18 @@ async def _async_chat_loop(
         pct_max = f" ({last_out / max_tok * 100:.1f}% of {max_tok} max)" if max_tok > 0 else ""
         console.print(f"[dim]This turn: {last_in} in{pct_ctx} + {last_out} out{pct_max}[/dim]")
         console.print(f"[dim]Cumulative: {agent.total_input_tokens + agent.total_output_tokens} tokens used[/dim]")
+
+    except KeyboardInterrupt:
+        for t in (input_task, hb_task):
+            if t is None:
+                continue
+            if not t.done():
+                t.cancel()
+            try:
+                t.result()
+            except BaseException:
+                pass
+        console.print("\n[dim]Goodbye![/dim]")
 
     for b in bridges:
         try:
