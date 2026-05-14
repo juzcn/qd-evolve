@@ -1,15 +1,12 @@
 ﻿import json
-from typing import TYPE_CHECKING, Any, Callable
+from typing import Any, Callable
 
 from qd_evolve.logger import logger
 
 from qd_evolve.config import Settings
-from qd_evolve.memory import RecalledMemoryRegistry
+from qd_evolve.memory import MemoryStore, RecalledMemoryRegistry
 from qd_evolve.providers import ProviderRegistry
 from qd_evolve.tools import ToolRegistry
-
-if TYPE_CHECKING:
-    from qd_evolve.memory import MemoryStore
 
 
 class Agent:

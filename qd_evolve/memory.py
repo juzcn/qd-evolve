@@ -9,6 +9,7 @@ from typing import Any, Protocol
 
 import numpy as np
 import sqlite_vec
+from qd_evolve.config import EmbeddingsBackend
 from qd_evolve.logger import logger
 from pydantic import BaseModel
 

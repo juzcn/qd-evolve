@@ -1,12 +1,8 @@
 ﻿"""recall_memory tool 鈥?search past conversation memories."""
 
 
-from typing import TYPE_CHECKING
-
+from qd_evolve.memory import MemoryStore
 from qd_evolve.tools import get_registry
-
-if TYPE_CHECKING:
-    from qd_evolve.memory import MemoryStore
 
 _memory_store: MemoryStore | None = None
 _default_limit: int = 5
