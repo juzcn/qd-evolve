@@ -82,8 +82,3 @@ def _run_shell(command: str, shell: bool = True, timeout: int | None = None) -> 
         parts.append(f"(no output, exit code: {result.returncode})")
 
     return "\n".join(parts)
-
-
-def decode_output(data: bytes, fallback_enc: str) -> str:
-    """Deprecated: use decode_output from qd_evolve.tools instead."""
-    return decode_output(data, fallback_enc)

@@ -1,5 +1,6 @@
 ﻿import asyncio
 import json
+from datetime import datetime
 from typing import Any, Callable
 
 from qd_evolve.logger import logger
@@ -67,7 +68,8 @@ class Agent:
         (e.g. suppress '.' which means 'stay silent').
         """
         if self._template_mgr is not None:
-            msg = self._template_mgr.render("heartbeat", idle_seconds=idle_seconds)
+            msg = self._template_mgr.render("heartbeat", idle_seconds=idle_seconds,
+                                            now=datetime.now().strftime("%Y-%m-%d %A %H:%M:%S"))
         else:
             msg = f"[System heartbeat: idle {idle_seconds}s. Chat if you want, '.' to stay silent.]"
         logger.debug("Heartbeat: idle %ss, sending heartbeat message", idle_seconds)
