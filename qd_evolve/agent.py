@@ -1,5 +1,6 @@
 ﻿import asyncio
 import json
+from datetime import datetime
 from typing import Any, Callable
 
 from qd_evolve.logger import logger
@@ -67,7 +68,8 @@ class Agent:
         (e.g. suppress '.' which means 'stay silent').
         """
         if self._template_mgr is not None:
-            msg = self._template_mgr.render("heartbeat", idle_seconds=idle_seconds)
+            msg = self._template_mgr.render("heartbeat", idle_seconds=idle_seconds,
+                                            now=datetime.now().strftime("%Y-%m-%d %A %H:%M:%S"))
         else:
             msg = f"[System heartbeat: idle {idle_seconds}s. Chat if you want, '.' to stay silent.]"
         logger.debug("Heartbeat: idle %ss, sending heartbeat message", idle_seconds)
@@ -129,7 +131,7 @@ class Agent:
             logger.debug("Agent: === LLM Request #%s === Provider: %s / %s (%s), Active tools: %s\n"
                         "--- Messages ---\n  %s",
                         self.iteration, self._provider_name, self._model, self._api_type, active,
-                        self._trunc(msg))
+                        self._trunc(msg, tail=True))
 
             if self._api_type == "anthropic":
                 result = self._run_anthropic(client, system_prompt, max_tokens)
@@ -192,11 +194,13 @@ class Agent:
             removed, int(current_ratio * context_window), self.last_input_tokens, target_tokens,
         )
 
-    def _trunc(self, text: str) -> str:
-        """Truncate for logging. 0 means no limit."""
+    def _trunc(self, text: str, tail: bool = False) -> str:
+        """Truncate for logging. 0 means no limit. tail=True keeps the end."""
         if self._log_limit <= 0:
             return text
         if len(text) > self._log_limit:
+            if tail:
+                return "..." + text[-(self._log_limit):]
             return text[:self._log_limit] + "..."
         return text
 

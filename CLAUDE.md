@@ -10,6 +10,9 @@
 - **Logging is structured.** Standard library logging with custom SharedFileHandler (per-write open/flush/close) for real-time log visibility. No print statements for debugging.
 - **CLI is minimal.** Just `qd-evolve` to start chat. `--replay` for automated testing, `--output` to capture. No CLI options for provider/model — edit `qd-evolve.json` or use `/models` at runtime.
 - **Agent loop is simple and explicit.** Call API → check stop_reason → execute tools → append results → repeat. Capped at `max_iterations` (default 20) to prevent infinite loops.
+- **Heartbeat is agent-owned.** Agent creates heartbeat coroutine that sleeps then calls LLM. CLI is purely event-driven — it just awaits and displays. Template-driven heartbeat message via `heartbeat.j2`. Configurable via `heartbeat_idle_seconds` (0 = disabled).
+- **Streaming is global.** `stream` is a top-level settings field, not per-model. OpenAI-compatible providers stream tokens to the terminal.
+- **Reasoning/thinking is per-model.** `reasoning: true` on a model enables reasoning_content passthrough (DeepSeek, etc.). Reasoning text is displayed in the terminal with a "Reasoning:" label.
 - **Type everything.** Python 3.13 with full type annotations. pydantic models for all data boundaries.
 
 ## Design Decisions
