@@ -105,5 +105,6 @@
   },
   "max_iterations": 20,
   "tool_output_limit": 50000,
-  "stream": false
+  "stream": false,
+  "heartbeat_idle_seconds": 0
 }

@@ -86,6 +86,7 @@ class Settings(BaseModel):
     max_iterations: int = 20
     tool_output_limit: int = 50000
     stream: bool = False
+    heartbeat_idle_seconds: int = 0
 
     def get_provider(self, name: str | None = None) -> ProviderConfig | None:
         target = name or self.default_provider
