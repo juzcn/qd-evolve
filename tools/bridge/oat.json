@@ -1,10 +1,12 @@
 {
   "boat": {
     "package": "basic_open_agent_tools",
+    "repo": "https://github.com/AnatomicDev/basic-open-agent-tools",
     "loadout": "coder"
   },
   "coat": {
     "package": "coding_open_agent_tools",
+    "repo": "https://github.com/AnatomicDev/coding-open-agent-tools",
     "loadout": "python"
   }
 }

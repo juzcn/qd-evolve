@@ -377,7 +377,16 @@ class Agent:
                 msg_dict["reasoning_content"] = reasoning
             self.messages.append(msg_dict)
             for tc in msg.tool_calls:
-                args = json.loads(tc.function.arguments)
+                try:
+                    args = json.loads(tc.function.arguments)
+                except json.JSONDecodeError as e:
+                    logger.error("Agent: malformed tool call arguments from LLM: %s(%s)", tc.function.name, tc.function.arguments[:200])
+                    self.messages.append({
+                        "role": "tool",
+                        "tool_call_id": tc.id,
+                        "content": f"Error: malformed JSON arguments: {e}",
+                    })
+                    continue
                 logger.info("Agent: tool call: %s(%s)",tc.function.name, json.dumps(args, ensure_ascii=False))
                 args_brief = json.dumps(args, ensure_ascii=False)[:60]
                 self._update_status(f"Tool: {tc.function.name}({args_brief})")
@@ -475,7 +484,16 @@ class Agent:
                 msg_dict["reasoning_content"] = reasoning
             self.messages.append(msg_dict)
             for tc in tool_calls:
-                args = json.loads(tc["function"]["arguments"])
+                try:
+                    args = json.loads(tc["function"]["arguments"])
+                except json.JSONDecodeError as e:
+                    logger.error("Agent: malformed tool call arguments from LLM: %s(%s)", tc["function"]["name"], tc["function"]["arguments"][:200])
+                    self.messages.append({
+                        "role": "tool",
+                        "tool_call_id": tc["id"],
+                        "content": f"Error: malformed JSON arguments: {e}",
+                    })
+                    continue
                 name = tc["function"]["name"]
                 logger.info("Agent: tool call: %s(%s)", name, json.dumps(args, ensure_ascii=False))
                 args_brief = json.dumps(args, ensure_ascii=False)[:60]
@@ -517,7 +535,19 @@ class Agent:
 
         for item in response.output:
             if item.type == "function_call":
-                args = json.loads(item.arguments)
+                try:
+                    args = json.loads(item.arguments)
+                except json.JSONDecodeError as e:
+                    logger.error("Agent: malformed tool call arguments from LLM: %s(%s)", item.name, item.arguments[:200])
+                    self.messages.append({
+                        "role": "assistant", "content": None, "tool_calls": [item],
+                    })
+                    self.messages.append({
+                        "role": "tool",
+                        "tool_call_id": item.call_id,
+                        "content": f"Error: malformed JSON arguments: {e}",
+                    })
+                    continue
                 logger.info("Agent: tool call: %s(%s)",item.name, json.dumps(args, ensure_ascii=False))
                 args_brief = json.dumps(args, ensure_ascii=False)[:60]
                 self._update_status(f"Tool: {item.name}({args_brief})")
