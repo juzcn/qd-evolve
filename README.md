@@ -19,9 +19,12 @@ Multi-provider AI agent with tool use, skills, MCP integration, and CLI interfac
 - **Context compression** — Auto Q/A removal when tokens exceed threshold
 - **Auto recall** — Relevant past conversations auto-injected into system prompt
 - **Per-turn token stats** — Input/output tracking with context window usage
+- **Heartbeat** — Idle detection with LLM-driven heartbeat messages; silent dot counter in terminal; configurable via `heartbeat_idle_seconds`
+- **Streaming** — Global `stream` setting for token-by-token output to terminal (OpenAI-compatible providers)
+- **Reasoning/thinking mode** — Per-model `reasoning` flag for DeepSeek-style reasoning_content passthrough with terminal display
 - **Dual embedder support** — sentence-transformers or llama-cpp-python
 - **Structured logging** — Standard library logging with SharedFileHandler for real-time log visibility
-- **Rich CLI** — Interactive prompt with tab completion, spinner, and slash commands
+- **Rich CLI** — Interactive prompt with tab completion, spinner, heartbeat dots, and slash commands
 
 ## Quick Start
 
@@ -199,6 +202,7 @@ Included skills:
 | `baidu-search` | Search the web using Baidu AI Search Engine |
 | `cli-register` | Register CLI tools by analyzing `--help` output and generating YAML definitions |
 | `find-skills` | Discover and install new agent skills |
+| `find-tools` | Search, try, and register new CLI/Python tools when existing tools fall short |
 | `self-improvement` | Capture learnings and corrections for continuous improvement |
 
 ## Prompt Templates
@@ -230,6 +234,8 @@ All config via `qd-evolve.json`. Key fields:
 | `log.truncation` | Max chars per log entry, 0 to disable (default: 500) |
 | `max_iterations` | Maximum tool-calling iterations per turn (default: 20) |
 | `tool_output_limit` | Max characters per tool response before truncation (default: 50000) |
+| `stream` | Enable token-by-token streaming to terminal (default: false) |
+| `heartbeat_idle_seconds` | Seconds of user idle before heartbeat message; 0 to disable (default: 0) |
 | `env_vars` | Environment variables to inject at startup |
 | `memory_search.default_embeddings_backend` | Name of the embeddings backend to use |
 | `memory_search.compress_threshold` | Token ratio to trigger context compression (default: 0.7) |
