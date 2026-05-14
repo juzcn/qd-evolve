@@ -1,4 +1,5 @@
 ﻿import asyncio
+from asyncio import CancelledError
 import platform
 import sys
 from pathlib import Path
@@ -480,89 +481,90 @@ async def _async_chat_loop(
     providers: ProviderRegistry,
     output_file: Any,
 ) -> None:
-    """Async main chat loop — event-driven: input events and Agent heartbeat events."""
+    """Async main chat loop — event-driven: each event is processed independently."""
 
     while True:
         input_task = asyncio.ensure_future(_read_input_async(input_session))
-        pending = [input_task]
+        tasks = [input_task]
 
         hb_coro = agent.create_heartbeat_coro()
         if hb_coro is not None:
             hb_task = asyncio.ensure_future(hb_coro)
-            pending.append(hb_task)
+            tasks.append(hb_task)
 
         try:
-            done, pending = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
+            done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
         except (EOFError, KeyboardInterrupt):
             console.print("\n[dim]Goodbye![/dim]")
             break
 
-        for t in pending:
-            t.cancel()
-
-        # --- Heartbeat event (Agent handled everything internally) ---
+        # --- Heartbeat event ---
         if hb_coro is not None and hb_task in done:
-            input_task.cancel()
-            try:
-                await input_task
-            except (asyncio.CancelledError, EOFError, KeyboardInterrupt):
-                pass
             response = hb_task.result()
             if response is not None:
                 console.print(response)
-            continue
-
-        # --- User input event ---
-        try:
-            user_input = input_task.result().strip()
-        except (EOFError, KeyboardInterrupt):
-            console.print("\n[dim]Goodbye![/dim]")
-            break
-        if user_input.startswith("/"):
-            result = _handle_slash_command(user_input, agent, settings, skill_registry, cli_registry, memory)
-            if result is None:
-                console.print("[dim]Goodbye![/dim]")
-                break
-            if result:
-                console.print(result)
-            continue
-
-        spinner = Spinner("dots", text=Text("Thinking...", style="bold green"))
-        output_lines: list[str] = []
-        def _on_status(text: str) -> None:
-            spinner.update(text=Text(text, style="bold green"))
-        def _refresh() -> None:
-            items = [spinner]
-            for line in output_lines:
-                items.append(Text.from_markup(line, style="dim cyan"))
-            live.update(Group(*items))
-        agent.set_status_callback(_on_status)
-        agent.set_print_callback(lambda text: (output_lines.append(text), _refresh()))
-        with Live(Group(spinner), console=console, refresh_per_second=10) as live:
+        else:
+            # --- User input event ---
             try:
-                response = agent.run(user_input)
+                user_input = input_task.result().strip()
+            except (EOFError, KeyboardInterrupt):
+                console.print("\n[dim]Goodbye![/dim]")
+                break
+            if not user_input:
+                pass  # empty input, restart
+            elif user_input.startswith("/"):
+                result = _handle_slash_command(user_input, agent, settings, skill_registry, cli_registry, memory)
+                if result is None:
+                    console.print("[dim]Goodbye![/dim]")
+                    break
+                if result:
+                    console.print(result)
+            else:
+                spinner = Spinner("dots", text=Text("Thinking...", style="bold green"))
+                output_lines: list[str] = []
+                def _on_status(text: str) -> None:
+                    spinner.update(text=Text(text, style="bold green"))
+                def _refresh() -> None:
+                    items = [spinner]
+                    for line in output_lines:
+                        items.append(Text.from_markup(line, style="dim cyan"))
+                    live.update(Group(*items))
+                agent.set_status_callback(_on_status)
+                agent.set_print_callback(lambda text: (output_lines.append(text), _refresh()))
+                with Live(Group(spinner), console=console, refresh_per_second=10) as live:
+                    try:
+                        response = agent.run(user_input)
+                        skill_registry.reload()
+                        cli_registry.reload()
+                        bridges = BridgeManager.reload(settings, bridges)
+                    except KeyboardInterrupt:
+                        console.print("\n[dim]Interrupted.[/dim]")
+                        continue
+                    except Exception as e:
+                        console.print(f"[red]Error:[/red] {e}")
+                        continue
+                console.print(f"[bold]Assistant:[/bold] {response}")
+                prov = providers.get()
+                model_name = agent._model or settings.default_model
+                ctx = prov.get_context_window(model_name)
+                max_tok = prov.get_max_tokens(model_name)
+                last_in = agent.last_input_tokens
+                last_out = agent.last_output_tokens
+                pct_ctx = f" ({last_in / ctx * 100:.1f}% of {ctx} context)" if ctx > 0 else ""
+                pct_max = f" ({last_out / max_tok * 100:.1f}% of {max_tok} max)" if max_tok > 0 else ""
+                console.print(f"[dim]This turn: {last_in} in{pct_ctx} + {last_out} out{pct_max}[/dim]")
+                console.print(f"[dim]Cumulative: {agent.total_input_tokens + agent.total_output_tokens} tokens used[/dim]")
 
-                # Reload registries to pick up any new tools/skills/cli added during this turn
-                skill_registry.reload()
-                cli_registry.reload()
-                bridges = BridgeManager.reload(settings, bridges)
-            except KeyboardInterrupt:
-                console.print("\n[dim]Interrupted.[/dim]")
-                continue
-            except Exception as e:
-                console.print(f"[red]Error:[/red] {e}")
-                continue
-        console.print(f"[bold]Assistant:[/bold] {response}")
-        prov = providers.get()
-        model_name = agent._model or settings.default_model
-        ctx = prov.get_context_window(model_name)
-        max_tok = prov.get_max_tokens(model_name)
-        last_in = agent.last_input_tokens
-        last_out = agent.last_output_tokens
-        pct_ctx = f" ({last_in / ctx * 100:.1f}% of {ctx} context)" if ctx > 0 else ""
-        pct_max = f" ({last_out / max_tok * 100:.1f}% of {max_tok} max)" if max_tok > 0 else ""
-        console.print(f"[dim]This turn: {last_in} in{pct_ctx} + {last_out} out{pct_max}[/dim]")
-        console.print(f"[dim]Cumulative: {agent.total_input_tokens + agent.total_output_tokens} tokens used[/dim]")
+        # Clean up any unfinished tasks — cancel then await each to let
+        # prompt_toolkit's Application._is_running flip back to False.
+        for t in pending:
+            t.cancel()
+            try:
+                await t
+            except (CancelledError, Exception):
+                pass
+        if pending:
+            await asyncio.sleep(0)  # flush any leftover event-loop callbacks
 
     for b in bridges:
         try:
