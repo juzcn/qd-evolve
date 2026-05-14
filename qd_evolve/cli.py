@@ -1,4 +1,5 @@
-﻿import platform
+﻿import asyncio
+import platform
 import sys
 from pathlib import Path
 from typing import Any
@@ -333,11 +334,13 @@ def _make_prompt_session() -> "PromptSession":
     return PromptSession("You> ", completer=completer)
 
 
-def _read_input(session: "PromptSession") -> str:
-    try:
-        return session.prompt().strip()
-    except ImportError:
-        return console.input("[bold cyan]You>[/bold cyan] ").strip()
+async def _read_input_async(session: "PromptSession | ReplayInput") -> str:
+    """Read user input from prompt_toolkit or replay session."""
+    if isinstance(session, ReplayInput):
+        result = await asyncio.to_thread(session.prompt)
+        return result.strip()
+    result = await session.prompt_async()
+    return result.strip()
 
 
 def _handle_slash_command(
@@ -463,6 +466,112 @@ def _handle_slash_command(
             lines.append(f"  [cyan]{t.name}[/cyan] —{desc}")
         return "\n".join(lines)
     return None
+
+
+async def _async_chat_loop(
+    input_session: "PromptSession | ReplayInput",
+    agent: Any,
+    settings: Settings,
+    skill_registry: SkillRegistry,
+    cli_registry: CLIRegistry,
+    memory: MemoryStore,
+    template_mgr: PromptTemplateManager,
+    bridges: list[Any],
+    providers: ProviderRegistry,
+    output_file: Any,
+) -> None:
+    """Async main chat loop — event-driven: input events and Agent heartbeat events."""
+
+    while True:
+        input_task = asyncio.ensure_future(_read_input_async(input_session))
+        pending = [input_task]
+
+        hb_coro = agent.create_heartbeat_coro()
+        if hb_coro is not None:
+            hb_task = asyncio.ensure_future(hb_coro)
+            pending.append(hb_task)
+
+        try:
+            done, pending = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
+        except (EOFError, KeyboardInterrupt):
+            console.print("\n[dim]Goodbye![/dim]")
+            break
+
+        for t in pending:
+            t.cancel()
+
+        # --- Heartbeat event (Agent handled everything internally) ---
+        if hb_coro is not None and hb_task in done:
+            input_task.cancel()
+            try:
+                await input_task
+            except (asyncio.CancelledError, EOFError, KeyboardInterrupt):
+                pass
+            response = hb_task.result()
+            if response is not None:
+                console.print(response)
+            continue
+
+        # --- User input event ---
+        try:
+            user_input = input_task.result().strip()
+        except (EOFError, KeyboardInterrupt):
+            console.print("\n[dim]Goodbye![/dim]")
+            break
+        if user_input.startswith("/"):
+            result = _handle_slash_command(user_input, agent, settings, skill_registry, cli_registry, memory)
+            if result is None:
+                console.print("[dim]Goodbye![/dim]")
+                break
+            if result:
+                console.print(result)
+            continue
+
+        spinner = Spinner("dots", text=Text("Thinking...", style="bold green"))
+        output_lines: list[str] = []
+        def _on_status(text: str) -> None:
+            spinner.update(text=Text(text, style="bold green"))
+        def _refresh() -> None:
+            items = [spinner]
+            for line in output_lines:
+                items.append(Text.from_markup(line, style="dim cyan"))
+            live.update(Group(*items))
+        agent.set_status_callback(_on_status)
+        agent.set_print_callback(lambda text: (output_lines.append(text), _refresh()))
+        with Live(Group(spinner), console=console, refresh_per_second=10) as live:
+            try:
+                response = agent.run(user_input)
+
+                # Reload registries to pick up any new tools/skills/cli added during this turn
+                skill_registry.reload()
+                cli_registry.reload()
+                bridges = BridgeManager.reload(settings, bridges)
+            except KeyboardInterrupt:
+                console.print("\n[dim]Interrupted.[/dim]")
+                continue
+            except Exception as e:
+                console.print(f"[red]Error:[/red] {e}")
+                continue
+        console.print(f"[bold]Assistant:[/bold] {response}")
+        prov = providers.get()
+        model_name = agent._model or settings.default_model
+        ctx = prov.get_context_window(model_name)
+        max_tok = prov.get_max_tokens(model_name)
+        last_in = agent.last_input_tokens
+        last_out = agent.last_output_tokens
+        pct_ctx = f" ({last_in / ctx * 100:.1f}% of {ctx} context)" if ctx > 0 else ""
+        pct_max = f" ({last_out / max_tok * 100:.1f}% of {max_tok} max)" if max_tok > 0 else ""
+        console.print(f"[dim]This turn: {last_in} in{pct_ctx} + {last_out} out{pct_max}[/dim]")
+        console.print(f"[dim]Cumulative: {agent.total_input_tokens + agent.total_output_tokens} tokens used[/dim]")
+
+    for b in bridges:
+        try:
+            b.disconnect(shutdown=True)
+        except Exception:
+            logger.debug("shutdown: bridge disconnect failed for %s", b, exc_info=True)
+    memory.close()
+    if output_file:
+        output_file.close()
 
 
 @app.callback(invoke_without_command=True)
@@ -605,7 +714,8 @@ def chat(
                   default_system_prompt=system_prompt,
                   preload_tools=loaded_tool_names,
                   preload_skills=loaded_skill_names,
-                  preload_cli=loaded_cli_names)
+                  preload_cli=loaded_cli_names,
+                  template_mgr=template_mgr)
 
     # Initialize agent's loaded_skills/loaded_cli with active content for on-demand append
     for s in skill_registry.get_all_skills():
@@ -639,69 +749,10 @@ def chat(
     else:
         input_session = _make_prompt_session()
 
-    while True:
-        try:
-            user_input = _read_input(input_session)
-        except (EOFError, KeyboardInterrupt):
-            console.print("\n[dim]Goodbye![/dim]")
-            break
-
-        if not user_input:
-            continue
-        if user_input.startswith("/"):
-            result = _handle_slash_command(user_input, agent, settings, skill_registry, cli_registry, memory)
-            if result is None:
-                console.print("[dim]Goodbye![/dim]")
-                break
-            if result:
-                console.print(result)
-            continue
-
-        spinner = Spinner("dots", text=Text("Thinking...", style="bold green"))
-        output_lines: list[str] = []
-        def _on_status(text: str) -> None:
-            spinner.update(text=Text(text, style="bold green"))
-        def _refresh() -> None:
-            items = [spinner]
-            for line in output_lines:
-                items.append(Text.from_markup(line, style="dim cyan"))
-            live.update(Group(*items))
-        agent.set_status_callback(_on_status)
-        agent.set_print_callback(lambda text: (output_lines.append(text), _refresh()))
-        with Live(Group(spinner), console=console, refresh_per_second=10) as live:
-            try:
-                response = agent.run(user_input)
-
-                # Reload registries to pick up any new tools/skills/cli added during this turn
-                skill_registry.reload()
-                cli_registry.reload()
-                bridges = BridgeManager.reload(settings, bridges)
-            except KeyboardInterrupt:
-                console.print("\n[dim]Interrupted.[/dim]")
-                continue
-            except Exception as e:
-                console.print(f"[red]Error:[/red] {e}")
-                continue
-        console.print(f"[bold]Assistant:[/bold] {response}")
-        prov = providers.get()
-        model_name = agent._model or settings.default_model
-        ctx = prov.get_context_window(model_name)
-        max_tok = prov.get_max_tokens(model_name)
-        last_in = agent.last_input_tokens
-        last_out = agent.last_output_tokens
-        pct_ctx = f" ({last_in / ctx * 100:.1f}% of {ctx} context)" if ctx > 0 else ""
-        pct_max = f" ({last_out / max_tok * 100:.1f}% of {max_tok} max)" if max_tok > 0 else ""
-        console.print(f"[dim]This turn: {last_in} in{pct_ctx} + {last_out} out{pct_max}[/dim]")
-        console.print(f"[dim]Cumulative: {agent.total_input_tokens + agent.total_output_tokens} tokens used[/dim]")
-
-    for b in bridges:
-        try:
-            b.disconnect(shutdown=True)
-        except Exception:
-            logger.debug("shutdown: bridge disconnect failed for %s", b, exc_info=True)
-    memory.close()
-    if output_file:
-        output_file.close()
+    asyncio.run(_async_chat_loop(
+        input_session, agent, settings, skill_registry, cli_registry,
+        memory, template_mgr, bridges, providers, output_file,
+    ))
 
 
 if __name__ == "__main__":

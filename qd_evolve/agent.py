@@ -1,4 +1,5 @@
-﻿import json
+﻿import asyncio
+import json
 from typing import Any, Callable
 
 from qd_evolve.logger import logger
@@ -14,10 +15,12 @@ class Agent:
                  memory: MemoryStore | None = None, default_system_prompt: str = "",
                  preload_tools: set[str] | None = None,
                  preload_skills: set[str] | None = None,
-                 preload_cli: set[str] | None = None) -> None:
+                 preload_cli: set[str] | None = None,
+                 template_mgr: Any = None) -> None:
         self.settings = settings
         self.registry = registry
         self.default_system_prompt = default_system_prompt
+        self._template_mgr = template_mgr
         self._active_tools: set[str] = set()
         self._always_active: set[str] = preload_tools or set()
         self.providers = providers
@@ -56,6 +59,45 @@ class Agent:
     @property
     def total_tokens(self) -> int:
         return self.total_input_tokens + self.total_output_tokens
+
+    def heartbeat_check(self, idle_seconds: int) -> str:
+        """Send a heartbeat message to the LLM after idle period.
+
+        Returns the LLM's response. Caller decides whether to display it
+        (e.g. suppress '.' which means 'stay silent').
+        """
+        if self._template_mgr is not None:
+            msg = self._template_mgr.render("heartbeat", idle_seconds=idle_seconds)
+        else:
+            msg = f"[System heartbeat: idle {idle_seconds}s. Chat if you want, '.' to stay silent.]"
+        logger.debug("Heartbeat: idle %ss, sending heartbeat message", idle_seconds)
+        response = self.run(msg)
+        if response.strip() == ".":
+            logger.debug("Heartbeat: LLM sent '.' — staying silent")
+        else:
+            logger.info("Heartbeat: LLM responded (%s chars)", len(response))
+        return response
+
+    def create_heartbeat_coro(self) -> Any:
+        """Return a coroutine that sleeps then runs heartbeat internally.
+
+        Returns None if heartbeat is disabled.
+        The coroutine handles the full heartbeat lifecycle (sleep → LLM call)
+        and resolves to the response text, or None if LLM stayed silent.
+        Chat only needs to await it and display the result.
+        """
+        seconds = self.settings.heartbeat_idle_seconds
+        if seconds <= 0:
+            return None
+
+        async def _heartbeat() -> str | None:
+            await asyncio.sleep(seconds)
+            response = await asyncio.to_thread(self.heartbeat_check, seconds)
+            if response.strip() == ".":
+                return None
+            return response
+
+        return _heartbeat()
 
     def run(
         self,
