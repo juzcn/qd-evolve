@@ -4,7 +4,6 @@
     "recall_memory": "preload",
     "load_skill_detail": "preload",
     "load_tool_detail": "preload",
-    "register_tool": "preload",
     "run_python": "preload",
     "read_file": "disabled",
     "write_file": "disabled",
@@ -14,7 +13,8 @@
   "mcp_servers": {},
   "cli": {},
   "skills": {
-    "cli-register": "preload"
+    "cli-register": "preload",
+    "find-tools": "preload"
   },
   "defaults": {
     "timeout": 60
