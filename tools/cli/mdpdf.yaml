@@ -1,0 +1,29 @@
+name: mdpdf
+command: mdpdf
+description: "Convert Markdown files to PDF with customizable headers, footers, and paper size"
+help_summary: |
+  Usage: mdpdf [OPTIONS] [INPUTS]...
+
+  Convert Markdown to PDF.
+
+  Options:
+    -o, --output FILE        Destination for file output. [required]
+    -h, --header <template>  Sets the header template. Format: "[left],[middle],[right]"
+    -f, --footer <template>  Footer template. Format: "[left],[middle],[right]"
+    -t, --title TEXT         PDF title.
+    -s, --subject TEXT       PDF subject.
+    -a, --author TEXT        PDF author.
+    -k, --keywords TEXT      PDF keywords.
+    -p, --paper [letter|a4]  Paper size (default letter).
+    --version                Show the version and exit.
+    --help                   Show this message and exit.
+
+  Header/footer template values:
+    - Empty string, arbitrary text
+    - {page} current page number
+    - {header} current top-level body text heading
+    - {date} current date
+examples:
+  - "mdpdf README.md -o README.pdf"
+  - "mdpdf doc.md -o doc.pdf -p a4 --footer \",,{page}\""
+  - "mdpdf chapter1.md chapter2.md -o book.pdf -t \"My Book\" -a \"Author\""
