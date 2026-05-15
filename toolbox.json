@@ -3,19 +3,18 @@
     "load_cli_detail": "preload",
     "recall_memory": "preload",
     "load_skill_detail": "preload",
-    "load_tool_detail": "preload",
+    "load_func_tool_detail": "preload",
     "run_python": "preload",
     "read_file": "disabled",
     "write_file": "disabled",
     "list_directory": "disabled",
-    "execute_shell_command": "disabled"
+    "execute_shell_command": "disabled",
+    "run_shell": "preload",
+    "fetch": "disabled"
   },
   "mcp_servers": {},
   "cli": {},
-  "skills": {
-    "cli-register": "preload",
-    "find-tools": "preload"
-  },
+  "skills": {},
   "defaults": {
     "timeout": 60
   }

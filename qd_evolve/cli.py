@@ -443,14 +443,14 @@ def _handle_slash_command(
             lines.append(f"  [bold]Tool (loaded):[/bold] {', '.join(loaded_tools)}")
 
         preload_skills = sorted(agent._preload_skills)
-        loaded_skills = sorted(s for s in agent._loaded_skills if s not in agent._preload_skills)
+        loaded_skills = sorted(s for s in agent._loaded_skill_names if s not in agent._preload_skills)
         if preload_skills:
             lines.append(f"  [bold]Skill (preload):[/bold] {', '.join(preload_skills)}")
         if loaded_skills:
             lines.append(f"  [bold]Skill (loaded):[/bold] {', '.join(loaded_skills)}")
 
         preload_cli = sorted(agent._preload_cli)
-        loaded_cli = sorted(c for c in agent._loaded_cli if c not in agent._preload_cli)
+        loaded_cli = sorted(c for c in agent._loaded_cli_names if c not in agent._preload_cli)
         if preload_cli:
             lines.append(f"  [bold]CLI (preload):[/bold] {', '.join(preload_cli)}")
         if loaded_cli:
@@ -694,7 +694,7 @@ def chat(
     from qd_evolve.tools.tool_loader import set_preload_tools
     set_preload_tools(loaded_tool_names)
     from qd_evolve.tools.cli_loader import set_cli_registry
-    set_cli_registry(cli_registry, loaded_cli_names)
+    set_cli_registry(cli_registry)
 
     # 7. System prompt via Jinja2 template
     python_cmd = _detect_python_cmd()
@@ -742,11 +742,11 @@ def chat(
 
     system_prompt = template_mgr.render(
         "default",
-        unloaded_skills=unloaded_skills,
-        unloaded_cli=unloaded_cli,
+        unpreloaded_skills=unloaded_skills,
+        unpreloaded_cli=unloaded_cli,
         unloaded_tools=unloaded_tools,
-        loaded_skills=active_skills_content,
-        loaded_cli=active_cli_content,
+        preloaded_skills=active_skills_content,
+        preloaded_cli=active_cli_content,
         os_name=platform.system(),
         python_cmd=python_cmd,
         cwd=str(Path.cwd()),
@@ -779,16 +779,6 @@ def chat(
                   preload_skills=loaded_skill_names,
                   preload_cli=loaded_cli_names,
                   template_mgr=template_mgr)
-
-    # Initialize agent's loaded_skills/loaded_cli with active content for on-demand append
-    for s in skill_registry.get_all_skills():
-        if s.active and s.content:
-            agent._loaded_skills[s.name] = s.content
-    for t in cli_registry.list_tools():
-        if t.name in loaded_cli_names:
-            detail = cli_registry.get_detail(t.name)
-            if detail:
-                agent._loaded_cli[t.name] = _json.dumps(detail, ensure_ascii=False)
 
     model_info = escape(f"[{settings.default_provider}/{settings.default_model}]")
     console.print(Panel(

@@ -38,8 +38,8 @@ class Agent:
         self._on_status: Callable[[str], None] | None = None
         self._on_print: Callable[[str], None] | None = None
         self._recalled = RecalledMemoryRegistry()
-        self._loaded_skills: dict[str, str] = {}
-        self._loaded_cli: dict[str, str] = {}
+        self._loaded_skill_names: set[str] = set()
+        self._loaded_cli_names: set[str] = set()
         self._preload_skills: set[str] = preload_skills or set()
         self._preload_cli: set[str] = preload_cli or set()
 
@@ -205,56 +205,26 @@ class Agent:
         return text
 
     def _inject_loaded_content(self, system_prompt: str) -> str:
-        """Inject loaded skill/CLI content and remove them from unloaded sections."""
-        updated = False
+        """Remove loaded items from unloaded sections in the system prompt."""
 
-        if self._loaded_skills:
-            skills_content = "\n".join(self._loaded_skills.values())
-            marker = "## Loaded skills details: SKILL.md — follow these instructions."
-            if marker in system_prompt:
-                parts = system_prompt.split(marker, 1)
-                after = parts[1]
-                next_section = after.find("\n## ")
-                if next_section != -1:
-                    after = after[next_section:]
-                else:
-                    after = ""
-                system_prompt = parts[0] + marker + "\n" + skills_content + after
-                updated = True
+        if self._loaded_skill_names:
             system_prompt = self._remove_from_unloaded(
                 system_prompt,
-                "## Unloaded Skills Summary",
-                self._loaded_skills.keys(),
+                "### Unloaded Skills Summary",
+                self._loaded_skill_names,
             )
 
-        if self._loaded_cli:
-            cli_content = "\n".join(self._loaded_cli.values())
-            marker = "## Loaded CLI details: Help — use them to construct correct command arguments."
-            if marker in system_prompt:
-                parts = system_prompt.split(marker, 1)
-                after = parts[1]
-                next_section = after.find("\n## ")
-                if next_section != -1:
-                    after = after[next_section:]
-                else:
-                    after = ""
-                system_prompt = parts[0] + marker + "\n" + cli_content + after
-                updated = True
+        if self._loaded_cli_names:
             system_prompt = self._remove_from_unloaded(
                 system_prompt,
-                "## Unloaded CLI Tools Summary",
-                self._loaded_cli.keys(),
+                "### Unloaded CLI Tools Summary",
+                self._loaded_cli_names,
             )
 
-        if updated:
-            logger.debug("Agent: system prompt updated — %d loaded skills, %d loaded cli (%d chars)",
-                         len(self._loaded_skills), len(self._loaded_cli), len(system_prompt))
-
-        # Also remove activated tools from unloaded section
         if self._active_tools:
             system_prompt = self._remove_from_unloaded(
                 system_prompt,
-                "## Unloaded Tools Summary",
+                "### Unloaded Func Tools Summary",
                 self._active_tools,
             )
             logger.debug("Agent: removed %d active tools from unloaded section", len(self._active_tools))
@@ -630,21 +600,21 @@ class Agent:
         logger.debug("Agent: token usage: input=%s, output=%s, total=%s", usage.input_tokens, usage.output_tokens, self.total_tokens)
 
     def _activate_tool(self, tool_name: str, tool_args: dict, result: str = "") -> None:
-        """After a tool call, activate tools and track loaded skill/CLI content."""
+        """After a tool call, activate tools and track loaded skill/CLI names."""
         self._active_tools.add(tool_name)
-        if tool_name == "load_tool_detail":
+        if tool_name == "load_func_tool_detail":
             target = tool_args.get("name", "")
             if target:
                 self._active_tools.add(target)
                 logger.debug("Agent: activated tool: %s", target)
-        elif tool_name == "load_skill_detail" and result:
+        elif tool_name == "load_skill_detail":
             name = tool_args.get("name", "")
             if name:
-                self._loaded_skills[name] = result
-        elif tool_name == "load_cli_detail" and result:
+                self._loaded_skill_names.add(name)
+        elif tool_name == "load_cli_detail":
             name = tool_args.get("name", "")
             if name:
-                self._loaded_cli[name] = result
+                self._loaded_cli_names.add(name)
 
     def _execute_tools_anthropic(self, content: list) -> list[dict]:
         results: list[dict] = []

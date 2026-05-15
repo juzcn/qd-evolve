@@ -96,25 +96,26 @@ class MCPToolBridge:
         """Start the subprocess, initialize MCP session, register tools."""
         self._loop = asyncio.new_event_loop()
         connected = threading.Event()
-        error: list[Exception] = []
+        error_ref: list[BaseException] = []
 
         def _run():
             asyncio.set_event_loop(self._loop)
             try:
                 self._loop.run_until_complete(self._async_connect())
-            except Exception as e:
-                error.append(e)
+            except BaseException as e:
+                error_ref.append(e)
+                logger.error("MCP: connect failed for %s: %s", self.config.name, e)
             finally:
                 connected.set()
-            if not error:
+            if not error_ref:
                 self._loop.run_forever()
 
         self._thread = threading.Thread(target=_run, daemon=True)
         self._thread.start()
         connected.wait(timeout=60)
 
-        if error:
-            raise error[0]
+        if error_ref:
+            raise error_ref[0]
 
     async def _async_connect(self) -> None:
         from mcp import ClientSession
@@ -242,8 +243,9 @@ class MCPToolBridge:
             self.tool_names.clear()
         # Stop the event loop
         try:
-            future = asyncio.run_coroutine_threadsafe(self._async_disconnect(), self._loop)
-            future.result(timeout=10)
+            if self._loop.is_running():
+                future = asyncio.run_coroutine_threadsafe(self._async_disconnect(), self._loop)
+                future.result(timeout=10)
         except Exception as e:
             logger.error("MCP: error disconnecting %s: %s", self.config.name, e)
         self._loop.call_soon_threadsafe(self._loop.stop)
@@ -271,8 +273,8 @@ def _connect_mcp_servers(configs: list[MCPServerConfig]) -> list[MCPToolBridge]:
             bridge = MCPToolBridge(config)
             bridge.connect()
             bridges.append(bridge)
-        except Exception as e:
-            logger.exception("MCP: failed to connect to %s: %s", config.name, e)
+        except BaseException as e:
+            logger.error("MCP: failed to connect to %s: %s", config.name, e)
     return bridges
 
 

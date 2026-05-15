@@ -1,4 +1,4 @@
-﻿"""Textual TUI for toolbox 鈥?manage tool state interactively."""
+"""Textual TUI for toolbox — manage tool state interactively."""
 
 
 from textual.app import App, ComposeResult
@@ -11,7 +11,7 @@ from qd_evolve.toolbox import get_state, set_state
 
 
 def _build_data(connect_bridges: bool = True) -> tuple[dict, list, list]:
-    """Build category 鈫?[(name, desc, state), ...] and return (data, bridges, entries)."""
+    """Build category → [(name, desc, state), ...] and return (data, bridges, entries)."""
     from qd_evolve.tools import get_registry
     from qd_evolve.skills import SkillRegistry
     from qd_evolve.cli_tools import CLIRegistry
@@ -20,6 +20,12 @@ def _build_data(connect_bridges: bool = True) -> tuple[dict, list, list]:
 
     categories: dict[str, list[tuple[str, str, str]]] = {}
     settings = load_settings()
+
+    # Inject env_vars from config into os.environ (needed for MCP $VAR expansion)
+    import os as _os
+    for key, value in settings.env_vars.items():
+        _os.environ.setdefault(key, value)
+
     bridges: list = []
 
     # Discover and optionally connect all bridges
@@ -30,7 +36,7 @@ def _build_data(connect_bridges: bool = True) -> tuple[dict, list, list]:
     # Collect all tools from the global registry
     registry = get_registry()
 
-    # Build tool 鈫?bridge name map from bridges
+    # Build tool → bridge name map from bridges
     tool_bridge: dict[str, str] = {}
     for b in bridges:
         for tname in b.tool_names:
@@ -93,8 +99,8 @@ class HelpScreen(ModalScreen):
         yield Static(
             " [bold]Toolbox TUI[/bold]\n\n"
             " [bold]Navigation[/bold]\n"
-            "   鈫戔啌 / jk     Move selection\n"
-            "   Tab         Switch panels (categories 鈫?tools)\n"
+            "   ↑↓ / jk     Move selection\n"
+            "   Tab         Switch panels (categories → tools)\n"
             "   Space       Expand / collapse bridge\n"
             "   /           Filter tools\n"
             "\n"
@@ -105,7 +111,7 @@ class HelpScreen(ModalScreen):
             "   s           Shrink all bridges\n"
             "\n"
             " [bold]Columns[/bold]\n"
-            "   鉁?鉁?= enabled/disabled   鈿?= preloaded\n"
+            "   ✓/✗ = enabled/disabled   ◆ = preloaded\n"
             "   +/v = collapsed/expanded (bridges)\n"
             "\n"
             " [bold]Other[/bold]\n"
@@ -150,7 +156,7 @@ class ToolboxApp(App):
             try:
                 bridge.disconnect()
             except Exception:
-                logger.debug("toolbox_tui: bridge disconnect failed", exc_info=True)
+                pass
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -209,7 +215,7 @@ class ToolboxApp(App):
             # bridge category: header always shown, tools only when expanded
             if is_bridge:
                 if i == 0:
-                    # Server header row 鈥?aggregate state from subtools
+                    # Server header row — aggregate state from subtools
                     arrow = "v" if expanded else "+"
                     display_name = name.replace("+", arrow).replace("v", arrow)
                     # Count subtool states
@@ -217,21 +223,21 @@ class ToolboxApp(App):
                     all_enabled = tool_states and all(s != "disabled" for s in tool_states)
                     all_disabled = tool_states and all(s == "disabled" for s in tool_states)
                     if all_disabled:
-                        enabled_mark = "鉁?
+                        enabled_mark = "✗"
                     elif all_enabled:
-                        enabled_mark = "鉁?
+                        enabled_mark = "✓"
                     else:
                         enabled_mark = "~"
                     preload_mark = ""
                     table.add_row(enabled_mark, preload_mark, display_name, desc[:80])
                 elif expanded:
-                    enabled_mark = "鉁? if state != "disabled" else "鉁?
-                    preload_mark = "鈿? if state == "preload" else ""
+                    enabled_mark = "✓" if state != "disabled" else "✗"
+                    preload_mark = "◆" if state == "preload" else ""
                     table.add_row(enabled_mark, preload_mark, f"  {name}", desc[:80])
                 # else: collapsed, skip tools
             else:
-                enabled_mark = "鉁? if state != "disabled" else "鉁?
-                preload_mark = "鈿? if state == "preload" else ""
+                enabled_mark = "✓" if state != "disabled" else "✗"
+                preload_mark = "◆" if state == "preload" else ""
                 table.add_row(enabled_mark, preload_mark, name, desc[:80])
 
         if table.row_count > saved_row:
@@ -244,7 +250,7 @@ class ToolboxApp(App):
             return False
         return self._categories[self._cat_index].startswith("Bridge:")
 
-    # 鈹€鈹€ actions 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+    # ── actions ──────────────────────────────────────────────────────
 
     def action_cursor_up(self) -> None:
         focused = self.focused
@@ -292,7 +298,7 @@ class ToolboxApp(App):
         self._load_tools()
 
     def action_toggle_enabled(self) -> None:
-        """Toggle enabled 鈫?disabled. On bridge row, propagates to all subtools."""
+        """Toggle enabled → disabled. On bridge row, propagates to all subtools."""
         name, section = self._selected_item()
         if not name:
             return
@@ -309,12 +315,12 @@ class ToolboxApp(App):
                         continue
                     clean = tool_name.strip()
                     set_state("tools", clean, "disabled" if new_state == "disabled" else "enabled")
-            self.notify(f"{bridge_key} 鈫?{new_state} (all tools)")
+            self.notify(f"{bridge_key} → {new_state} (all tools)")
         else:
             current = get_state(section, name)
             new_state = "enabled" if current == "disabled" else "disabled"
             set_state(section, name, new_state)
-            self.notify(f"{name} 鈫?{new_state}")
+            self.notify(f"{name} → {new_state}")
         self._refresh()
 
     def action_toggle_preload(self) -> None:
@@ -333,7 +339,7 @@ class ToolboxApp(App):
         else:
             set_state(section, name, "preload")
         self._refresh()
-        self.notify(f"{name} 鈫?{get_state(section, name)}")
+        self.notify(f"{name} → {get_state(section, name)}")
 
     def action_filter(self) -> None:
         def on_input(result: str) -> None:
@@ -346,13 +352,13 @@ class ToolboxApp(App):
 
     @staticmethod
     def _bridge_name(name: str) -> str:
-        """Extract bridge key from display row like '+ oat:boat (bridge)' 鈫?'oat:boat'."""
+        """Extract bridge key from display row like '+ oat:boat (bridge)' → 'oat:boat'."""
         name = name.removeprefix("+ ").removeprefix("v ")
         if " (" in name:
             name = name.split(" (")[0]
         return name
 
-    # 鈹€鈹€ helpers 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+    # ── helpers ──────────────────────────────────────────────────────
 
     def _selected_item(self) -> tuple[str, str] | tuple[None, None]:
         """Get currently selected (name, section)."""
@@ -397,7 +403,7 @@ class ToolboxApp(App):
         for cat, items in self._data.items():
             for i, (name, desc, _) in enumerate(items):
                 if cat.startswith("Bridge:") and i == 0:
-                    continue  # server header 鈥?aggregate, not stored
+                    continue  # server header — aggregate, not stored
                 section = "tools"
                 if cat == "CLI Tools":
                     section = "cli"
