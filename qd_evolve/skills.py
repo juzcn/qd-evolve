@@ -54,51 +54,61 @@ class SkillRegistry:
 
     def _load(self) -> None:
         self._skills.clear()
-        if self._skills_dir is None or not self._skills_dir.is_dir():
+        dirs_to_scan: list[Path] = []
+
+        if self._skills_dir is not None and self._skills_dir.is_dir():
+            dirs_to_scan.append(self._skills_dir)
+        else:
             logger.warning("Skills: skills directory not found: %s", self._skills_dir)
-            return
 
-        for skill_dir in self._skills_dir.iterdir():
-            if not skill_dir.is_dir():
-                continue
-            skill_md = skill_dir / "SKILL.md"
-            if not skill_md.is_file():
-                continue
+        # Also scan staging skill dir
+        from qd_evolve.tools.staging import staging_skill_dir
+        staging = staging_skill_dir()
+        if staging.is_dir():
+            dirs_to_scan.append(staging)
 
-            content = skill_md.read_text(encoding="utf-8").strip()
-            if not content:
-                continue
+        for scan_dir in dirs_to_scan:
+            for skill_dir in scan_dir.iterdir():
+                if not skill_dir.is_dir():
+                    continue
+                skill_md = skill_dir / "SKILL.md"
+                if not skill_md.is_file():
+                    continue
 
-            fm = _parse_frontmatter(content)
-            if not fm:
-                logger.error("Skills: SKILL.md missing YAML frontmatter (name + description): %s", skill_dir.name)
-                continue
+                content = skill_md.read_text(encoding="utf-8").strip()
+                if not content:
+                    continue
 
-            name = fm.get("name") or ""
-            summary = fm.get("description") or ""
-            if not name or not summary:
-                logger.error("Skills: SKILL.md frontmatter missing 'name' or 'description': %s", skill_dir.name)
-                continue
+                fm = _parse_frontmatter(content)
+                if not fm:
+                    logger.error("Skills: SKILL.md missing YAML frontmatter (name + description): %s", skill_dir.name)
+                    continue
 
-            version = ""
-            meta_path = skill_dir / "_meta.json"
-            if meta_path.is_file():
-                try:
-                    meta = json.loads(meta_path.read_text(encoding="utf-8"))
-                    version = meta.get("version", "")
-                except (json.JSONDecodeError, OSError):
-                    logger.warning("Skills: failed to parse _meta.json for skill: %s", skill_dir.name)
+                name = fm.get("name") or ""
+                summary = fm.get("description") or ""
+                if not name or not summary:
+                    logger.error("Skills: SKILL.md frontmatter missing 'name' or 'description': %s", skill_dir.name)
+                    continue
 
-            active = name in self._preload_skills or skill_dir.name in self._preload_skills
-            skill = SkillInfo(
-                name=name,
-                content=content,
-                summary=summary,
-                version=version,
-                active=active,
-            )
-            self._skills[name] = skill
-            logger.debug("Skills: discovered skill: %s", name)
+                version = ""
+                meta_path = skill_dir / "_meta.json"
+                if meta_path.is_file():
+                    try:
+                        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+                        version = meta.get("version", "")
+                    except (json.JSONDecodeError, OSError):
+                        logger.warning("Skills: failed to parse _meta.json for skill: %s", skill_dir.name)
+
+                active = name in self._preload_skills or skill_dir.name in self._preload_skills
+                skill = SkillInfo(
+                    name=name,
+                    content=content,
+                    summary=summary,
+                    version=version,
+                    active=active,
+                )
+                self._skills[name] = skill
+                logger.debug("Skills: discovered skill: %s", name)
 
     def get_all_skills(self) -> list[SkillInfo]:
         return [s for s in self._skills.values() if s.name not in self._disabled]
@@ -115,6 +125,11 @@ class SkillRegistry:
             return None
         skill = self._skills.get(name)
         return skill.content if skill else None
+
+    def add_skill(self, skill: SkillInfo) -> None:
+        """Directly inject a skill into the registry (for hot-loading)."""
+        self._skills[skill.name] = skill
+        logger.info("Skills: hot-loaded skill: %s", skill.name)
 
     def format_for_prompt(self, loaded: set[str] | None = None) -> str:
         """Format unloaded skills as a summary list for the system prompt."""

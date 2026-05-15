@@ -1,6 +1,6 @@
 ---
 name: find-tools
-description: Find and evaluate new tools when existing tools can't satisfy the user's request. Use when you need to search for, install, and try CLI tools, Python libraries, or external services.
+description: Find and evaluate new tools when existing tools can't satisfy the user's request. Use when you need to search for, install, and try CLI tools, Python libraries, MCP servers, or skills.
 ---
 
 # Find Tools
@@ -12,8 +12,14 @@ When available tools cannot satisfy the user's request, follow these steps in or
 ### 1. Search for the right tool
 Web search to identify the best tool. Don't guess tool names from memory — your training data may be outdated or miss better alternatives. Prefer battle-tested solutions.
 
-### 2. Try it first — don't ask yet
-Install and execute the tool. Confirm it works before discussing registration. The user doesn't need to be involved at this stage.
+### 2. Install and hot-load — don't ask yet
+Install the tool and make it usable in the current session. Confirm it works before discussing permanent registration. The user doesn't need to be involved at this stage.
+
+Use the appropriate `install_*` tool based on tool type:
+- **Python library** → call `install_func` with name, description, input_schema, and python_code. The tool is immediately callable.
+- **MCP server** → call `install_mcp` with name and config dict. The server's tools are immediately callable.
+- **Skill** → call `install_skill` with name and github_url. The skill is immediately loadable via `load_skill`.
+- **CLI tool** → install via `run_shell` (pip install, etc.), then use cli-register skill to create the YAML definition.
 
 ### 3. Report the result (then continue to step 4)
 Tell the user what happened:
@@ -27,11 +33,10 @@ Do not end your response after reporting success. You must go to step 4.
 
 > "I successfully installed and ran [tool name]. Would you like me to register this tool so I can reuse it in future sessions?"
 
-Then present the registration options (choose the most relevant one based on what you installed):
-
-- Python library → `qd_evolve/tools/<name>.py`
-- CLI tool → use cli-register → `tools/cli/<name>.yaml`
-- MCP server → `tools/mcp/<name>.json`
-- Skill → `tools/skills/<name>/`
+Then present the registration action (choose the most relevant one based on what you installed):
+- Python library → call `register_func` with name
+- MCP server → call `register_mcp` with name
+- Skill → call `register_skill` with name
+- CLI tool → use cli-register skill
 
 Do not finish your response without asking this registration question. If you skip this, you have not followed the skill correctly.

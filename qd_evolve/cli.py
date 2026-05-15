@@ -497,6 +497,7 @@ async def _async_chat_loop(
     memory: MemoryStore,
     template_mgr: PromptTemplateManager,
     bridges: list[Any],
+    staged_bridges: list[Any],
     providers: ProviderRegistry,
     output_file: Any,
 ) -> None:
@@ -627,11 +628,13 @@ async def _async_chat_loop(
                 pass
         console.print("\n[dim]Goodbye![/dim]")
 
-    for b in bridges:
+    for b in bridges + staged_bridges:
         try:
             b.disconnect(shutdown=True)
         except Exception:
             logger.debug("shutdown: bridge disconnect failed for %s", b, exc_info=True)
+    from qd_evolve.tools.staging import cleanup_staging
+    cleanup_staging()
     memory.close()
     if output_file:
         output_file.close()
@@ -695,6 +698,11 @@ def chat(
     set_preload_tools(loaded_tool_names)
     from qd_evolve.tools.cli_loader import set_cli_registry
     set_cli_registry(cli_registry)
+    from qd_evolve.tools.install_skill import set_skill_registry as set_install_skill_registry
+    set_install_skill_registry(skill_registry)
+    from qd_evolve.tools.install_mcp import set_staged_bridges
+    staged_bridges: list[Any] = []
+    set_staged_bridges(staged_bridges)
 
     # 7. System prompt via Jinja2 template
     python_cmd = _detect_python_cmd()
@@ -804,7 +812,7 @@ def chat(
 
     asyncio.run(_async_chat_loop(
         input_session, agent, settings, skill_registry, cli_registry,
-        memory, template_mgr, bridges, providers, output_file,
+        memory, template_mgr, bridges, staged_bridges, providers, output_file,
     ))
 
 

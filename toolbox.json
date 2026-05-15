@@ -10,7 +10,13 @@
     "list_directory": "disabled",
     "execute_shell_command": "disabled",
     "run_shell": "preload",
-    "fetch": "disabled"
+    "fetch": "disabled",
+    "install_func": "preload",
+    "register_func": "preload",
+    "install_skill": "preload",
+    "register_skill": "preload",
+    "install_mcp": "preload",
+    "register_mcp": "preload"
   },
   "mcp_servers": {},
   "cli": {},

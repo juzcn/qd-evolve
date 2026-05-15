@@ -20,6 +20,7 @@ Multi-provider AI agent with tool use, skills, MCP integration, and CLI interfac
 - **Auto recall** — Relevant past conversations auto-injected into system prompt
 - **Per-turn token stats** — Input/output tracking with context window usage
 - **Heartbeat** — Idle detection with LLM-driven heartbeat messages; silent dot counter in terminal; configurable via `heartbeat_idle_seconds`
+- **Hot-loading** — `install_func/install_mcp/install_skill` hot-load new tools into current session without restart; `register_func/register_mcp/register_skill` persist to permanent directories; staging area `.qd-evolve/staging/` for user confirmation before permanent registration
 - **Streaming** — Global `stream` setting for token-by-token output to terminal (OpenAI-compatible providers)
 - **Reasoning/thinking mode** — Per-model `reasoning` flag for DeepSeek-style reasoning_content passthrough with terminal display
 - **Dual embedder support** — sentence-transformers or llama-cpp-python
@@ -85,6 +86,12 @@ qd-evolve --replay in.txt --output out.txt  # replay + capture output
 | `load_skill` | Load full SKILL.md content for a skill on demand |
 | `load_cli` | Load full definition for a CLI tool on demand |
 | `recall_memory` | Search past conversations by query, keywords, and time range |
+| `install_func` | Install + hot-load a Python-based func tool |
+| `register_func` | Persist a staged func tool to permanent directory |
+| `install_mcp` | Install + hot-load an MCP server |
+| `register_mcp` | Persist a staged MCP config to permanent directory |
+| `install_skill` | Install + hot-load a skill from a GitHub repo |
+| `register_skill` | Persist a staged skill to permanent directory |
 
 ## Bridge Protocol
 
@@ -274,6 +281,13 @@ qd_evolve/
     skill_loader.py  — load_skill (on-demand skill content)
     cli_loader.py    — load_cli (on-demand CLI tool info)
     recall_memory.py — recall_memory (semantic + keyword search)
+    install_func.py  — install_func + hot-load via importlib
+    register_func.py — register_func (staging → permanent)
+    install_mcp.py   — install_mcp + hot-load via MCPToolBridge
+    register_mcp.py  — register_mcp (staging → permanent)
+    install_skill.py — install_skill + hot-load from GitHub
+    register_skill.py — register_skill (staging → permanent)
+    staging.py       — staging directory paths and cleanup
   agent.py           — Agent loop (openai_completion, openai_response, anthropic)
   cli.py             — typer CLI with slash commands, toolbox subcommand
   toolbox.py         — Toolbox state management (toolbox.json)

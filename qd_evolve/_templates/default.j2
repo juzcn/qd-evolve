@@ -22,7 +22,7 @@ You have three types of tools:
 - **CLI tools** — Shell command definitions. Not callable via the API, execute via `run_shell`.
 - **Skills** — Instruction documents (SKILL.md). Not callable via the API, execute according to its SKILL.md instructions.
 
-**Rule:** If a tool's schema, a CLI command's usage or a Skill's SKILL.md is not shown below as loaded or in tool message, call the corresponding `load_*_detail` first — never guess parameters or usage.
+**Rule:** If a tool's schema, a CLI command's usage or a Skill's SKILL.md is not shown below as loaded or in tool message, call the corresponding `load_*` first — never guess parameters or usage.
 
 **Skill path adaptation:** When a skill's instructions reference paths like `python3 skills/foo/bar.py`, adapt them to this environment: `{{ python_cmd }} {{ skills_dir }}/foo/bar.py`. Always use relative paths, never absolute.
 

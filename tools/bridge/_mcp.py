@@ -35,33 +35,41 @@ def _expand_env(value: str) -> str:
 # 鈹€鈹€ discovery 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 
 def discover_mcp_servers(_settings: Any = None) -> list[MCPServerConfig]:
-    """Scan tools/mcp/*.json for MCP server configs."""
+    """Scan tools/mcp/*.json and .qd-evolve/staging/mcp/*.json for MCP server configs."""
     configs: list[MCPServerConfig] = []
-    if not MCP_DIR.exists():
-        logger.debug("MCP: dir %s not found, skipping", MCP_DIR)
-        return configs
+    scan_dirs = [MCP_DIR]
 
-    for json_file in sorted(MCP_DIR.glob("*.json")):
-        try:
-            data = json.loads(json_file.read_text(encoding="utf-8"))
-            servers = _extract_servers(data, json_file.stem)
-            for name, srv in servers.items():
-                config = MCPServerConfig(
-                    name=name,
-                    command=_expand_env(srv.get("command", "")),
-                    args=[_expand_env(a) for a in srv.get("args", [])],
-                    env=srv.get("env", {}),
-                    type=srv.get("type", "stdio"),
-                    url=_expand_env(srv.get("url", "")),
-                    headers={k: _expand_env(v) for k, v in srv.get("headers", {}).items()},
-                    timeout=float(srv.get("timeout", 30)),
-                    sse_read_timeout=float(srv.get("sse_read_timeout", 300)),
-                    terminate_on_close=bool(srv.get("terminate_on_close", True)),
-                )
-                configs.append(config)
-                logger.info("MCP: discovered server '%s' from %s", name, json_file.name)
-        except Exception:
-            logger.exception("MCP: failed to parse %s", json_file.name)
+    from qd_evolve.tools.staging import staging_mcp_dir
+    staging = staging_mcp_dir()
+    if staging.is_dir():
+        scan_dirs.append(staging)
+
+    for mcp_dir in scan_dirs:
+        if not mcp_dir.exists():
+            logger.debug("MCP: dir %s not found, skipping", mcp_dir)
+            continue
+
+        for json_file in sorted(mcp_dir.glob("*.json")):
+            try:
+                data = json.loads(json_file.read_text(encoding="utf-8"))
+                servers = _extract_servers(data, json_file.stem)
+                for name, srv in servers.items():
+                    config = MCPServerConfig(
+                        name=name,
+                        command=_expand_env(srv.get("command", "")),
+                        args=[_expand_env(a) for a in srv.get("args", [])],
+                        env=srv.get("env", {}),
+                        type=srv.get("type", "stdio"),
+                        url=_expand_env(srv.get("url", "")),
+                        headers={k: _expand_env(v) for k, v in srv.get("headers", {}).items()},
+                        timeout=float(srv.get("timeout", 30)),
+                        sse_read_timeout=float(srv.get("sse_read_timeout", 300)),
+                        terminate_on_close=bool(srv.get("terminate_on_close", True)),
+                    )
+                    configs.append(config)
+                    logger.info("MCP: discovered server '%s' from %s", name, json_file.name)
+            except Exception:
+                logger.exception("MCP: failed to parse %s", json_file.name)
     return configs
 
 
