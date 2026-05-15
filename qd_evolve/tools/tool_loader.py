@@ -26,8 +26,8 @@ def _load_tool_detail(name: str) -> str:
 
 registry = get_registry()
 registry.register(
-    name="load_func_tool_detail",
-    description="Load the full schema and description for a func tool by name. Returns name, description, and input_schema.",
+    name="load_func",
+    description="Load the full schema for a func tool by name. Returns name, description, and input_schema.",
     handler=_load_tool_detail,
     input_schema={
         "type": "object",

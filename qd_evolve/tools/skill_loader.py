@@ -12,7 +12,7 @@ def set_skill_registry(registry) -> None:
     _skill_registry = registry
 
 
-def _load_skill_detail(name: str) -> str:
+def _load_skill(name: str) -> str:
     if _skill_registry is None:
         return "Error: skill registry not initialized"
     skill = _skill_registry.get_skill(name)
@@ -23,9 +23,9 @@ def _load_skill_detail(name: str) -> str:
 
 registry = get_registry()
 registry.register(
-    name="load_skill_detail",
+    name="load_skill",
     description="Load the full instructions for a skill by name. Returns the complete SKILL.md content.",
-    handler=_load_skill_detail,
+    handler=_load_skill,
     input_schema={
         "type": "object",
         "properties": {

@@ -13,7 +13,7 @@ def set_cli_registry(registry) -> None:
     _cli_registry = registry
 
 
-def _load_cli_detail(name: str) -> str:
+def _load_cli(name: str) -> str:
     if _cli_registry is None:
         return "Error: CLI registry not initialized"
     detail = _cli_registry.get_detail(name)
@@ -25,9 +25,9 @@ def _load_cli_detail(name: str) -> str:
 
 registry = get_registry()
 registry.register(
-    name="load_cli_detail",
+    name="load_cli",
     description="Load the full definition for a CLI tool by name. Returns name, command, description, help_summary, and examples.",
-    handler=_load_cli_detail,
+    handler=_load_cli,
     input_schema={
         "type": "object",
         "properties": {

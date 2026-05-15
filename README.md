@@ -10,9 +10,9 @@ Multi-provider AI agent with tool use, skills, MCP integration, and CLI interfac
 - **OAT bridge** — basic-open-agent-tools (boat) + coding-open-agent-tools (coat) loaded in-process, no subprocess latency
 - **Toolbox TUI** — `qd-evolve toolbox` (Textual) for interactive enable/disable/preload management across all tool types
 - **Toolbox config** — `toolbox.json` manages which tools/skills/CLI/bridges/MCP are enabled, disabled, or preloaded
-- **On-demand tool loading** — Tools start with name+description only; full schema loaded via `load_tool_detail`
-- **Skill system** — SKILL.md files from `tools/skills/`, injected into system prompt; `load_skill_detail` for full content
-- **CLI tools** — YAML definitions in `tools/cli/`, loaded via `load_cli_detail`
+- **On-demand loading** — Tools start with name+description only. Call `load_func` to activate a tool's schema, `load_skill` for SKILL.md instructions, or `load_cli` for CLI usage. Loaded content is delivered via tool message, keeping the system prompt lean.
+- **Skill system** — SKILL.md files from `tools/skills/`, injected into system prompt; `load_skill` for full content
+- **CLI tools** — YAML definitions in `tools/cli/`, loaded via `load_cli`
 - **MCP integration** — stdio, SSE, StreamableHTTP, WebSocket; env var expansion in config; clean tool names (no prefix); disabled servers skipped entirely
 - **Jinja2 prompt templates** — `.j2` files in `templates/`, with builtin fallbacks
 - **Persistent memory** — SQLite + sqlite-vec with BGE-M3 semantic + keyword hybrid search
@@ -81,9 +81,9 @@ qd-evolve --replay in.txt --output out.txt  # replay + capture output
 | `fetch` | Fetch URL content via HTTP GET/POST |
 | `serper_search` | Web search via Serper API (general/images/news) |
 | `serper_scrape` | Scrape webpage content |
-| `load_tool_detail` | Load full schema for a tool on demand |
-| `load_skill_detail` | Load full SKILL.md content for a skill on demand |
-| `load_cli_detail` | Load full definition for a CLI tool on demand |
+| `load_func` | Load full schema for a func tool on demand |
+| `load_skill` | Load full SKILL.md content for a skill on demand |
+| `load_cli` | Load full definition for a CLI tool on demand |
 | `recall_memory` | Search past conversations by query, keywords, and time range |
 
 ## Bridge Protocol
@@ -164,7 +164,7 @@ Config in `tools/bridge/oat.json`:
 
 ## CLI Tools
 
-CLI tools are YAML definitions in `tools/cli/` that describe how to use command-line programs. They are **not** tool calls — the LLM calls `load_cli_detail` to get usage info and examples, then executes via `run_shell`.
+CLI tools are YAML definitions in `tools/cli/` that describe how to use command-line programs. They are **not** tool calls — the LLM calls `load_cli` to get usage info and examples, then executes via `run_shell`.
 
 ```yaml
 # tools/cli/pandoc.yaml
@@ -186,7 +186,7 @@ Use the `cli-register` skill to generate YAML from `--help` output automatically
 
 ## Skills
 
-Skills are directories under `tools/skills/` containing a `SKILL.md` file. They are **not** tool calls — the LLM reads the summary in the system prompt and uses `load_skill_detail` to get full instructions when needed. Skill state (enabled/disabled/preloaded) is managed via `toolbox.json` or `qd-evolve toolbox`.
+Skills are directories under `tools/skills/` containing a `SKILL.md` file. They are **not** tool calls — the LLM reads the summary in the system prompt and uses `load_skill` to get full instructions when needed. Skill state (enabled/disabled/preloaded) is managed via `toolbox.json` or `qd-evolve toolbox`.
 
 ```
 tools/skills/
@@ -211,11 +211,11 @@ Jinja2 templates in `templates/` (user) or `qd_evolve/_templates/` (builtin fall
 
 | Variable | Description |
 |----------|-------------|
-| `unloaded_skills` | Skill summaries not yet loaded (use `load_skill_detail`) |
-| `unloaded_cli` | CLI tool summaries not yet loaded (use `load_cli_detail`) |
-| `unloaded_tools` | Tool name + description list not yet loaded (use `load_tool_detail`) |
-| `loaded_skills` | Full content of preloaded or previously loaded skills |
-| `loaded_cli` | Full content of preloaded or previously loaded CLI tools |
+| `unpreloaded_skills` | Skill summaries not yet loaded (use `load_skill`) |
+| `unpreloaded_cli` | CLI tool summaries not yet loaded (use `load_cli`) |
+| `unloaded_tools` | Func tool name + description list not yet loaded (use `load_func`) |
+| `preloaded_skills` | Full content of preloaded skills |
+| `preloaded_cli` | Full usage info of preloaded CLI tools |
 | `memory_section` | Auto-recalled relevant past conversations (if any) |
 | `os_name` | Platform name (e.g. Windows, Linux) |
 | `python_cmd` | Detected python command |
@@ -270,9 +270,9 @@ qd_evolve/
     file_rw.py       — read_file, write_file, list_directory
     fetch.py         — fetch (httpx)
     search.py        — serper_search, serper_scrape
-    tool_loader.py   — load_tool_detail (on-demand schema loading)
-    skill_loader.py  — load_skill_detail (on-demand skill content)
-    cli_loader.py    — load_cli_detail (on-demand CLI tool info)
+    tool_loader.py   — load_func (on-demand schema loading)
+    skill_loader.py  — load_skill (on-demand skill content)
+    cli_loader.py    — load_cli (on-demand CLI tool info)
     recall_memory.py — recall_memory (semantic + keyword search)
   agent.py           — Agent loop (openai_completion, openai_response, anthropic)
   cli.py             — typer CLI with slash commands, toolbox subcommand

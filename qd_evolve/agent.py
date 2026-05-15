@@ -602,16 +602,16 @@ class Agent:
     def _activate_tool(self, tool_name: str, tool_args: dict, result: str = "") -> None:
         """After a tool call, activate tools and track loaded skill/CLI names."""
         self._active_tools.add(tool_name)
-        if tool_name == "load_func_tool_detail":
+        if tool_name == "load_func":
             target = tool_args.get("name", "")
             if target:
                 self._active_tools.add(target)
                 logger.debug("Agent: activated tool: %s", target)
-        elif tool_name == "load_skill_detail":
+        elif tool_name == "load_skill":
             name = tool_args.get("name", "")
             if name:
                 self._loaded_skill_names.add(name)
-        elif tool_name == "load_cli_detail":
+        elif tool_name == "load_cli":
             name = tool_args.get("name", "")
             if name:
                 self._loaded_cli_names.add(name)
