@@ -1,6 +1,7 @@
 """Install and hot-load an MCP server."""
 
 import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -24,11 +25,22 @@ def _install_mcp(
     pip_packages: list[str] | None = None,
 ) -> str:
     if pip_packages:
-        subprocess.check_call(
-            [sys.executable, "-m", "pip", "install", *pip_packages],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
+        try:
+            uv = shutil.which("uv")
+            if uv:
+                subprocess.check_call(
+                    [uv, "pip", "install", *pip_packages],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+            else:
+                subprocess.check_call(
+                    [sys.executable, "-m", "pip", "install", *pip_packages],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+        except subprocess.CalledProcessError as e:
+            return f"Error: package install failed for {pip_packages} (exit code {e.returncode}). The packages may not exist or be incompatible."
 
     ensure_staging_dirs()
 

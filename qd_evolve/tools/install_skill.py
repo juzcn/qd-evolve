@@ -28,11 +28,22 @@ def _install_skill(
         return "Error: skill registry not initialized"
 
     if pip_packages:
-        subprocess.check_call(
-            [sys.executable, "-m", "pip", "install", *pip_packages],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
+        try:
+            uv = shutil.which("uv")
+            if uv:
+                subprocess.check_call(
+                    [uv, "pip", "install", *pip_packages],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+            else:
+                subprocess.check_call(
+                    [sys.executable, "-m", "pip", "install", *pip_packages],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+        except subprocess.CalledProcessError as e:
+            return f"Error: package install failed for {pip_packages} (exit code {e.returncode}). The packages may not exist or be incompatible."
 
     ensure_staging_dirs()
     staging_dir = staging_skill_dir() / name
@@ -41,11 +52,14 @@ def _install_skill(
     staging_dir.mkdir(parents=True, exist_ok=True)
 
     with tempfile.TemporaryDirectory() as tmp:
-        subprocess.check_call(
-            ["git", "clone", "--depth", "1", github_url, tmp],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
+        try:
+            subprocess.check_call(
+                ["git", "clone", "--depth", "1", github_url, tmp],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except subprocess.CalledProcessError as e:
+            return f"Error: git clone failed for {github_url} (exit code {e.returncode}). The repository may not exist or be inaccessible."
         src = Path(tmp)
         if subdir:
             src = src / subdir

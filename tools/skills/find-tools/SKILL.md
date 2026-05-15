@@ -1,11 +1,15 @@
 ---
 name: find-tools
-description: Find and evaluate new tools when existing tools can't satisfy the user's request. Use when you need to search for, install, and try CLI tools, Python libraries, MCP servers, or skills.
+description: "Find and evaluate new tools when existing tools cannot directly accomplish the task. Use BEFORE guessing commands, pip installing, or improvising with run_shell/run_python. Triggers: format conversion, data analysis, image processing, or any task where no current tool is a direct fit."
 ---
 
 # Find Tools
 
-When available tools cannot satisfy the user's request, follow these steps in order.
+**When to use this skill:** Whenever no existing tool can directly accomplish the user's task. Examples: converting file formats (md→pdf, csv→xlsx), processing images, analyzing data, or any task where you'd otherwise guess commands or pip install blindly.
+
+**Do NOT:** guess tool names, try random pip installs, or improvise with `run_shell`/`run_python` without first searching for a proper solution.
+
+Follow these steps in order.
 
 ## Steps
 

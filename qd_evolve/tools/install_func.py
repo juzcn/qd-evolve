@@ -1,6 +1,8 @@
 """Install and hot-load a Python-based func tool."""
 
 import importlib.util
+import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -9,6 +11,8 @@ from qd_evolve.tools import get_registry
 from qd_evolve.tools.staging import ensure_staging_dirs, staging_func_dir
 
 _TEMPLATE = '''"""Auto-generated func tool: {name}."""
+import json as _json
+
 from qd_evolve.tools import get_registry
 
 
@@ -18,10 +22,10 @@ def _handler(**kwargs) -> str:
 
 registry = get_registry()
 registry.register(
-    name="{name}",
-    description="""{description}""",
+    name={name_repr},
+    description={desc_repr},
     handler=_handler,
-    input_schema={schema},
+    input_schema=_json.loads({schema_json_repr}),
 )
 '''
 
@@ -34,21 +38,37 @@ def _install_func(
     pip_packages: list[str] | None = None,
 ) -> str:
     if pip_packages:
-        subprocess.check_call(
-            [sys.executable, "-m", "pip", "install", *pip_packages],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
+        try:
+            uv = shutil.which("uv")
+            if uv:
+                subprocess.check_call(
+                    [uv, "pip", "install", *pip_packages],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+            else:
+                subprocess.check_call(
+                    [sys.executable, "-m", "pip", "install", *pip_packages],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+        except subprocess.CalledProcessError as e:
+            return f"Error: package install failed for {pip_packages} (exit code {e.returncode}). The packages may not exist or be incompatible."
 
     ensure_staging_dirs()
     code = _TEMPLATE.format(
         name=name,
-        description=description,
-        schema=repr(input_schema),
+        name_repr=repr(name),
+        desc_repr=repr(description),
+        schema_json_repr=repr(json.dumps(input_schema, ensure_ascii=False)),
         handler=python_code,
     )
     dest = staging_func_dir() / f"{name}.py"
     dest.write_text(code, encoding="utf-8")
+
+    if pip_packages:
+        deps_file = staging_func_dir() / f"{name}_deps.json"
+        deps_file.write_text(json.dumps({"pip_packages": pip_packages}), encoding="utf-8")
 
     spec = importlib.util.spec_from_file_location(f"qd_evolve.tools.{name}", dest)
     if spec is None or spec.loader is None:
