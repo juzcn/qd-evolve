@@ -3,10 +3,13 @@
 import shutil
 from pathlib import Path
 
+from qd_evolve.config import FUNC_TOOLS_DIR
 from qd_evolve.tools import get_registry
 from qd_evolve.tools.staging import staging_func_dir
 
-PERM_FUNC_DIR = Path.cwd() / "qd_evolve" / "tools"
+
+def _perm_func_dir() -> Path:
+    return Path.cwd() / FUNC_TOOLS_DIR
 
 
 def _add_to_pyproject(pip_packages: list[str]) -> None:
@@ -48,7 +51,7 @@ def _register_func(name: str) -> str:
     if not staged.is_file():
         return f"Error: staged func tool '{name}' not found in {staging_func_dir()}"
 
-    dest = PERM_FUNC_DIR / f"{name}.py"
+    dest = _perm_func_dir() / f"{name}.py"
     if dest.exists():
         return f"Error: func tool '{name}' already exists at permanent location {dest}"
 

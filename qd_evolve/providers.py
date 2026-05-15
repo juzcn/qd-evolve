@@ -28,7 +28,9 @@ class Provider:
 
     @property
     def api_type(self) -> str:
-        return API_TYPE_MAP.get(self.config.api, "openai_completion")
+        if self.config.api not in API_TYPE_MAP:
+            raise ValueError(f"Unknown api type: '{self.config.api}'. Must be one of: {', '.join(API_TYPE_MAP)}")
+        return API_TYPE_MAP[self.config.api]
 
     def create_client(self) -> Any:
         key = self.api_key
@@ -47,18 +49,24 @@ class Provider:
 
     def get_max_tokens(self, model: str) -> int:
         m = self._find_model(model)
-        return m.max_tokens if m else 4096
+        if m is None:
+            raise KeyError(f"Model not found: {model}")
+        return m.max_tokens
 
     def get_context_window(self, model: str) -> int:
         m = self._find_model(model)
-        return m.context_window if m else 0
+        if m is None:
+            raise KeyError(f"Model not found: {model}")
+        return m.context_window
 
     def get_api_type(self, model: str) -> str:
         return self.api_type
 
     def get_reasoning(self, model: str) -> bool:
         m = self._find_model(model)
-        return m.reasoning if m else False
+        if m is None:
+            raise KeyError(f"Model not found: {model}")
+        return m.reasoning
 
     def _find_model(self, model: str) -> Any:
         for m in self.config.models:

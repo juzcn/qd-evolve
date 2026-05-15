@@ -14,12 +14,14 @@ from typing import Any
 import os as _os
 import re
 
-from qd_evolve.config import MCPServerConfig
+from qd_evolve.config import MCP_DIR, MCPServerConfig
 from qd_evolve.logger import logger
 from qd_evolve.tools import ToolRegistry, get_registry
 from tools.bridge import BridgeManager
 
-MCP_DIR = Path.cwd() / "tools" / "mcp"
+
+def _mcp_dir() -> Path:
+    return Path.cwd() / MCP_DIR
 
 
 def _expand_env(value: str) -> str:
@@ -37,7 +39,7 @@ def _expand_env(value: str) -> str:
 def discover_mcp_servers(_settings: Any = None) -> list[MCPServerConfig]:
     """Scan tools/mcp/*.json and .qd-evolve/staging/mcp/*.json for MCP server configs."""
     configs: list[MCPServerConfig] = []
-    scan_dirs = [MCP_DIR]
+    scan_dirs = [_mcp_dir()]
 
     from qd_evolve.tools.staging import staging_mcp_dir
     staging = staging_mcp_dir()

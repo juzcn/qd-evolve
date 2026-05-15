@@ -7,6 +7,15 @@ from pydantic import BaseModel
 
 CONFIG_PATH = Path("qd-evolve.json")
 
+# Project directory constants — not user-configurable
+SKILLS_DIR = "tools/skills"
+CLI_TOOLS_DIR = "tools/cli"
+FUNC_TOOLS_DIR = "qd_evolve/tools"
+MCP_DIR = "tools/mcp"
+BRIDGE_DIR = "tools/bridge"
+STAGING_DIR = ".qd-evolve/staging"
+MEMORY_DB = "memory.db"
+
 
 class ModelCost(BaseModel):
     input: float = 0.0
@@ -21,7 +30,7 @@ class ModelConfig(BaseModel):
     input: list[str] = ["text"]
     cost: ModelCost = ModelCost()
     context_window: int = 0
-    max_tokens: int = 4096
+    max_tokens: int
 
 
 class ProviderConfig(BaseModel):
@@ -46,21 +55,25 @@ class MCPServerConfig(BaseModel):
 
 
 class EmbeddingsBackend(BaseModel):
-    model_path: str = "BAAI/bge-m3"
-    dim: int = 1024
+    model_path: str
+    dim: int
     backend: str = "sentence-transformers"  # sentence-transformers | llama-cpp-python
-    llama_n_ctx: int = 8192
-    llama_n_batch: int = 512
+    llama_n_ctx: int = 0
+    llama_n_batch: int = 0
 
 
 class MemorySearchConfig(BaseModel):
-    default_embeddings_backend: str = "default"
-    compress_threshold: float = 0.7
-    target_threshold: float = 0.5
+    default_embeddings_backend: str = ""
     auto_recall: bool = True
     auto_recall_top_k: int = 1
     recall_memory_limit: int = 5
     list_all_limit: int = 50
+
+
+class UIConfig(BaseModel):
+    page_size: int = 20
+    refresh_per_second: int = 10
+    prompt_refresh_interval: float = 0.5
 
 
 class LogConfig(BaseModel):
@@ -70,20 +83,17 @@ class LogConfig(BaseModel):
 
 class Settings(BaseModel):
     log: LogConfig = LogConfig()
+    ui: UIConfig = UIConfig()
     env_vars: dict[str, str] = {}
     providers: list[ProviderConfig] = []
     default_provider: str = ""
     default_model: str = ""
-    skills_dir: str = "tools/skills"
-    cli_tools_dir: str = "tools/cli"
-    preload_skills: list[str] = []
-    preload_tools: list[str] = []
-    preload_cli: list[str] = []
-    memory_db: str = "memory.db"
-    embeddings_backends: dict[str, EmbeddingsBackend] = {"default": EmbeddingsBackend()}
+    embeddings_backends: dict[str, EmbeddingsBackend] = {}
     memory_search: MemorySearchConfig = MemorySearchConfig()
-    max_iterations: int = 20
-    tool_output_limit: int = 50000
+    compress_threshold: float = 0.7
+    target_threshold: float = 0.5
+    max_iterations: int
+    tool_output_limit: int
     stream: bool = False
     heartbeat_idle_seconds: int = 0
 

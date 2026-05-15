@@ -153,8 +153,8 @@ class Agent:
         if context_window <= 0:
             return
 
-        compress_threshold = self.settings.memory_search.compress_threshold
-        target_threshold = self.settings.memory_search.target_threshold
+        compress_threshold = self.settings.compress_threshold
+        target_threshold = self.settings.target_threshold
         current_ratio = self.last_input_tokens / context_window
 
         if current_ratio <= compress_threshold:
@@ -401,6 +401,9 @@ class Agent:
                 args_brief = json.dumps(args, ensure_ascii=False)[:60]
                 self._update_status(f"Tool: {tc.function.name}({args_brief})")
                 output = self.registry.call(tc.function.name, **args)
+                limit = self.settings.tool_output_limit
+                if len(output) > limit:
+                    output = output[:limit] + "\n... (truncated)"
                 logger.info("Agent: tool result: %s -> %s", tc.function.name,
                             self._trunc(str(output)))
                 self._activate_tool(tc.function.name, args, output)
@@ -509,6 +512,9 @@ class Agent:
                 args_brief = json.dumps(args, ensure_ascii=False)[:60]
                 self._update_status(f"Tool: {name}({args_brief})")
                 output = self.registry.call(name, **args)
+                limit = self.settings.tool_output_limit
+                if len(output) > limit:
+                    output = output[:limit] + "\n... (truncated)"
                 logger.info("Agent: tool result: %s -> %s", name, self._trunc(str(output)))
                 self._activate_tool(name, args, output)
                 self.messages.append({
@@ -562,6 +568,9 @@ class Agent:
                 args_brief = json.dumps(args, ensure_ascii=False)[:60]
                 self._update_status(f"Tool: {item.name}({args_brief})")
                 result = self.registry.call(item.name, **args)
+                limit = self.settings.tool_output_limit
+                if len(result) > limit:
+                    result = result[:limit] + "\n... (truncated)"
                 logger.info("Agent: tool result: %s -> %s", item.name,
                             self._trunc(str(result)))
                 self._activate_tool(item.name, args, result)

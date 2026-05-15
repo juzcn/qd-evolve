@@ -3,10 +3,13 @@
 import shutil
 from pathlib import Path
 
+from qd_evolve.config import SKILLS_DIR
 from qd_evolve.tools import get_registry
 from qd_evolve.tools.staging import staging_skill_dir
 
-PERM_SKILL_DIR = Path.cwd() / "tools" / "skills"
+
+def _perm_skill_dir() -> Path:
+    return Path.cwd() / SKILLS_DIR
 
 
 def _register_skill(name: str) -> str:
@@ -14,7 +17,7 @@ def _register_skill(name: str) -> str:
     if not staged.is_dir():
         return f"Error: staged skill '{name}' not found in {staging_skill_dir()}"
 
-    dest = PERM_SKILL_DIR / name
+    dest = _perm_skill_dir() / name
     if dest.exists():
         return f"Error: skill '{name}' already exists at permanent location {dest}"
 

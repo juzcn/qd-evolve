@@ -5,7 +5,13 @@
     "level": "INFO",
     "truncation": 500
   },
+  "ui": {
+    "page_size": 20,
+    "refresh_per_second": 10,
+    "prompt_refresh_interval": 0.5
+  },
   "env_vars": {
+    "TQDM_DISABLE": "1",
     "SERPER_API_KEY": "sk-xxx",
     "BAIDU_API_KEY": "sk-xxx",
     "TAVILY_API_KEY": "sk-xxx",
@@ -95,14 +101,13 @@
   },
   "memory_search": {
     "default_embeddings_backend": "bge-m3-local",
-    "compress_threshold": 0.7,
-    "target_threshold": 0.5,
     "auto_recall": true,
     "auto_recall_top_k": 1,
     "recall_memory_limit": 5,
-    "search_by_time_limit": 20,
     "list_all_limit": 50
   },
+  "compress_threshold": 0.7,
+  "target_threshold": 0.5,
   "max_iterations": 20,
   "tool_output_limit": 50000,
   "stream": false,

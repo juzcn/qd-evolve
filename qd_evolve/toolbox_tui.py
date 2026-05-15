@@ -15,7 +15,7 @@ def _build_data(connect_bridges: bool = True) -> tuple[dict, list, list]:
     from qd_evolve.tools import get_registry
     from qd_evolve.skills import SkillRegistry
     from qd_evolve.cli_tools import CLIRegistry
-    from qd_evolve.config import load_settings
+    from qd_evolve.config import SKILLS_DIR, CLI_TOOLS_DIR, load_settings
     from tools.bridge import BridgeManager, BridgeEntry
 
     categories: dict[str, list[tuple[str, str, str]]] = {}
@@ -75,7 +75,7 @@ def _build_data(connect_bridges: bool = True) -> tuple[dict, list, list]:
 
     # CLI tools
     cr = CLIRegistry()
-    cr.discover(settings.cli_tools_dir)
+    cr.discover(CLI_TOOLS_DIR)
     cli_data = [(t.name, t.description or t.command, get_state("cli", t.name))
                 for t in cr._tools.values()]
     if cli_data:
@@ -83,7 +83,7 @@ def _build_data(connect_bridges: bool = True) -> tuple[dict, list, list]:
 
     # Skills
     sr = SkillRegistry()
-    sr.discover_skills(settings.skills_dir)
+    sr.discover_skills(SKILLS_DIR)
     skills = [(s.name, s.summary or "", get_state("skills", s.name))
               for s in sr._skills.values()]
     if skills:

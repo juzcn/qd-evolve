@@ -1,39 +1,41 @@
-"""Staging directory management for hot-loaded tools.
+"""Staging area paths for hot-loaded tools."""
 
-Staging area: .qd-evolve/staging/ (relative to CWD)
-  func/<name>.py          — staged func tool
-  mcp/<name>.json         — staged MCP config
-  skill/<name>/SKILL.md   — staged skill
-"""
-
-import shutil
 from pathlib import Path
 
-_STAGING_DIR = ".qd-evolve/staging"
+from qd_evolve.config import STAGING_DIR
 
 
-def staging_root() -> Path:
-    return Path.cwd() / _STAGING_DIR
+def _staging_base() -> Path:
+    return Path.cwd() / STAGING_DIR
 
 
 def staging_func_dir() -> Path:
-    return staging_root() / "func"
+    d = _staging_base() / "func"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
 
 
 def staging_mcp_dir() -> Path:
-    return staging_root() / "mcp"
+    d = _staging_base() / "mcp"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
 
 
 def staging_skill_dir() -> Path:
-    return staging_root() / "skill"
+    d = _staging_base() / "skill"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
 
 
 def ensure_staging_dirs() -> None:
-    for d in (staging_func_dir(), staging_mcp_dir(), staging_skill_dir()):
-        d.mkdir(parents=True, exist_ok=True)
+    staging_func_dir()
+    staging_mcp_dir()
+    staging_skill_dir()
 
 
 def cleanup_staging() -> None:
-    root = staging_root()
-    if root.exists():
-        shutil.rmtree(root, ignore_errors=True)
+    """Remove the entire staging directory on session exit."""
+    import shutil
+    base = _staging_base()
+    if base.is_dir():
+        shutil.rmtree(base, ignore_errors=True)

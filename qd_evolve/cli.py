@@ -15,7 +15,7 @@ from rich.spinner import Spinner
 from rich.table import Table
 from rich.text import Text
 
-from qd_evolve.config import CONFIG_PATH, Settings, load_settings, save_json
+from qd_evolve.config import CONFIG_PATH, SKILLS_DIR, CLI_TOOLS_DIR, MEMORY_DB, Settings, load_settings, save_json
 from qd_evolve.cli_tools import CLIRegistry
 from qd_evolve.memory import MemoryStore
 from qd_evolve.prompts import PromptTemplateManager
@@ -25,11 +25,7 @@ from qd_evolve.tools import get_registry
 from qd_evolve.toolbox import state_mark
 from tools.bridge import BridgeManager
 
-try:
-    from importlib.metadata import version as _pkg_version
-    __version__ = _pkg_version("qd-evolve")
-except Exception:
-    __version__ = "0.1.0"
+from qd_evolve import __version__
 
 app = typer.Typer(help="qd-evolve AI agent")
 console = Console()
@@ -220,11 +216,11 @@ def _toolbox_list(args: list[str]) -> None:
     from qd_evolve.tools import get_registry
     from qd_evolve.skills import SkillRegistry
     from qd_evolve.cli_tools import CLIRegistry
-    from qd_evolve.config import load_settings
+    from qd_evolve.config import SKILLS_DIR, CLI_TOOLS_DIR, MEMORY_DB, load_settings
     from tools.bridge import BridgeManager
 
-    PAGE_SIZE = 20
     settings = load_settings()
+    PAGE_SIZE = settings.ui.page_size
     section_arg = args[0].lower() if args else "all"
 
     # Build data
@@ -244,14 +240,14 @@ def _toolbox_list(args: list[str]) -> None:
 
     # Skills
     sr = SkillRegistry()
-    sr.discover_skills(settings.skills_dir)
+    sr.discover_skills(SKILLS_DIR)
     skills_data: list[tuple[str, str, str]] = []
     for s in sr._skills.values():
         skills_data.append((s.name, s.summary or "", get_state("skills", s.name)))
 
     # CLI
     cr = CLIRegistry()
-    cr.discover(settings.cli_tools_dir)
+    cr.discover(CLI_TOOLS_DIR)
     cli_data: list[tuple[str, str, str]] = []
     for t in cr._tools.values():
         cli_data.append((t.name, t.description or t.command, get_state("cli", t.name)))
@@ -351,7 +347,7 @@ async def _read_input_async(session: "PromptSession | ReplayInput", dot_counter:
         try:
             result = await session.prompt_async(
                 rprompt=_rprompt,
-                refresh_interval=0.5,
+                refresh_interval=settings.ui.prompt_refresh_interval,
             )
         except KeyboardInterrupt:
             raise EOFError
@@ -597,7 +593,7 @@ async def _async_chat_loop(
             live.update(Group(*items))
         agent.set_status_callback(_on_status)
         agent.set_print_callback(lambda text: (output_lines.append(text), _refresh()))
-        with Live(Group(spinner), console=console, refresh_per_second=10) as live:
+        with Live(Group(spinner), console=console, refresh_per_second=settings.ui.refresh_per_second) as live:
             try:
                 response = agent.run(user_input)
                 skill_registry.reload()
@@ -675,11 +671,11 @@ def chat(
 
     # 3. Skills
     skill_registry = SkillRegistry()
-    skill_registry.discover_skills(settings.skills_dir)
+    skill_registry.discover_skills(SKILLS_DIR)
 
     # 4. CLI tools
     cli_registry = CLIRegistry()
-    cli_registry.discover(settings.cli_tools_dir)
+    cli_registry.discover(CLI_TOOLS_DIR)
 
     # 5. Bridges (MCP + OAT + ...)
     bridges = BridgeManager.connect_all(settings)
@@ -763,7 +759,7 @@ def chat(
         os_name=platform.system(),
         python_cmd=python_cmd,
         cwd=str(Path.cwd()),
-        skills_dir=settings.skills_dir,
+        skills_dir=SKILLS_DIR,
     )
     logger.debug("Agent: system prompt (%d chars)\n%s", len(system_prompt), system_prompt)
 
@@ -772,11 +768,14 @@ def chat(
 
     # 9. Memory
     backend_name = settings.memory_search.default_embeddings_backend
-    backend = settings.embeddings_backends.get(backend_name)
+    backend = settings.embeddings_backends.get(backend_name) if backend_name else None
     if backend is None:
-        console.print(f"[red]Error:[/red] Embeddings backend '{backend_name}' not found in config")
+        if not backend_name:
+            console.print("[red]Error:[/red] No embeddings backend configured. Set memory_search.default_embeddings_backend and embeddings_backends in qd-evolve.json")
+        else:
+            console.print(f"[red]Error:[/red] Embeddings backend '{backend_name}' not found in config")
         raise SystemExit(1)
-    memory = MemoryStore(settings.memory_db, backend,
+    memory = MemoryStore(MEMORY_DB, backend,
                          list_all_limit=settings.memory_search.list_all_limit)
 
     # 10. Inject memory store and defaults into recall_memory tool

@@ -11,13 +11,16 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from qd_evolve.config import BRIDGE_DIR
 from qd_evolve.logger import logger
 from qd_evolve.tools import ToolRegistry, get_registry
 from qd_evolve.utils.adk_output import make_handler
 from qd_evolve.utils.adk_schema import google_adk_to_openai_schema
 from tools.bridge import BridgeManager
 
-OAT_CONFIG = Path(__file__).parent / "oat.json"
+
+def _oat_config_path() -> Path:
+    return Path.cwd() / BRIDGE_DIR / "oat.json"
 
 
 @dataclass
@@ -30,15 +33,16 @@ class OATBridgeConfig:
 # 鈹€鈹€ discovery 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 
 def discover_oat_bridges(_settings: Any = None) -> list[OATBridgeConfig]:
-    """Read tools/bridge/oat.json for OAT bridge configs."""
-    if not OAT_CONFIG.exists():
-        logger.debug("OAT: config not found at %s, skipping", OAT_CONFIG)
+    """Read bridge_dir/oat.json for OAT bridge configs."""
+    oat_config = _oat_config_path()
+    if not oat_config.exists():
+        logger.debug("OAT: config not found at %s, skipping", oat_config)
         return []
 
     try:
-        data = json.loads(OAT_CONFIG.read_text(encoding="utf-8"))
+        data = json.loads(oat_config.read_text(encoding="utf-8"))
     except Exception:
-        logger.exception("OAT: failed to parse %s", OAT_CONFIG)
+        logger.exception("OAT: failed to parse %s", oat_config)
         return []
 
     configs: list[OATBridgeConfig] = []

@@ -13,9 +13,6 @@ from qd_evolve.config import EmbeddingsBackend
 from qd_evolve.logger import logger
 from pydantic import BaseModel
 
-import os
-os.environ.setdefault("TQDM_DISABLE", "1")
-
 
 class MemoryEntry(BaseModel):
     id: int
@@ -74,7 +71,7 @@ class SentenceTransformerEmbedder:
 
 
 class LlamaCppEmbedder:
-    def __init__(self, model_path: str, n_ctx: int = 8192, n_batch: int = 512) -> None:
+    def __init__(self, model_path: str, n_ctx: int, n_batch: int) -> None:
         from llama_cpp import Llama
         self._llm = Llama(model_path=model_path, embedding=True, verbose=False, n_ctx=n_ctx, n_batch=n_batch, n_ubatch=n_batch)
 
@@ -93,7 +90,7 @@ def _create_embedder(backend: EmbeddingsBackend) -> Embedder:
 
 class MemoryStore:
     def __init__(self, db_path: str | Path, backend: EmbeddingsBackend,
-                 list_all_limit: int = 50) -> None:
+                 list_all_limit: int) -> None:
         self._db_path = Path(db_path)
         self._embedding_dim = backend.dim
         self._session_id = datetime.now().isoformat(timespec="seconds")

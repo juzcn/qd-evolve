@@ -16,7 +16,7 @@ Multi-provider AI agent with tool use, skills, MCP integration, and CLI interfac
 - **MCP integration** — stdio, SSE, StreamableHTTP, WebSocket; env var expansion in config; clean tool names (no prefix); disabled servers skipped entirely
 - **Jinja2 prompt templates** — `.j2` files in `templates/`, with builtin fallbacks
 - **Persistent memory** — SQLite + sqlite-vec with BGE-M3 semantic + keyword hybrid search
-- **Context compression** — Auto Q/A removal when tokens exceed threshold
+- **Context compression** — Auto Q/A removal when tokens exceed threshold; set `context_window` to 0 or omit it to disable
 - **Auto recall** — Relevant past conversations auto-injected into system prompt
 - **Per-turn token stats** — Input/output tracking with context window usage
 - **Heartbeat** — Idle detection with LLM-driven heartbeat messages; silent dot counter in terminal; configurable via `heartbeat_idle_seconds`
@@ -237,6 +237,8 @@ All config via `qd-evolve.json`. Key fields:
 |-------|-------------|
 | `default_provider` | Default provider name |
 | `default_model` | Default model name |
+| `providers[].models[].context_window` | Model context window size in tokens; 0 or omitted disables context compression |
+| `providers[].models[].max_tokens` | Model max output tokens (required) |
 | `log.level` | Logging level (DEBUG/INFO/WARNING/ERROR) |
 | `log.truncation` | Max chars per log entry, 0 to disable (default: 500) |
 | `max_iterations` | Maximum tool-calling iterations per turn (default: 20) |
@@ -245,8 +247,8 @@ All config via `qd-evolve.json`. Key fields:
 | `heartbeat_idle_seconds` | Seconds of user idle before heartbeat message; 0 to disable (default: 0) |
 | `env_vars` | Environment variables to inject at startup |
 | `memory_search.default_embeddings_backend` | Name of the embeddings backend to use |
-| `memory_search.compress_threshold` | Token ratio to trigger context compression (default: 0.7) |
-| `memory_search.target_threshold` | Token ratio to compress down to (default: 0.5) |
+| `compress_threshold` | Token ratio to trigger context compression (default: 0.7) |
+| `target_threshold` | Token ratio to compress down to (default: 0.5) |
 | `memory_search.auto_recall` | Enable automatic memory recall before each LLM call (default: true) |
 | `memory_search.auto_recall_top_k` | Number of memory entries to retrieve per auto recall (default: 1) |
 | `memory_search.recall_memory_limit` | Default limit for the recall_memory tool (default: 5) |

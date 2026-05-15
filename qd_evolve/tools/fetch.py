@@ -64,7 +64,7 @@ def _fetch(url: str, method: str = "GET", headers: dict | None = None, body: str
         return text
 
     except httpx.HTTPStatusError as e:
-        return json.dumps({"error": f"HTTP {e.response.status_code}", "body": e.response.text[:2000]}, ensure_ascii=False)
+        return json.dumps({"error": f"HTTP {e.response.status_code}", "body": e.response.text}, ensure_ascii=False)
     except httpx.TimeoutException:
         return json.dumps({"error": f"Request timed out after {timeout}s"})
     except httpx.RequestError as e:
