@@ -582,11 +582,16 @@ async def _async_chat_loop(
             continue
 
         spinner = Spinner("dots", text=Text("Thinking...", style="bold green"))
+        iteration_lines: list[str] = []
         output_lines: list[str] = []
         def _on_status(text: str) -> None:
-            spinner.update(text=Text(text, style="bold green"))
+            iteration_lines.append(text)
+            _refresh()
         def _refresh() -> None:
-            items = [spinner]
+            items = []
+            for line in iteration_lines:
+                items.append(Text(line, style="bold green"))
+            items.append(spinner)
             for line in output_lines:
                 items.append(Text.from_markup(line, style="dim cyan"))
             live.update(Group(*items))
