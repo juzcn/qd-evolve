@@ -6,7 +6,6 @@ from qd_evolve.tools import get_registry
 
 _memory_store: MemoryStore | None = None
 _default_limit: int = 5
-_browse_min_limit: int = 20
 
 
 def set_memory_store(store: MemoryStore) -> None:
@@ -19,9 +18,6 @@ def set_default_limit(limit: int) -> None:
     _default_limit = limit
 
 
-def set_browse_min_limit(limit: int) -> None:
-    global _browse_min_limit
-    _browse_min_limit = limit
 
 
 def _recall_memory(
@@ -37,7 +33,7 @@ def _recall_memory(
 
     # When only time_range (no query/keywords), raise limit for browsing
     if not query and not keywords and time_range:
-        limit = max(limit, _browse_min_limit)
+        pass  # time-only browse, use default limit
 
     entries = _memory_store.recall(
         query=query or None,

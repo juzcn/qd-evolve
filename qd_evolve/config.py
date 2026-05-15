@@ -60,7 +60,6 @@ class MemorySearchConfig(BaseModel):
     auto_recall: bool = True
     auto_recall_top_k: int = 1
     recall_memory_limit: int = 5
-    search_by_time_limit: int = 20
     list_all_limit: int = 50
 
 

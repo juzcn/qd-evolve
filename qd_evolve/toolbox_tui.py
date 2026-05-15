@@ -245,10 +245,6 @@ class ToolboxApp(App):
         elif table.row_count > 0:
             table.move_cursor(row=table.row_count - 1)
 
-    def _current_category_is_bridge(self) -> bool:
-        if not self._categories:
-            return False
-        return self._categories[self._cat_index].startswith("Bridge:")
 
     # ── actions ──────────────────────────────────────────────────────
 

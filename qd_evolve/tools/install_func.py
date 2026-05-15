@@ -5,7 +5,6 @@ import json
 import shutil
 import subprocess
 import sys
-from pathlib import Path
 
 from qd_evolve.tools import get_registry
 from qd_evolve.tools.staging import ensure_staging_dirs, staging_func_dir
