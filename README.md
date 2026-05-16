@@ -25,7 +25,7 @@ Multi-agent AI system with A2A protocol, dual transport, tool use, skills, MCP i
 - **Auto recall** — Relevant past conversations auto-injected into system prompt
 - **Per-turn token stats** — Input/output tracking with context window usage
 - **Heartbeat** — Idle detection with LLM-driven heartbeat messages; silent dot counter in terminal; configurable via `heartbeat_idle_seconds`
-- **Hot-loading** — `install_func/install_mcp/install_skill` hot-load new tools into current session without restart; `register_func/register_mcp/register_skill` persist to permanent directories; staging area `.qd-evolve/staging/` for user confirmation before permanent registration
+- **Hot-loading** — `install_func/install_mcp/install_skill` hot-load new tools into current session without restart; `register_func/register_mcp/register_skill` persist to permanent directories; staging area `.qd_evolve/staging/` for user confirmation before permanent registration
 - **Streaming** — Global `stream` setting for token-by-token output to terminal (OpenAI-compatible providers)
 - **Reasoning/thinking mode** — Per-model `reasoning` flag for DeepSeek-style reasoning_content passthrough with terminal display
 - **Dual embedder support** — sentence-transformers or llama-cpp-python
@@ -172,6 +172,7 @@ Full A2A v1.0 spec implementation:
 | Tool | Description |
 |------|-------------|
 | `run_shell` | Execute shell commands with timeout |
+| `run_python` | Execute Python code in isolated subprocess |
 | `read_file` | Read file contents |
 | `write_file` | Write content to a file (creates parent dirs) |
 | `list_directory` | List directory contents |

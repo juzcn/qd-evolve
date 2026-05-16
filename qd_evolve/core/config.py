@@ -11,10 +11,10 @@ CONFIG_PATH = Path("config.json")
 # Project directory constants — not user-configurable
 SKILLS_DIR = "tools/skills"
 CLI_TOOLS_DIR = "tools/cli"
-FUNC_TOOLS_DIR = "qd_evolve/tools"
+FUNC_TOOLS_DIR = "tools/func"
 MCP_DIR = "tools/mcp"
 BRIDGE_DIR = "tools/bridge"
-STAGING_DIR = ".qd-evolve/staging"
+STAGING_DIR = ".qd_evolve/staging"
 DEFAULT_MEMORY_DB = "memory.db"
 LOG_DIR = "logs"
 

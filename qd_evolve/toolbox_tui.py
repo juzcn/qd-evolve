@@ -42,13 +42,22 @@ def _build_data(connect_bridges: bool = True, agent_name: str | None = None) -> 
         for tname in b.tool_names:
             tool_bridge[tname] = getattr(b.config, "name", "")
 
-    # Builtin tools (not from any bridge)
-    builtin = []
+    # System tools — from qd_evolve/tools/ (load_func, install_*, register_*, a2a, etc.)
+    system = []
+    # Func tools — from tools/func/ (run_shell, fetch, etc.)
+    func = []
     for td in registry.list_tools():
         if td.name not in tool_bridge:
-            builtin.append((td.name, td.description or "", get_state("tools", td.name, agent_name=agent_name)))
-    if builtin:
-        categories["Builtin Tools"] = builtin
+            # Check if the tool comes from tools/func/ by looking at its module
+            mod = getattr(td.handler, "__module__", "") or ""
+            if mod.startswith("tools.func."):
+                func.append((td.name, td.description or "", get_state("tools", td.name, agent_name=agent_name)))
+            else:
+                system.append((td.name, td.description or "", get_state("tools", td.name, agent_name=agent_name)))
+    if system:
+        categories["System Tools"] = system
+    if func:
+        categories["Func Tools"] = func
 
     # Bridge tools grouped by bridge name
     bridge_tool_groups: dict[str, list[tuple[str, str, str]]] = {}
@@ -393,9 +402,9 @@ class ToolboxApp(App):
             section = "tools"
             if "(bridge)" in name:
                 section = "bridge"
-            elif cat_name == "CLI Tools":
+            elif cat_name in ("CLI Tools",):
                 section = "cli"
-            elif cat_name == "Skills":
+            elif cat_name in ("Skills",):
                 section = "skills"
             return name, section
         return None, None
