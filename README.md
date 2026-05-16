@@ -6,7 +6,10 @@ Multi-agent AI system with A2A protocol, dual transport, tool use, skills, MCP i
 
 - **Multi-agent architecture** — A2A (Agent-to-Agent) protocol with dual transport: inproc (zero-latency direct call) + HTTP (aiohttp JSON-RPC for cross-machine)
 - **Fully isolated agents** — Each agent has independent messages, memory db, system prompt, and toolbox config
-- **Agent config in config.json** — `agents_config` section with `default_agent`, `agents` list, and `topology` sub-section
+- **Per-agent model config** — Each agent has its own `provider`/`model` in `config.json`; `/models` switches the current agent's model and persists; empty strings fall back to global `default_provider`/`default_model`
+- **Agent config in config.json** — `agents_config` section with `chat_agent` (currently active agent), `agents` list, and `topology` sub-section
+- **ServerConfig** — Structured `host`/`port` per agent (pydantic model, no hardcoded defaults)
+- **API error handling** — LLM API errors caught and returned as error messages instead of crashing the session
 - **A2A interaction tools** — `delegate_to` (blocking), `send_task` (non-blocking), `get_task`, `cancel_task`
 - **Topology config** — `agents_config.topology` defines agent relationships (peer/master-worker) and transport mode per agent pair
 - **Multi-provider, multi-model** — OpenAI Chat Completions, OpenAI Responses API, Anthropic Messages API
@@ -88,16 +91,20 @@ All agent config is in `config.json` under `agents_config`:
 ```json
 {
   "agents_config": {
-    "default_agent": "default",
+    "chat_agent": "default",
     "agents": [
       {
         "name": "default",
         "description": "Default qd-evolve agent",
+        "provider": "",
+        "model": "",
         "server": {"host": "0.0.0.0", "port": 8001}
       },
       {
         "name": "test",
         "description": "Test agent for cross-process A2A",
+        "provider": "baiduqianfancodingplan",
+        "model": "qianfan-code-latest",
         "memory_db": "test_memory.db",
         "a2a_tools": ["delegate_to", "send_task", "get_task", "cancel_task"],
         "server": {"host": "0.0.0.0", "port": 8002}
@@ -182,7 +189,7 @@ Full A2A v1.0 spec implementation:
 
 ### Dual Transport
 
-- **InprocTransport** — Direct `AgentCore.run()` call via `asyncio.to_thread`. Zero network latency for same-machine agents.
+- **InprocTransport** — Direct `AgentCore.run()` call via `asyncio.to_thread`. Zero network latency for same-machine agents. Lazy-loads target agent from config on demand.
 - **HttpTransport** — aiohttp JSON-RPC client for cross-machine agents. Standard A2A protocol.
 - **TransportRouter** — Auto-selects transport based on `agents_config.topology` config. `delegate_to` and other tools only depend on the transport interface.
 
@@ -364,8 +371,8 @@ All config via `config.json`. Key fields:
 
 | Field | Description |
 |-------|-------------|
-| `default_provider` | Default provider name |
-| `default_model` | Default model name |
+| `default_provider` | Default provider name (fallback when agent has no provider set) |
+| `default_model` | Default model name (fallback when agent has no model set) |
 | `providers[].models[].context_window` | Model context window size in tokens; 0 or omitted disables context compression |
 | `providers[].models[].max_tokens` | Model max output tokens (required) |
 | `log.level` | Logging level (DEBUG/INFO/WARNING/ERROR) |
@@ -375,15 +382,18 @@ All config via `config.json`. Key fields:
 | `stream` | Enable token-by-token streaming to terminal (default: false) |
 | `heartbeat_idle_seconds` | Seconds of user idle before heartbeat message; 0 to disable (default: 0) |
 | `env_vars` | Environment variables to inject at startup |
-| `memory_search.default_embeddings_backend` | Name of the embeddings backend to use |
+| `memory_search.embeddings_backend` | Name of the embeddings backend to use |
 | `compress_threshold` | Token ratio to trigger context compression (default: 0.7) |
 | `target_threshold` | Token ratio to compress down to (default: 0.5) |
 | `memory_search.auto_recall` | Enable automatic memory recall before each LLM call (default: true) |
 | `memory_search.auto_recall_top_k` | Number of memory entries to retrieve per auto recall (default: 1) |
 | `memory_search.recall_memory_limit` | Default limit for the recall_memory tool (default: 5) |
-| `memory_search.search_by_time_limit` | Default limit for time-based memory search (default: 20) |
 | `memory_search.list_all_limit` | Default limit for listing all memories (default: 50) |
 | `embeddings_backends` | Dict of named backends with `model_path`, `dim`, `backend`, `llama_n_ctx`, `llama_n_batch` |
+| `agents_config.chat_agent` | Name of the currently active agent |
+| `agents_config.agents[].provider` | Agent-specific provider (empty = fallback to `default_provider`) |
+| `agents_config.agents[].model` | Agent-specific model (empty = fallback to `default_model`) |
+| `agents_config.agents[].server` | `{"host": "...", "port": N}` — ServerConfig for A2A HTTP |
 | `providers[]` | Provider list with api_key, base_url, api type, models |
 
 Provider `api` field: `openai-completions` | `openai-response` | `anthropic`
@@ -406,7 +416,7 @@ qd_evolve/
     transport.py           — Dual transport: InprocTransport, HttpTransport, TransportRouter
     server.py              — A2A HTTP server (aiohttp JSON-RPC)
     registry.py            — AgentRegistry + Topology
-    loader.py              — create_agent, get_agent_entry
+    loader.py              — create_agent_core, get_agent_entry
   _templates/              — Builtin Jinja2 templates (default.j2, heartbeat.j2)
   utils/
     adk_schema.py          — Google ADK → OpenAI JSON Schema converter

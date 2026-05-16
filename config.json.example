@@ -1,156 +1,65 @@
 {
   "_note": "See README.md for full setup instructions.",
-  "_llama_cpp_wheels": "CPU wheels: https://abetlen.github.io/llama-cpp-python/whl/cpu | GGUF models: https://huggingface.co",
-  "log": {
-    "level": "INFO",
-    "truncation": 500
-  },
-  "ui": {
-    "page_size": 20,
-    "refresh_per_second": 10,
-    "prompt_refresh_interval": 0.5
-  },
+  "log": {"level": "INFO", "truncation": 500},
+  "ui": {"page_size": 20, "refresh_per_second": 10, "prompt_refresh_interval": 0.5},
   "env_vars": {
     "TQDM_DISABLE": "1",
-    "SERPER_API_KEY": "sk-xxx",
-    "BAIDU_API_KEY": "sk-xxx",
-    "TAVILY_API_KEY": "sk-xxx",
     "PYTHONIOENCODING": "utf-8",
     "PYTHONUTF8": "1"
   },
   "providers": [
     {
-      "name": "baiduqianfancodingplan",
-      "api_key": "sk-xxx",
-      "base_url": "https://qianfan.baidubce.com/v2/coding",
-      "api": "openai-completions",
-      "models": [
-        {
-          "name": "qianfan-code-latest",
-          "reasoning": false,
-          "input": [
-            "text"
-          ],
-          "cost": {
-            "input": 0.0025,
-            "output": 0.01,
-            "cache_read": 0,
-            "cache_write": 0
-          },
-          "context_window": 98304,
-          "max_tokens": 65536
-        }
-      ]
-    },
-    {
       "name": "deepseek",
-      "api_key": "sk-xxx",
+      "api_key": "YOUR_DEEPSEEK_API_KEY",
       "base_url": "https://api.deepseek.com",
       "api": "openai-completions",
       "models": [
         {
           "name": "deepseek-v4-pro",
           "reasoning": true,
-          "input": [
-            "text"
-          ],
-          "cost": {
-            "input": 0.28,
-            "output": 1.1,
-            "cache_read": 0.07,
-            "cache_write": 0.56
-          },
+          "input": ["text"],
+          "cost": {"input": 0.28, "output": 1.1, "cache_read": 0.07, "cache_write": 0.56},
           "context_window": 1000000,
           "max_tokens": 131072
         }
       ]
-    },
-    {
-      "name": "astroncodingplan",
-      "api_key": "sk-xxx:sk-xxx",
-      "base_url": "https://maas-coding-api.cn-huabei-1.xf-yun.com/v2",
-      "api": "openai-completions",
-      "models": [
-        {
-          "name": "astron-code-latest",
-          "reasoning": false,
-          "input": [
-            "text"
-          ],
-          "cost": {
-            "input": 0,
-            "output": 0,
-            "cache_read": 0,
-            "cache_write": 0
-          },
-          "context_window": 92160,
-          "max_tokens": 32768
-        }
-      ]
     }
   ],
-  "default_provider": "baiduqianfancodingplan",
-  "default_model": "qianfan-code-latest",
+  "default_provider": "deepseek",
+  "default_model": "deepseek-v4-pro",
   "agents_config": {
-    "default_agent": "default",
+    "chat_agent": "default",
     "agents": [
       {
         "name": "default",
         "description": "Default qd-evolve agent",
-        "server": {
-          "host": "0.0.0.0",
-          "port": 8001
-        }
-      },
-      {
-        "name": "test",
-        "description": "Test agent for cross-process A2A",
-        "memory_db": "test_memory.db",
-        "a2a_tools": [
-          "delegate_to",
-          "send_task",
-          "get_task",
-          "cancel_task"
-        ],
-        "server": {
-          "host": "0.0.0.0",
-          "port": 8002
-        }
+        "provider": "",
+        "model": "",
+        "system_prompt_template": "default",
+        "a2a_tools": [],
+        "memory_db": "memory.db",
+        "server": {"host": "0.0.0.0", "port": 8001}
       }
     ],
     "topology": {
       "default_mode": "peer",
       "default_transport": "inproc",
-      "transports": {
-        "default→test": "http",
-        "test→default": "http"
-      },
-      "relations": [
-        {
-          "from": "default",
-          "to": "test",
-          "mode": "peer"
-        }
-      ]
+      "transports": {},
+      "relations": []
     }
   },
   "embeddings_backends": {
     "bge-m3-local": {
       "model_path": "BAAI/bge-m3",
       "dim": 1024,
-      "backend": "sentence-transformers"
-    },
-    "bge-m3-gguf": {
-      "model_path": "bge-m3-q4_k_m.gguf",
-      "dim": 1024,
-      "backend": "llama-cpp-python",
+      "backend": "sentence-transformers",
       "llama_n_ctx": 8192,
       "llama_n_batch": 512
     }
   },
   "memory_search": {
-    "default_embeddings_backend": "bge-m3-local",
-    "auto_recall": true,
+    "embeddings_backend": "bge-m3-local",
+    "auto_recall": false,
     "auto_recall_top_k": 1,
     "recall_memory_limit": 5,
     "list_all_limit": 50
@@ -159,6 +68,6 @@
   "target_threshold": 0.5,
   "max_iterations": 20,
   "tool_output_limit": 50000,
-  "stream": false,
-  "heartbeat_idle_seconds": 0
+  "stream": true,
+  "heartbeat_idle_seconds": 60
 }
