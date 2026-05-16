@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import typer
-from qd_evolve.logger import logger
+from qd_evolve.core.logger import logger
 from rich.console import Console, Group
 from rich.live import Live
 from rich.markup import escape
@@ -15,14 +15,14 @@ from rich.spinner import Spinner
 from rich.table import Table
 from rich.text import Text
 
-from qd_evolve.config import CONFIG_PATH, SKILLS_DIR, CLI_TOOLS_DIR, MEMORY_DB, Settings, load_settings, save_json
+from qd_evolve.core.config import CONFIG_PATH, SKILLS_DIR, CLI_TOOLS_DIR, MEMORY_DB, Settings, load_settings, save_json
 from qd_evolve.cli_tools import CLIRegistry
-from qd_evolve.memory import MemoryStore
-from qd_evolve.prompts import PromptTemplateManager
-from qd_evolve.providers import ProviderRegistry
+from qd_evolve.core.memory import MemoryStore
+from qd_evolve.core.prompts import PromptTemplateManager
+from qd_evolve.core.providers import ProviderRegistry
 from qd_evolve.skills import SkillRegistry
-from qd_evolve.tools import get_registry
-from qd_evolve.toolbox import state_mark
+from qd_evolve.core.registry import get_registry
+from qd_evolve.core.toolbox import state_mark
 from tools.bridge import BridgeManager
 
 from qd_evolve import __version__
@@ -73,6 +73,7 @@ SLASH_COMMANDS = {
     "/status": "Show runtime status (loaded tools, skills, CLI)",
     "/memory": "List saved memories",
     "/reset": "Reset conversation history",
+    "/agents": "List discovered agents",
     "/help": "Show available commands",
 }
 
@@ -103,7 +104,7 @@ def toolbox(
     Opens a Textual TUI by default. Use --no-tui for interactive shell.
     --toggle <name> for quick non-interactive toggle.
     """
-    from qd_evolve.toolbox import toggle as tb_toggle
+    from qd_evolve.core.toolbox import toggle as tb_toggle
 
     # Quick toggle mode
     if toggle:
@@ -125,7 +126,7 @@ def toolbox(
 
 def _toolbox_interactive() -> None:
     """Interactive toolbox shell."""
-    from qd_evolve.toolbox import (
+    from qd_evolve.core.toolbox import (
         get_state, set_state, toggle as tb_toggle,
     )
 
@@ -212,11 +213,11 @@ def _toolbox_help() -> None:
 
 
 def _toolbox_list(args: list[str]) -> None:
-    from qd_evolve.toolbox import get_state, get_disabled_bridges
-    from qd_evolve.tools import get_registry
+    from qd_evolve.core.toolbox import get_state, get_disabled_bridges
+    from qd_evolve.core.registry import get_registry
     from qd_evolve.skills import SkillRegistry
     from qd_evolve.cli_tools import CLIRegistry
-    from qd_evolve.config import SKILLS_DIR, CLI_TOOLS_DIR, MEMORY_DB, load_settings
+    from qd_evolve.core.config import SKILLS_DIR, CLI_TOOLS_DIR, MEMORY_DB, load_settings
     from tools.bridge import BridgeManager
 
     settings = load_settings()
@@ -328,7 +329,21 @@ def _make_prompt_session() -> "PromptSession":
         sentence=True,
         meta_dict=SLASH_COMMANDS,
     )
-    return PromptSession("You> ", completer=completer)
+
+    # On Windows with TERM=xterm-256color (VS Code/Git Bash), prompt_toolkit
+    # tries Win32Output which fails. Fall back to Vt100_Output + Vt100Input.
+    import sys
+    import os
+    try:
+        return PromptSession("You> ", completer=completer)
+    except Exception:
+        if os.name == "nt" and os.environ.get("TERM"):
+            from prompt_toolkit.output.vt100 import Vt100_Output
+            from prompt_toolkit.input.vt100 import Vt100Input
+            output = Vt100_Output.from_pty(sys.stdout)
+            input_stream = Vt100Input(sys.stdin)
+            return PromptSession("You> ", completer=completer, output=output, input=input_stream)
+        raise
 
 
 async def _read_input_async(session: "PromptSession | ReplayInput", dot_counter: list[int] | None = None) -> str:
@@ -347,7 +362,7 @@ async def _read_input_async(session: "PromptSession | ReplayInput", dot_counter:
         try:
             result = await session.prompt_async(
                 rprompt=_rprompt,
-                refresh_interval=settings.ui.prompt_refresh_interval,
+                refresh_interval=1,
             )
         except KeyboardInterrupt:
             raise EOFError
@@ -480,6 +495,21 @@ def _handle_slash_command(
         for t in tools:
             desc = t.description or t.command
             lines.append(f"  [cyan]{t.name}[/cyan] —{desc}")
+        return "\n".join(lines)
+    if name == "/agents":
+        from qd_evolve.agents.loader import discover_agents
+        from qd_evolve.agents.registry import get_agent_registry
+        discovered = discover_agents()
+        if not discovered:
+            return "  (no agents discovered in agents/ directory)"
+        ar = get_agent_registry()
+        lines = []
+        for n in discovered:
+            a = ar.get(n)
+            if a:
+                lines.append(f"  [cyan]{n}[/cyan] — {a.card.description} (registered)")
+            else:
+                lines.append(f"  [cyan]{n}[/cyan] — (not registered)")
         return "\n".join(lines)
     return None
 
@@ -641,16 +671,50 @@ async def _async_chat_loop(
         output_file.close()
 
 
+@app.command()
+def serve() -> None:
+    """Start all local Agent processes (reads topology.json)."""
+    from qd_evolve.agents.registry import Topology
+    from qd_evolve.agents.launcher import AgentLauncher
+
+    topology = Topology("agents/topology.json")
+    if not topology.agents:
+        console.print("[yellow]No agents in topology.json — nothing to serve.[/yellow]")
+        raise SystemExit(0)
+
+    launcher = AgentLauncher(topology)
+    processes = launcher.launch_all()
+    if not processes:
+        console.print("[yellow]No local agents to launch.[/yellow]")
+        raise SystemExit(0)
+
+    console.print(f"[bold green]Launched {len(processes)} agent(s):[/bold green]")
+    for name, status in launcher.status().items():
+        console.print(f"  [cyan]{name}[/cyan] — {status}")
+
+    try:
+        console.print("[dim]Press Ctrl+C to stop all agents[/dim]")
+        import signal
+        signal.pause()  # Wait for Ctrl+C
+    except KeyboardInterrupt:
+        console.print("\n[dim]Stopping...[/dim]")
+    launcher.stop_all()
+    console.print("[dim]All agents stopped.[/dim]")
+
+
 @app.callback(invoke_without_command=True)
 def chat(
     ctx: typer.Context,
+    agent: str = typer.Option("", "--agent", help="Agent name to run (from agents/<name>/agent.json)"),
     replay: Path | None = typer.Option(None, "--replay", help="Replay inputs from file"),
     output: Path | None = typer.Option(None, "--output", help="Capture output to file"),
 ) -> None:
     if ctx.invoked_subcommand is not None:
         return  # toolbox or another subcommand was invoked
-    from qd_evolve.agent import Agent
-    from qd_evolve.logger import setup_logging
+    from qd_evolve.agent.agent import Agent
+    from qd_evolve.core.logger import setup_logging
+
+    agent_name = agent  # save --agent value before overwriting with Agent instance
 
     # 1. Config & logging
     setup_logging("WARNING")
@@ -680,17 +744,17 @@ def chat(
     # 5. Bridges (MCP + OAT + ...)
     bridges = BridgeManager.connect_all(settings)
 
-    # 5b. Apply toolbox state from toolbox.json
-    from qd_evolve.toolbox import (
+    # 5b. Apply toolbox state from toolbox.json (per-agent if --agent given)
+    from qd_evolve.core.toolbox import (
         apply_to_tools, apply_to_cli_registry, apply_to_skill_registry,
         get_preloaded,
     )
-    loaded_tool_names: set[str] = get_preloaded("tools")
-    loaded_skill_names: set[str] = get_preloaded("skills")
-    loaded_cli_names: set[str] = get_preloaded("cli")
-    apply_to_tools(registry, loaded_tool_names)
-    apply_to_cli_registry(cli_registry, loaded_cli_names)
-    apply_to_skill_registry(skill_registry, loaded_skill_names)
+    loaded_tool_names: set[str] = get_preloaded("tools", agent_name=agent_name or None)
+    loaded_skill_names: set[str] = get_preloaded("skills", agent_name=agent_name or None)
+    loaded_cli_names: set[str] = get_preloaded("cli", agent_name=agent_name or None)
+    apply_to_tools(registry, loaded_tool_names, agent_name=agent_name or None)
+    apply_to_cli_registry(cli_registry, loaded_cli_names, agent_name=agent_name or None)
+    apply_to_skill_registry(skill_registry, loaded_skill_names, agent_name=agent_name or None)
 
     # 6. Inject registries into loader tools
     from qd_evolve.tools.skill_loader import set_skill_registry
@@ -767,6 +831,15 @@ def chat(
     providers = ProviderRegistry(settings)
 
     # 9. Memory
+    # Use per-agent memory db if --agent is specified and agent.json has memory config
+    memory_db = MEMORY_DB
+    if agent_name:
+        from qd_evolve.agents.loader import load_agent_config
+        from pathlib import Path as _P
+        _card, _config = load_agent_config(_P("agents") / agent_name)
+        if _config.memory and _config.memory.get("db"):
+            memory_db = _config.memory["db"]
+
     backend_name = settings.memory_search.default_embeddings_backend
     backend = settings.embeddings_backends.get(backend_name) if backend_name else None
     if backend is None:
@@ -775,7 +848,7 @@ def chat(
         else:
             console.print(f"[red]Error:[/red] Embeddings backend '{backend_name}' not found in config")
         raise SystemExit(1)
-    memory = MemoryStore(MEMORY_DB, backend,
+    memory = MemoryStore(memory_db, backend,
                          list_all_limit=settings.memory_search.list_all_limit)
 
     # 10. Inject memory store and defaults into recall_memory tool
@@ -791,8 +864,9 @@ def chat(
                   template_mgr=template_mgr)
 
     model_info = escape(f"[{settings.default_provider}/{settings.default_model}]")
+    agent_label = f" ({agent_name})" if agent_name else ""
     console.print(Panel(
-        f"qd-evolve v{__version__} {model_info} - /help for commands, /quit to leave",
+        f"qd-evolve v{__version__}{agent_label} {model_info} - /help for commands, /quit to leave",
         style="bold green",
     ))
 

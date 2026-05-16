@@ -3,7 +3,7 @@
 import shutil
 from pathlib import Path
 
-from qd_evolve.config import SKILLS_DIR
+from qd_evolve.core.config import SKILLS_DIR
 from qd_evolve.tools import get_registry
 from qd_evolve.tools.staging import staging_skill_dir
 

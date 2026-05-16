@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Protocol
 
-from qd_evolve.logger import logger
+from qd_evolve.core.logger import logger
 
 BRIDGE_DIR = Path(__file__).parent
 
@@ -85,7 +85,7 @@ class _BridgeManager:
     def connect_all(cls, settings: Any) -> list[Bridge]:
         """Discover and connect all registered bridge types. Returns flat list."""
         cls._ensure_loaded()
-        from qd_evolve.toolbox import get_disabled_bridges
+        from qd_evolve.core.toolbox import get_disabled_bridges
 
         disabled = get_disabled_bridges()
         all_bridges: list[Bridge] = []

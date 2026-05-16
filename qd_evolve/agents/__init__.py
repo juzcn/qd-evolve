@@ -1,0 +1,1 @@
+"""Multi-Agent management — registry, loader, launcher."""

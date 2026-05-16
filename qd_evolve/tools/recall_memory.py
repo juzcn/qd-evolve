@@ -1,7 +1,7 @@
 ﻿"""recall_memory tool 鈥?search past conversation memories."""
 
 
-from qd_evolve.memory import MemoryStore
+from qd_evolve.core.memory import MemoryStore
 from qd_evolve.tools import get_registry
 
 _memory_store: MemoryStore | None = None

@@ -7,7 +7,7 @@ from textual.containers import Horizontal
 from textual.screen import ModalScreen
 from textual.widgets import DataTable, Footer, Header, Input, Static
 
-from qd_evolve.toolbox import get_state, set_state
+from qd_evolve.core.toolbox import get_state, set_state
 
 
 def _build_data(connect_bridges: bool = True) -> tuple[dict, list, list]:
@@ -15,7 +15,7 @@ def _build_data(connect_bridges: bool = True) -> tuple[dict, list, list]:
     from qd_evolve.tools import get_registry
     from qd_evolve.skills import SkillRegistry
     from qd_evolve.cli_tools import CLIRegistry
-    from qd_evolve.config import SKILLS_DIR, CLI_TOOLS_DIR, load_settings
+    from qd_evolve.core.config import SKILLS_DIR, CLI_TOOLS_DIR, load_settings
     from tools.bridge import BridgeManager, BridgeEntry
 
     categories: dict[str, list[tuple[str, str, str]]] = {}
@@ -60,7 +60,7 @@ def _build_data(connect_bridges: bool = True) -> tuple[dict, list, list]:
             )
 
     # Bridge entries (with bridge-level state)
-    from qd_evolve.toolbox import get_disabled_bridges
+    from qd_evolve.core.toolbox import get_disabled_bridges
     disabled_br = get_disabled_bridges()
     for be in bridge_entries:
         bridge_key = f"{be.bridge_type}:{be.name}"

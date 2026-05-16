@@ -43,7 +43,7 @@ def _run_shell(command: str, shell: bool = True, timeout: int | None = None) -> 
     import locale
 
     if timeout is None:
-        from qd_evolve.toolbox import get_default
+        from qd_evolve.core.toolbox import get_default
         timeout = get_default("timeout", 0) or None
 
     try:

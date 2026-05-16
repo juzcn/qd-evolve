@@ -6,7 +6,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from qd_evolve.config import MCPServerConfig
+from qd_evolve.core.config import MCPServerConfig
 from qd_evolve.tools import get_registry
 from qd_evolve.tools.staging import ensure_staging_dirs, staging_mcp_dir
 from tools.bridge._mcp import MCPToolBridge, _expand_env, _extract_servers
