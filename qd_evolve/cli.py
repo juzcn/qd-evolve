@@ -544,7 +544,7 @@ async def _async_chat_loop(
     settings: Settings,
     skill_registry: SkillRegistry,
     cli_registry: CLIRegistry,
-    memory: MemoryStore,
+    memory: MemoryStore | None,
     template_mgr: PromptTemplateManager,
     bridges: list[Any],
     staged_bridges: list[Any],
@@ -706,7 +706,8 @@ async def _async_chat_loop(
             logger.debug("shutdown: bridge disconnect failed for %s", b, exc_info=True)
     from qd_evolve.tools.staging import cleanup_staging
     cleanup_staging()
-    memory.close()
+    if memory:
+        memory.close()
     if output_file:
         output_file.close()
 
@@ -850,24 +851,32 @@ def chat(
     # 10. Provider
     providers = ProviderRegistry(settings)
 
-    # 11. Memory — use per-agent db from config
+    # 11. Memory — use per-agent db from config; empty/None disables memory
     memory_db = agent_entry.memory_db if agent_entry else DEFAULT_MEMORY_DB
 
-    backend_name = settings.memory_search.embeddings_backend
-    backend = settings.embeddings_backends.get(backend_name) if backend_name else None
-    if backend is None:
-        if not backend_name:
-            console.print("[red]Error:[/red] No embeddings backend configured. Set memory_search.default_embeddings_backend and embeddings_backends in config.json")
-        else:
-            console.print(f"[red]Error:[/red] Embeddings backend '{backend_name}' not found in config.json")
-        raise SystemExit(1)
-    memory = MemoryStore(memory_db, backend,
-                         list_all_limit=settings.memory_search.list_all_limit)
+    if memory_db:
+        backend_name = settings.memory_search.embeddings_backend
+        backend = settings.embeddings_backends.get(backend_name) if backend_name else None
+        if backend is None:
+            if not backend_name:
+                console.print("[red]Error:[/red] No embeddings backend configured. Set memory_search.default_embeddings_backend and embeddings_backends in config.json")
+            else:
+                console.print(f"[red]Error:[/red] Embeddings backend '{backend_name}' not found in config.json")
+            raise SystemExit(1)
+        memory = MemoryStore(memory_db, backend,
+                             list_all_limit=settings.memory_search.list_all_limit)
 
-    # 12. Inject memory store and defaults into recall_memory tool
-    from qd_evolve.tools.recall_memory import set_memory_store, set_default_limit
-    set_memory_store(memory)
-    set_default_limit(settings.memory_search.recall_memory_limit)
+        # 12. Inject memory store and defaults into recall_memory tool
+        from qd_evolve.tools.recall_memory import set_memory_store, set_default_limit
+        set_memory_store(memory)
+        set_default_limit(settings.memory_search.recall_memory_limit)
+    else:
+        memory = None
+        logger.info("Memory: disabled (memory_db is empty/null in config)")
+        # Disable recall_memory tool so LLM won't attempt to call it
+        recall_td = registry.get("recall_memory")
+        if recall_td:
+            recall_td.enabled = False
 
     agent_core = Agent(settings=settings, registry=registry, providers=providers, memory=memory,
                        default_system_prompt=system_prompt,

@@ -24,7 +24,7 @@ Multi-agent AI system with A2A protocol, dual transport, tool use, skills, MCP i
 - **CLI tools** — YAML definitions in `tools/cli/`, loaded via `load_cli`
 - **MCP integration** — stdio, SSE, StreamableHTTP, WebSocket; env var expansion in config; clean tool names (no prefix); disabled servers skipped entirely
 - **Jinja2 prompt templates** — `.j2` files in `templates/`, with builtin fallbacks
-- **Persistent memory** — SQLite + sqlite-vec with BGE-M3 semantic + keyword hybrid search
+- **Persistent memory** — SQLite + sqlite-vec with BGE-M3 semantic + keyword hybrid search; disable per-agent by setting `memory_db` to `""` or `null`
 - **Context compression** — Auto Q/A removal when tokens exceed threshold; set `context_window` to 0 or omit it to disable
 - **Auto recall** — Relevant past conversations auto-injected into system prompt
 - **Per-turn token stats** — Input/output tracking with context window usage
@@ -122,7 +122,7 @@ All agent config is in `config.json` under `agents_config`:
 
 - `provider`/`model`: empty = use global defaults from `config.json`
 - `a2a_tools`: which A2A interaction tools this agent needs (delegate_to, etc.)
-- `memory_db`: independent db file per agent (default: `"memory.db"`)
+- `memory_db`: independent db file per agent (default: `"memory.db"`); `""` or `null` disables memory entirely
 - `server.host/port`: HTTP server for cross-machine A2A communication
 
 ### Per-Agent Toolbox
@@ -394,6 +394,7 @@ All config via `config.json`. Key fields:
 | `agents_config.agents[].provider` | Agent-specific provider (empty = fallback to `default_provider`) |
 | `agents_config.agents[].model` | Agent-specific model (empty = fallback to `default_model`) |
 | `agents_config.agents[].server` | `{"host": "...", "port": N}` — ServerConfig for A2A HTTP |
+| `agents_config.agents[].memory_db` | Per-agent SQLite file for memory (default: `"memory.db"`); `""` or `null` disables memory |
 | `providers[]` | Provider list with api_key, base_url, api type, models |
 
 Provider `api` field: `openai-completions` | `openai-response` | `anthropic`
