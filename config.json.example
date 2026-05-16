@@ -28,7 +28,9 @@
         {
           "name": "qianfan-code-latest",
           "reasoning": false,
-          "input": ["text"],
+          "input": [
+            "text"
+          ],
           "cost": {
             "input": 0.0025,
             "output": 0.01,
@@ -49,10 +51,12 @@
         {
           "name": "deepseek-v4-pro",
           "reasoning": true,
-          "input": ["text"],
+          "input": [
+            "text"
+          ],
           "cost": {
             "input": 0.28,
-            "output": 1.10,
+            "output": 1.1,
             "cache_read": 0.07,
             "cache_write": 0.56
           },
@@ -70,7 +74,9 @@
         {
           "name": "astron-code-latest",
           "reasoning": false,
-          "input": ["text"],
+          "input": [
+            "text"
+          ],
           "cost": {
             "input": 0,
             "output": 0,
@@ -85,14 +91,49 @@
   ],
   "default_provider": "baiduqianfancodingplan",
   "default_model": "qianfan-code-latest",
-  "default_agent": "default",
-  "agents": [
-    {
-      "name": "default",
-      "description": "Default qd-evolve agent",
-      "server": {"host": "0.0.0.0", "port": 8001}
+  "agents_config": {
+    "default_agent": "default",
+    "agents": [
+      {
+        "name": "default",
+        "description": "Default qd-evolve agent",
+        "server": {
+          "host": "0.0.0.0",
+          "port": 8001
+        }
+      },
+      {
+        "name": "test",
+        "description": "Test agent for cross-process A2A",
+        "memory_db": "test_memory.db",
+        "a2a_tools": [
+          "delegate_to",
+          "send_task",
+          "get_task",
+          "cancel_task"
+        ],
+        "server": {
+          "host": "0.0.0.0",
+          "port": 8002
+        }
+      }
+    ],
+    "topology": {
+      "default_mode": "peer",
+      "default_transport": "inproc",
+      "transports": {
+        "default→test": "http",
+        "test→default": "http"
+      },
+      "relations": [
+        {
+          "from": "default",
+          "to": "test",
+          "mode": "peer"
+        }
+      ]
     }
-  ],
+  },
   "embeddings_backends": {
     "bge-m3-local": {
       "model_path": "BAAI/bge-m3",

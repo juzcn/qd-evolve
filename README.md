@@ -6,15 +6,15 @@ Multi-agent AI system with A2A protocol, dual transport, tool use, skills, MCP i
 
 - **Multi-agent architecture** — A2A (Agent-to-Agent) protocol with dual transport: inproc (zero-latency direct call) + HTTP (aiohttp JSON-RPC for cross-machine)
 - **Fully isolated agents** — Each agent has independent messages, memory db, system prompt, and toolbox config
-- **Shared toolbox, per-agent config** — All agents share the same ToolRegistry definitions, but each has its own `toolbox.json` for preload/enable/disable
+- **Agent config in config.json** — `agents_config` section with `default_agent`, `agents` list, and `topology` sub-section
 - **A2A interaction tools** — `delegate_to` (blocking), `send_task` (non-blocking), `get_task`, `cancel_task`
-- **Topology config** — `agents/topology.json` defines agent relationships (peer/master-worker) and transport mode per agent pair
+- **Topology config** — `agents_config.topology` defines agent relationships (peer/master-worker) and transport mode per agent pair
 - **Multi-provider, multi-model** — OpenAI Chat Completions, OpenAI Responses API, Anthropic Messages API
 - **Tool system** — Builtin tools + MCP (external processes) + OAT bridge (in-process boat + coat)
 - **Bridge protocol** — qd-evolve's own protocol for tool source integration; new bridge types never touch `cli.py`
 - **OAT bridge** — basic-open-agent-tools (boat) + coding-open-agent-tools (coat) loaded in-process, no subprocess latency
 - **Toolbox TUI** — `qd-evolve toolbox` (Textual) for interactive enable/disable/preload management across all tool types
-- **Toolbox config** — `toolbox.json` manages which tools/skills/CLI/bridges/MCP are enabled, disabled, or preloaded
+- **Toolbox config** — `toolbox.json` with per-agent sections (`agents.<name>`) manages which tools/skills/CLI/bridges/MCP are enabled, disabled, or preloaded
 - **On-demand loading** — Tools start with name+description only. Call `load_func` to activate a tool's schema, `load_skill` for SKILL.md instructions, or `load_cli` for CLI usage. Loaded content is delivered via tool message, keeping the system prompt lean.
 - **Skill system** — SKILL.md files from `tools/skills/`, injected into system prompt; `load_skill` for full content
 - **CLI tools** — YAML definitions in `tools/cli/`, loaded via `load_cli`
@@ -57,9 +57,8 @@ Run:
 
 ```bash
 qd-evolve                  # start chat with default agent
-qd-evolve --agent coder    # start a specific agent (from agents/coder/agent.json)
-qd-evolve serve            # start all local agents (reads agents/topology.json)
 qd-evolve toolbox          # interactive tool manager (Textual TUI)
+qd-evolve toolbox --agent test  # per-agent tool management
 qd-evolve --replay in.txt  # replay inputs from file (for automated testing)
 qd-evolve --replay in.txt --output out.txt  # replay + capture output
 ```
