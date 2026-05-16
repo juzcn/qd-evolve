@@ -1,9 +1,14 @@
 # QD-Evolve
 
-Multi-provider AI agent with tool use, skills, MCP integration, and CLI interface.
+Multi-agent AI system with A2A protocol, dual transport, tool use, skills, MCP integration, and CLI interface.
 
 ## Features
 
+- **Multi-agent architecture** — A2A (Agent-to-Agent) protocol with dual transport: inproc (zero-latency direct call) + HTTP (aiohttp JSON-RPC for cross-machine)
+- **Fully isolated agents** — Each agent has independent messages, memory db, system prompt, and toolbox config
+- **Shared toolbox, per-agent config** — All agents share the same ToolRegistry definitions, but each has its own `toolbox.json` for preload/enable/disable
+- **A2A interaction tools** — `delegate_to` (blocking), `send_task` (non-blocking), `get_task`, `cancel_task`
+- **Topology config** — `agents/topology.json` defines agent relationships (peer/master-worker) and transport mode per agent pair
 - **Multi-provider, multi-model** — OpenAI Chat Completions, OpenAI Responses API, Anthropic Messages API
 - **Tool system** — Builtin tools + MCP (external processes) + OAT bridge (in-process boat + coat)
 - **Bridge protocol** — qd-evolve's own protocol for tool source integration; new bridge types never touch `cli.py`
@@ -32,7 +37,7 @@ Multi-provider AI agent with tool use, skills, MCP integration, and CLI interfac
 ```bash
 # Local development (editable)
 uv tool install -e .
-qd-evolve
+qd-evolve                  # start chat with default agent
 
 # Or remote — no clone needed
 uvx --from git+https://github.com/juzcn/qd-evolve qd-evolve
@@ -51,7 +56,9 @@ See `qd-evolve.json.example` for the full config structure. At minimum you need 
 Run:
 
 ```bash
-qd-evolve                  # start chat with defaults
+qd-evolve                  # start chat with default agent
+qd-evolve --agent coder    # start a specific agent (from agents/coder/agent.json)
+qd-evolve serve            # start all local agents (reads agents/topology.json)
 qd-evolve toolbox          # interactive tool manager (Textual TUI)
 qd-evolve --replay in.txt  # replay inputs from file (for automated testing)
 qd-evolve --replay in.txt --output out.txt  # replay + capture output
@@ -67,9 +74,99 @@ qd-evolve --replay in.txt --output out.txt  # replay + capture output
 | `/tools` | List available tools |
 | `/skills` | List available skills |
 | `/cli` | List registered CLI tools |
+| `/agents` | List discovered agents |
 | `/status` | Show runtime status (loaded tools, skills, CLI) |
 | `/models` | Switch model interactively |
 | `/memory` | List saved memories |
+
+## Multi-Agent Architecture
+
+### Agent Configuration
+
+Each agent is defined by `agents/<name>/agent.json`:
+
+```json
+{
+  "name": "coder",
+  "description": "Code writing and refactoring specialist",
+  "url": "http://localhost:8002",
+  "version": "1.0",
+  "provider": "",
+  "model": "",
+  "system_prompt_template": "default",
+  "a2a_tools": ["delegate_to", "send_task", "get_task", "cancel_task"],
+  "capabilities": {
+    "streaming": true,
+    "push_notifications": false
+  },
+  "memory": {
+    "db": "memory_coder.db",
+    "auto_recall": true
+  },
+  "server": {
+    "host": "0.0.0.0",
+    "port": 8002
+  }
+}
+```
+
+- `provider`/`model`: empty = use global defaults from `qd-evolve.json`
+- `a2a_tools`: which A2A interaction tools this agent needs (delegate_to, etc.)
+- `memory.db`: independent db file per agent (full isolation)
+- `server.host/port`: HTTP server for cross-machine A2A communication
+
+### Per-Agent Toolbox
+
+Each agent can have its own `agents/<name>/toolbox.json` (same format as global `toolbox.json`). If not present, the global `toolbox.json` is used.
+
+### Topology
+
+`agents/topology.json` defines agent relationships and transport:
+
+```json
+{
+  "default_mode": "peer",
+  "default_transport": "inproc",
+  "agents": {
+    "coordinator": {"url": "http://localhost:8001"},
+    "coder": {"url": "http://localhost:8002"},
+    "reviewer": {"url": "http://192.168.1.50:8001"}
+  },
+  "transports": {
+    "coordinator→coder": "inproc",
+    "coordinator→reviewer": "http",
+    "coder→reviewer": "http"
+  },
+  "relations": [
+    {"from": "coordinator", "to": "coder", "mode": "master-worker"},
+    {"from": "coder", "to": "reviewer", "mode": "peer"}
+  ]
+}
+```
+
+- `default_transport: "inproc"` — same-machine agents use direct Python call (zero latency)
+- `transports`: configure per-agent-pair transport (`inproc` or `http`)
+- Cross-machine agents (different IP) auto-detected as `http`
+- `default_mode: "peer"` — agents can mutually delegate tasks
+- `mode: "master-worker"` — hierarchical delegation
+
+### A2A Protocol
+
+Full A2A v1.0 spec implementation:
+
+| Method | Description | Blocking? |
+|--------|-------------|-----------|
+| `tasks/send` | Create task, wait for completion | Yes |
+| `tasks/sendSubscribe` | Create task, SSE stream status updates | No |
+| `tasks/get` | Query task status | No |
+| `tasks/cancel` | Cancel a task | No |
+| AgentCard | `/.well-known/agent.json` — discover agent capabilities | — |
+
+### Dual Transport
+
+- **InprocTransport** — Direct `AgentCore.run()` call via `asyncio.to_thread`. Zero network latency for same-machine agents.
+- **HttpTransport** — aiohttp JSON-RPC client for cross-machine agents. Standard A2A protocol.
+- **TransportRouter** — Auto-selects transport based on `topology.json` config. `delegate_to` and other tools only depend on the transport interface.
 
 ## Builtin Tools
 
@@ -92,6 +189,10 @@ qd-evolve --replay in.txt --output out.txt  # replay + capture output
 | `register_mcp` | Persist a staged MCP config to permanent directory |
 | `install_skill` | Install + hot-load a skill from a GitHub repo |
 | `register_skill` | Persist a staged skill to permanent directory |
+| `delegate_to` | Call another Agent and wait for response (blocking A2A) |
+| `send_task` | Submit task to another Agent, return task_id (non-blocking A2A) |
+| `get_task` | Query status/result of a submitted task |
+| `cancel_task` | Cancel a pending task |
 
 ## Bridge Protocol
 
@@ -182,7 +283,7 @@ help_summary: |
   Usage: pandoc [OPTIONS] [FILES]
   Key options:
     -f/--from=FORMAT    Input format
-    -t/--to=FORMAT      Output format
+    -t/--to=FORMAT      Output file
     -o/--output=FILE    Output file
 examples:
   - "pandoc input.md -o output.pdf"
@@ -214,7 +315,7 @@ Included skills:
 
 ## Prompt Templates
 
-Jinja2 templates in `templates/` (user) or `qd_evolve/_templates/` (builtin fallback). The default template receives these variables:
+Jinja2 templates in `templates/` (user) or `qd_evolve/agent/_templates/` (builtin fallback). The default template receives these variables:
 
 | Variable | Description |
 |----------|-------------|
@@ -263,48 +364,68 @@ Provider `api` field: `openai-completions` | `openai-response` | `anthropic`
 
 ```
 qd_evolve/
-  config.py          — Settings, ProviderConfig, ModelConfig, load/save
-  logger.py          — Standard logging with SharedFileHandler
-  prompts.py         — Jinja2 template manager (user + builtin fallback)
-  providers.py       — Provider/ProviderRegistry, client creation
-  memory.py          — SQLite + sqlite-vec persistent memory store
-  skills.py          — SkillRegistry, SKILL.md discovery, active skill injection
-  cli_tools.py       — CLIRegistry, YAML-based CLI tool definitions
+  core/                    # Shared infrastructure (all agent processes import this)
+    config.py              — Settings, ProviderConfig, ModelConfig, load/save
+    logger.py              — Standard logging with SharedFileHandler
+    prompts.py             — Jinja2 template manager (user + builtin fallback)
+    providers.py           — Provider/ProviderRegistry, client creation
+    memory.py              — SQLite + sqlite-vec persistent memory store
+    registry.py            — ToolRegistry, tool registration, on-demand loading
+    toolbox.py             — Toolbox state management (per-agent toolbox.json support)
+  agent/                   # Single agent implementation (one per process)
+    agent.py               — AgentCore loop (openai_completion, openai_response, anthropic)
+    a2a.py                 — A2A v1.0 data models (AgentCard, Task, Message, Part, TaskState)
+    transport.py           — Dual transport: InprocTransport, HttpTransport, TransportRouter
+    server.py              — A2A HTTP server (aiohttp JSON-RPC)
+    delegate.py            — delegate_to, send_task, get_task, cancel_task tools
+    _templates/            — Builtin Jinja2 templates (default.j2, heartbeat.j2)
+  agents/                  # Multi-agent management
+    agent.py               — Agent wrapper (card + agent_core + memory + task_store)
+    registry.py            — AgentRegistry + Topology (relationship + transport config)
+    loader.py              — Load agent.json, create Agent instances
+    launcher.py            — Start/stop agent subprocesses
   utils/
-    adk_schema.py    — Google ADK → OpenAI JSON Schema converter
-    adk_output.py    — Output normalizer + handler factory
+    adk_schema.py          — Google ADK → OpenAI JSON Schema converter
+    adk_output.py          — Output normalizer + handler factory
   tools/
-    __init__.py      — ToolRegistry, tool registration, on-demand loading
-    shell.py         — run_shell (auto-detects system encoding)
-    file_rw.py       — read_file, write_file, list_directory
-    fetch.py         — fetch (httpx)
-    search.py        — serper_search, serper_scrape
-    tool_loader.py   — load_func (on-demand schema loading)
-    skill_loader.py  — load_skill (on-demand skill content)
-    cli_loader.py    — load_cli (on-demand CLI tool info)
-    recall_memory.py — recall_memory (semantic + keyword search)
-    install_func.py  — install_func + hot-load via importlib
-    register_func.py — register_func (staging → permanent)
-    install_mcp.py   — install_mcp + hot-load via MCPToolBridge
-    register_mcp.py  — register_mcp (staging → permanent)
-    install_skill.py — install_skill + hot-load from GitHub
-    register_skill.py — register_skill (staging → permanent)
-    staging.py       — staging directory paths and cleanup
-  agent.py           — Agent loop (openai_completion, openai_response, anthropic)
-  cli.py             — typer CLI with slash commands, toolbox subcommand
-  toolbox.py         — Toolbox state management (toolbox.json)
-  toolbox_tui.py     — Textual TUI for interactive tool management
-  _templates/        — builtin Jinja2 templates
+    __init__.py            — Re-export shim (ToolRegistry → qd_evolve.core.registry)
+    shell.py               — run_shell (auto-detects system encoding)
+    file_rw.py             — read_file, write_file, list_directory
+    fetch.py               — fetch (httpx)
+    search.py              — serper_search, serper_scrape
+    tool_loader.py         — load_func (on-demand schema loading)
+    skill_loader.py        — load_skill (on-demand skill content)
+    cli_loader.py          — load_cli (on-demand CLI tool info)
+    recall_memory.py       — recall_memory (semantic + keyword search)
+    install_func.py        — install_func + hot-load via importlib
+    register_func.py       — register_func (staging → permanent)
+    install_mcp.py         — install_mcp + hot-load via MCPToolBridge
+    register_mcp.py        — register_mcp (staging → permanent)
+    install_skill.py       — install_skill + hot-load from GitHub
+    register_skill.py      — register_skill (staging → permanent)
+    staging.py             — staging directory paths and cleanup
+  skills.py                — SkillRegistry, SKILL.md discovery
+  cli_tools.py             — CLIRegistry, YAML-based CLI tool definitions
+  cli.py                   — typer CLI with slash commands, --agent, serve, toolbox
+  toolbox_tui.py           — Textual TUI for interactive tool management
+  # Backward-compatible re-export shims:
+  config.py, providers.py, logger.py, prompts.py, memory.py, toolbox.py, tools/__init__.py, agent.py
+
+agents/                     # Agent configuration directory (project root)
+  default/
+    agent.json              — Default agent config (AgentCard + runtime config)
+    (toolbox.json)          — Optional per-agent toolbox config
+  topology.json             — Agent relationships + transport config
+
 tools/
-  mcp/               — MCP server configs (*.json)
-  cli/               — CLI tool definitions (*.yaml)
-  skills/            — SKILL.md skills
-  bridge/            — Bridge protocol modules
-    __init__.py      — BridgeManager (discover/connect/reload/list_all)
-    _mcp.py          — MCP bridge (external subprocess)
-    _oat.py          — OAT bridge (in-process boat + coat)
-    oat.json         — OAT bridge config
-main.py              — thin launcher
+  mcp/                      — MCP server configs (*.json)
+  cli/                      — CLI tool definitions (*.yaml)
+  skills/                   — SKILL.md skills
+  bridge/                   — Bridge protocol modules
+    __init__.py             — BridgeManager (discover/connect/reload/list_all)
+    _mcp.py                 — MCP bridge (external subprocess)
+    _oat.py                 — OAT bridge (in-process boat + coat)
+    oat.json                — OAT bridge config
 ```
 
 ## Tech Stack
@@ -312,6 +433,7 @@ main.py              — thin launcher
 | Concern | Library |
 |---------|---------|
 | LLM API | anthropic + openai |
+| A2A Protocol | aiohttp (JSON-RPC + SSE) |
 | Config | JSON + pydantic |
 | Templates | Jinja2 |
 | CLI | typer + rich + prompt-toolkit + textual |
