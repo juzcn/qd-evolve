@@ -85,6 +85,14 @@
   ],
   "default_provider": "baiduqianfancodingplan",
   "default_model": "qianfan-code-latest",
+  "default_agent": "default",
+  "agents": [
+    {
+      "name": "default",
+      "description": "Default qd-evolve agent",
+      "server": {"host": "0.0.0.0", "port": 8001}
+    }
+  ],
   "embeddings_backends": {
     "bge-m3-local": {
       "model_path": "BAAI/bge-m3",

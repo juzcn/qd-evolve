@@ -36,7 +36,7 @@ class PromptTemplateManager:
 
     def __init__(self, templates_dir: str | Path | None = None) -> None:
         self._dir = Path(templates_dir) if templates_dir else TEMPLATES_DIR
-        builtin_dir = Path(__file__).resolve().parent.parent / "agent" / "_templates"
+        builtin_dir = Path(__file__).resolve().parent.parent / "_templates"
         loader = _CombinedLoader(self._dir, builtin_dir) if self._dir.is_dir() else _CombinedLoader(builtin_dir)
         self._env = Environment(
             loader=loader,

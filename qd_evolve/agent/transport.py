@@ -39,7 +39,7 @@ class InprocTransport:
 
     def _get_registry(self) -> Any:
         if self._registry is None:
-            from qd_evolve.agents.registry import get_agent_registry
+            from qd_evolve.agent.registry import get_agent_registry
             self._registry = get_agent_registry()
         return self._registry
 
@@ -165,7 +165,7 @@ class HttpTransport:
 
     def _get_registry(self) -> Any:
         if self._registry is None:
-            from qd_evolve.agents.registry import get_agent_registry
+            from qd_evolve.agent.registry import get_agent_registry
             self._registry = get_agent_registry()
         return self._registry
 
@@ -244,7 +244,7 @@ class TransportRouter:
 
     def _get_registry(self) -> Any:
         if self._registry is None:
-            from qd_evolve.agents.registry import get_agent_registry
+            from qd_evolve.agent.registry import get_agent_registry
             self._registry = get_agent_registry()
         return self._registry
 

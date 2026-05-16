@@ -1,1 +1,0 @@
-{"default_mode": "peer", "default_transport": "inproc", "agents": {"default": {"url": "http://localhost:8001"}}, "transports": {}, "relations": []}

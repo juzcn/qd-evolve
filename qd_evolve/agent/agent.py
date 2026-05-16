@@ -17,7 +17,9 @@ class Agent:
                  preload_tools: set[str] | None = None,
                  preload_skills: set[str] | None = None,
                  preload_cli: set[str] | None = None,
-                 template_mgr: Any = None) -> None:
+                 template_mgr: Any = None,
+                 card: Any = None,
+                 task_store: Any = None) -> None:
         self.settings = settings
         self.registry = registry
         self.default_system_prompt = default_system_prompt
@@ -26,6 +28,8 @@ class Agent:
         self._always_active: set[str] = preload_tools or set()
         self.providers = providers
         self.memory = memory
+        self.card = card
+        self.task_store = task_store
         self.messages: list[dict[str, Any]] = []
         self._provider_name: str | None = None
         self._model: str | None = None

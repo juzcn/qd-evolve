@@ -4,11 +4,11 @@
 
 - **Don't reinvent the wheel.** Use battle-tested libraries: anthropic/openai SDK, pydantic, rich, typer, standard logging.
 - **Composition over inheritance.** Tools are callables registered in a registry, not a class hierarchy.
-- **Configuration is data.** All config via `qd-evolve.json`. No CLI config commands, no .env files. Edit the file directly.
+- **Configuration is data.** All config via `config.json`. No CLI config commands, no .env files. Edit the file directly.
 - **Multi-provider, multi-model.** Each provider has an api_key, base_url, api type, and multiple models with full metadata.
 - **Three API types supported.** `openai-completions`, `openai-response`, `anthropic`. Set at provider level via `api` field.
 - **Logging is structured.** Standard library logging with custom SharedFileHandler (per-write open/flush/close) for real-time log visibility. No print statements for debugging.
-- **CLI is minimal.** Just `qd-evolve` to start chat. `--agent <name>` for specific agent. `--replay` for automated testing, `--output` to capture. No CLI options for provider/model — edit `qd-evolve.json` or use `/models` at runtime.
+- **CLI is minimal.** Just `qd-evolve` to start chat. `--replay` for automated testing, `--output` to capture. No CLI options for provider/model/agent — edit `config.json` or use `/models` or `/agents` at runtime.
 - **Agent loop is simple and explicit.** Call API → check stop_reason → execute tools → append results → repeat. Capped at `max_iterations` (default 20) to prevent infinite loops.
 - **Heartbeat is agent-owned.** Agent creates heartbeat coroutine that sleeps then calls LLM. CLI is purely event-driven — it just awaits and displays. Template-driven heartbeat message via `heartbeat.j2`. Configurable via `heartbeat_idle_seconds` (0 = disabled).
 - **Streaming is global.** `stream` is a top-level settings field, not per-model. OpenAI-compatible providers stream tokens to the terminal.
@@ -17,11 +17,11 @@
 
 ## Design Decisions
 
-- **Multi-agent architecture.** Each agent is a fully isolated process with independent messages, memory db, system prompt, and toolbox config. Public code (Settings, ProviderRegistry, ToolRegistry) is shared. A2A protocol for inter-agent communication with dual transport (inproc for same-machine, http for cross-machine).
+- **Multi-agent architecture.** Each agent is a fully isolated process with independent messages, memory db, system prompt, and toolbox config. Public code (Settings, ProviderRegistry, ToolRegistry) is shared. A2A protocol for inter-agent communication with dual transport (inproc for same-machine, http for cross-machine). Agent config is centralized in `config.json` — `agents` list with `AgentEntry` (name, description, provider, model, a2a_tools, memory, server). `/agents` command switches agent at runtime (like `/models`).
 - **A2A protocol (v1.0 spec).** Full implementation: AgentCard, Task lifecycle (submitted→working→completed/failed/canceled), Message/Part/Artifact, JSON-RPC over HTTP, SSE streaming. Agent discovery via `/.well-known/agent.json`.
 - **Dual transport.** `InprocTransport` (asyncio.to_thread + AgentCore.run, zero latency for same-machine) and `HttpTransport` (aiohttp JSON-RPC for cross-machine). `TransportRouter` auto-selects based on topology.json. HTTP server always runs for cross-machine access, but same-machine agents bypass it.
 - **Shared toolbox, per-agent config.** ToolRegistry is shared infrastructure — all tool definitions come from the same registry. But each agent has its own `agents/<name>/toolbox.json` for preload/enable/disable. If no per-agent toolbox.json exists, global `toolbox.json` is used.
-- **Agent config split.** `agent.json` contains both A2A spec fields (AgentCard: name, description, url, capabilities) and runtime config (AgentConfig: provider, model, a2a_tools, memory, server). `load_agent_config()` splits them into separate models.
+- **Agent config in config.json.** `agents` list defines all agents with `AgentEntry` fields (name, description, provider, model, system_prompt_template, a2a_tools, memory, server). `default_agent` selects the startup agent. `/agents` command switches at runtime and saves to config.json. No `--agent` CLI option or `serve` command — agent selection is runtime only.
 - **Topology config.** `agents/topology.json` defines agent relationships (peer/master-worker) and transport mode per agent pair. Default peer-to-peer, configurable master-worker. Cross-machine agents auto-detected as http.
 - **Tools are auto-discovered.** Builtin tools from `qd_evolve/tools/`, MCP tools from `tools/mcp/*.json`, CLI tools from `tools/cli/*.yaml`, OAT tools from `tools/bridge/oat.json`. No manual registration.
 - **Bridge protocol.** qd-evolve's own protocol for tool source integration. Each bridge type self-registers with `BridgeManager` (discover/connect/disconnect). `cli.py` only talks to `BridgeManager` — adding a new bridge type never touches `cli.py` or `toolbox.py`. Current bridges: `mcp` (external: stdio/SSE/StreamableHTTP/WebSocket), `oat` (in-process boat + coat). Bridge modules live in `tools/bridge/_*.py`, config files in `tools/bridge/*.json`.
@@ -39,10 +39,10 @@
 - **Persistent memory.** SQLite + sqlite-vec for cross-session memory storage. Each user+assistant message pair is auto-saved with BGE-M3 embedding. Supports semantic + keyword hybrid search, time-range filtering, and session exclusion. Per-agent memory db for full isolation.
 - **Context compression.** When input tokens exceed `compress_threshold` (default 70%) of context window, old Q/A pairs are removed from the message list until tokens drop below `target_threshold` (default 50%). A new memory session is created after compression so recall_memory can distinguish pre/post compression context.
 - **Auto recall.** Before each LLM call, user input is used as query to automatically retrieve relevant past conversations from MemoryStore. Results are injected into a dedicated memory section in the system prompt, with deduplication via `RecalledMemoryRegistry` (keyed by memory id). All recall queries exclude the current session. Configurable via `auto_recall` (on/off) and `auto_recall_top_k`.
-- **Embedder selection by config.** `embeddings_backends` section in `qd-evolve.json` defines named backends with `backend` field (`sentence-transformers` or `llama-cpp-python`). `memory_search.default_embeddings_backend` selects which to use. No file-suffix auto-detection.
-- **Env vars from config.** `env_vars` in `qd-evolve.json` are injected into `os.environ` at startup, so tools can access API keys without .env files.
+- **Embedder selection by config.** `embeddings_backends` section in `config.json` defines named backends with `backend` field (`sentence-transformers` or `llama-cpp-python`). `memory_search.default_embeddings_backend` selects which to use. No file-suffix auto-detection.
+- **Env vars from config.** `env_vars` in `config.json` are injected into `os.environ` at startup, so tools can access API keys without .env files.
 - **Clean shutdown.** On `/quit` exit, bridges disconnect with `shutdown=True`, closing remote sessions and killing subprocesses while skipping unnecessary in-memory registry cleanup.
-- **Config is read once at startup.** No runtime config changes — edit `qd-evolve.json` and restart. However, registries (skills, CLI tools, bridges) are reloaded after each conversation turn to pick up new files without restart. Hot-loaded tools via `install_*` are immediately available without reload.
+- **Config is read once at startup.** No runtime config changes — edit `config.json` and restart. However, registries (skills, CLI tools, bridges) are reloaded after each conversation turn to pick up new files without restart. Hot-loaded tools via `install_*` are immediately available without reload.
 - **Staging area for hot-loaded tools.** `.qd-evolve/staging/` holds func/mcp/skill files before user confirms permanent registration. Cleaned on session exit. Registries scan both permanent and staging directories during discovery.
 - **File paths relative to CWD.** Tools never hardcode paths; everything resolves against current working directory.
 - **Shell encoding.** `run_shell` uses `locale.getpreferredencoding()` to decode subprocess output, handling Windows GBK/cp936 correctly.

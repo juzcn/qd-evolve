@@ -43,15 +43,15 @@ qd-evolve                  # start chat with default agent
 uvx --from git+https://github.com/juzcn/qd-evolve qd-evolve
 ```
 
-Create `qd-evolve.json` in your working directory (copy from `qd-evolve.json.example`, then add your API keys):
+Create `config.json` in your working directory (copy from `config.json.example`, then add your API keys):
 
 ```bash
-curl -O https://raw.githubusercontent.com/juzcn/qd-evolve/main/qd-evolve.json.example
-mv qd-evolve.json.example qd-evolve.json
-# edit qd-evolve.json with your keys
+curl -O https://raw.githubusercontent.com/juzcn/qd-evolve/main/config.json.example
+mv config.json.example config.json
+# edit config.json with your keys
 ```
 
-See `qd-evolve.json.example` for the full config structure. At minimum you need a provider with `api_key`, `base_url`, `api`, and at least one model.
+See `config.json.example` for the full config structure. At minimum you need a provider with `api_key`, `base_url`, `api`, and at least one model.
 
 Run:
 
@@ -110,7 +110,7 @@ Each agent is defined by `agents/<name>/agent.json`:
 }
 ```
 
-- `provider`/`model`: empty = use global defaults from `qd-evolve.json`
+- `provider`/`model`: empty = use global defaults from `config.json`
 - `a2a_tools`: which A2A interaction tools this agent needs (delegate_to, etc.)
 - `memory.db`: independent db file per agent (full isolation)
 - `server.host/port`: HTTP server for cross-machine A2A communication
@@ -229,7 +229,7 @@ Place JSON config files in `tools/mcp/`. Supports 4 transport types:
 { "mcpServers": { "name": { "type": "ws", "url": "wss://example.com/mcp" } } }
 ```
 
-All string values (`command`, `url`, `headers`, `args`) support `$VAR`/`${VAR}` expansion from `os.environ`. API keys should be defined in `qd-evolve.json` `env_vars` and referenced via `$VAR` in MCP config.
+All string values (`command`, `url`, `headers`, `args`) support `$VAR`/`${VAR}` expansion from `os.environ`. API keys should be defined in `config.json` `env_vars` and referenced via `$VAR` in MCP config.
 
 Also supports legacy formats: nested `mcp.servers` and bare `{ "command": "...", "args": [...] }`.
 
@@ -332,7 +332,7 @@ Jinja2 templates in `templates/` (user) or `qd_evolve/agent/_templates/` (builti
 
 ## Configuration
 
-All config via `qd-evolve.json`. Key fields:
+All config via `config.json`. Key fields:
 
 | Field | Description |
 |-------|-------------|

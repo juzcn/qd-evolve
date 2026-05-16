@@ -15,7 +15,7 @@ from rich.spinner import Spinner
 from rich.table import Table
 from rich.text import Text
 
-from qd_evolve.core.config import CONFIG_PATH, SKILLS_DIR, CLI_TOOLS_DIR, MEMORY_DB, Settings, load_settings, save_json
+from qd_evolve.core.config import CONFIG_PATH, SKILLS_DIR, CLI_TOOLS_DIR, DEFAULT_MEMORY_DB, Settings, load_settings, save_json
 from qd_evolve.cli_tools import CLIRegistry
 from qd_evolve.core.memory import MemoryStore
 from qd_evolve.core.prompts import PromptTemplateManager
@@ -98,39 +98,43 @@ def _detect_python_cmd() -> str:
 def toolbox(
     toggle: str = typer.Option("", "--toggle", "-t", help="Quick toggle: --toggle <name>"),
     tui: bool = typer.Option(True, "--tui/--no-tui", help="Use Textual TUI (default: on)"),
+    agent: str = typer.Option("", "--agent", help="Per-agent toolbox config (from config.json agents list)"),
 ) -> None:
     """Interactive tool manager — enable/disable/preload tools, MCP, CLI, skills.
 
     Opens a Textual TUI by default. Use --no-tui for interactive shell.
     --toggle <name> for quick non-interactive toggle.
+    --agent <name> to manage a specific agent's toolbox.
     """
     from qd_evolve.core.toolbox import toggle as tb_toggle
+    an = agent or None
 
     # Quick toggle mode
     if toggle:
         section = _resolve_section(toggle)
         name = _resolve_name(toggle)
-        new_state = tb_toggle(section, name)
+        new_state = tb_toggle(section, name, agent_name=an)
         console.print(f"[bold]{toggle}[/bold] → [cyan]{new_state}[/cyan]")
         return
 
     if tui:
         from qd_evolve.toolbox_tui import _build_data, ToolboxApp
         console.print("Loading tools...", end="\r")
-        data, bridges, bridge_entries = _build_data(connect_bridges=True)
+        data, bridges, bridge_entries = _build_data(connect_bridges=True, agent_name=an)
         console.print(f"Loaded {sum(len(v) for v in data.values())} items across {len(data)} categories")
-        ToolboxApp(data, bridges, bridge_entries).run()
+        ToolboxApp(data, bridges, bridge_entries, agent_name=an).run()
     else:
-        _toolbox_interactive()
+        _toolbox_interactive(an)
 
 
-def _toolbox_interactive() -> None:
+def _toolbox_interactive(agent_name: str | None = None) -> None:
     """Interactive toolbox shell."""
     from qd_evolve.core.toolbox import (
         get_state, set_state, toggle as tb_toggle,
     )
 
-    console.print("[bold]Toolbox[/bold] — manage tool state (enabled / preload / disabled)")
+    label = f" (agent: {agent_name})" if agent_name else ""
+    console.print(f"[bold]Toolbox[/bold]{label} — manage tool state (enabled / preload / disabled)")
     console.print("Type [cyan]help[/cyan] for commands, [cyan]quit[/cyan] to exit\n")
 
     while True:
@@ -152,12 +156,12 @@ def _toolbox_interactive() -> None:
         elif action == "help":
             _toolbox_help()
         elif action in ("ls", "list", "show"):
-            _toolbox_list(args)
+            _toolbox_list(args, agent_name=agent_name)
         elif action == "toggle":
             if args:
                 section = _resolve_section(args[0])
                 name = _resolve_name(args[0])
-                new = tb_toggle(section, name)
+                new = tb_toggle(section, name, agent_name=agent_name)
                 console.print(f"  {args[0]} → [cyan]{new}[/cyan]")
             else:
                 console.print("  Usage: toggle <name>")
@@ -165,7 +169,7 @@ def _toolbox_interactive() -> None:
             if args:
                 section = _resolve_section(args[0])
                 name = _resolve_name(args[0])
-                set_state(section, name, "enabled")
+                set_state(section, name, "enabled", agent_name=agent_name)
                 console.print(f"  {args[0]} → [green]enabled[/green]")
             else:
                 console.print("  Usage: enable <name>")
@@ -173,7 +177,7 @@ def _toolbox_interactive() -> None:
             if args:
                 section = _resolve_section(args[0])
                 name = _resolve_name(args[0])
-                set_state(section, name, "disabled")
+                set_state(section, name, "disabled", agent_name=agent_name)
                 console.print(f"  {args[0]} → [red]disabled[/red]")
             else:
                 console.print("  Usage: disable <name>")
@@ -184,7 +188,7 @@ def _toolbox_interactive() -> None:
                 if section == "mcp_servers":
                     console.print("  MCP servers don't support preload")
                 else:
-                    set_state(section, name, "preload")
+                    set_state(section, name, "preload", agent_name=agent_name)
                     console.print(f"  {args[0]} → [yellow]preload[/yellow]")
             else:
                 console.print("  Usage: preload <name>")
@@ -212,12 +216,12 @@ def _toolbox_help() -> None:
 """)
 
 
-def _toolbox_list(args: list[str]) -> None:
+def _toolbox_list(args: list[str], agent_name: str | None = None) -> None:
     from qd_evolve.core.toolbox import get_state, get_disabled_bridges
     from qd_evolve.core.registry import get_registry
     from qd_evolve.skills import SkillRegistry
     from qd_evolve.cli_tools import CLIRegistry
-    from qd_evolve.core.config import SKILLS_DIR, CLI_TOOLS_DIR, MEMORY_DB, load_settings
+    from qd_evolve.core.config import SKILLS_DIR, CLI_TOOLS_DIR, load_settings
     from tools.bridge import BridgeManager
 
     settings = load_settings()
@@ -229,8 +233,7 @@ def _toolbox_list(args: list[str]) -> None:
     builtin: list[tuple[str, str, str]] = []
     bridge_tools: dict[str, list[tuple[str, str, str]]] = {}
     for td in registry.list_tools():
-        state = get_state("tools", td.name)
-        # Bridge tools have [name] prefix in description
+        state = get_state("tools", td.name, agent_name=agent_name)
         desc = td.description or ""
         if desc.startswith("[") and "]" in desc:
             bracket_end = desc.index("]")
@@ -244,18 +247,18 @@ def _toolbox_list(args: list[str]) -> None:
     sr.discover_skills(SKILLS_DIR)
     skills_data: list[tuple[str, str, str]] = []
     for s in sr._skills.values():
-        skills_data.append((s.name, s.summary or "", get_state("skills", s.name)))
+        skills_data.append((s.name, s.summary or "", get_state("skills", s.name, agent_name=agent_name)))
 
     # CLI
     cr = CLIRegistry()
     cr.discover(CLI_TOOLS_DIR)
     cli_data: list[tuple[str, str, str]] = []
     for t in cr._tools.values():
-        cli_data.append((t.name, t.description or t.command, get_state("cli", t.name)))
+        cli_data.append((t.name, t.description or t.command, get_state("cli", t.name, agent_name=agent_name)))
 
     # Bridge entries
     bridge_entries = BridgeManager.list_all(settings)
-    disabled_bridges = get_disabled_bridges()
+    disabled_bridges = get_disabled_bridges(agent_name=agent_name)
 
     def _print_items(title: str, items: list[tuple[str, str, str]], page: int = 0) -> None:
         if not items:
@@ -374,7 +377,7 @@ async def _read_input_async(session: "PromptSession | ReplayInput", dot_counter:
     return result.strip()
 
 
-def _handle_slash_command(
+async def _handle_slash_command(
     cmd: str,
     agent: Any,
     settings: Settings,
@@ -430,7 +433,7 @@ def _handle_slash_command(
         try:
             from prompt_toolkit import PromptSession
             model_session = PromptSession("Switch to #: ")
-            choice = model_session.prompt().strip()
+            choice = (await model_session.prompt_async()).strip()
         except (EOFError, KeyboardInterrupt):
             return "  Cancelled."
         if choice.isdigit() and 1 <= int(choice) <= len(all_models):
@@ -497,20 +500,41 @@ def _handle_slash_command(
             lines.append(f"  [cyan]{t.name}[/cyan] —{desc}")
         return "\n".join(lines)
     if name == "/agents":
-        from qd_evolve.agents.loader import discover_agents
-        from qd_evolve.agents.registry import get_agent_registry
-        discovered = discover_agents()
-        if not discovered:
-            return "  (no agents discovered in agents/ directory)"
-        ar = get_agent_registry()
-        lines = []
-        for n in discovered:
-            a = ar.get(n)
-            if a:
-                lines.append(f"  [cyan]{n}[/cyan] — {a.card.description} (registered)")
-            else:
-                lines.append(f"  [cyan]{n}[/cyan] — (not registered)")
-        return "\n".join(lines)
+        agent_list = settings.agents_config.agents
+        if not agent_list:
+            return "  (no agents configured in config.json)"
+        table = Table(title="Available Agents", show_header=True)
+        table.add_column("#", style="dim")
+        table.add_column("Agent", style="bold cyan")
+        table.add_column("Provider/Model", style="bold")
+        table.add_column("Server", style="dim")
+        current = settings.agents_config.default_agent
+        for i, a in enumerate(agent_list, 1):
+            marker = " *" if a.name == current else ""
+            prov = a.provider or settings.default_provider
+            mdl = a.model or settings.default_model
+            srv = f"{a.server.get('host', '0.0.0.0')}:{a.server.get('port', 8001)}"
+            table.add_row(str(i), a.name + marker, f"{prov}/{mdl}", srv)
+        console.print(table)
+        try:
+            from prompt_toolkit import PromptSession
+            agent_session = PromptSession("Switch to #: ")
+            choice = (await agent_session.prompt_async()).strip()
+        except (EOFError, KeyboardInterrupt):
+            return "  Cancelled."
+        if choice.isdigit() and 1 <= int(choice) <= len(agent_list):
+            target = agent_list[int(choice) - 1]
+            settings.agents_config.default_agent = target.name
+            if target.provider:
+                settings.default_provider = target.provider
+            if target.model:
+                settings.default_model = target.model
+            agent._provider_name = target.provider or settings.default_provider
+            agent._model = target.model or settings.default_model
+            save_json(settings.model_dump(), CONFIG_PATH)
+            logger.info("CLI: switched to agent '%s' (%s/%s)", target.name, agent._provider_name, agent._model)
+            return f"  Switched to agent '{target.name}' ({agent._provider_name}/{agent._model})"
+        return "  Cancelled."
     return None
 
 
@@ -526,8 +550,17 @@ async def _async_chat_loop(
     staged_bridges: list[Any],
     providers: ProviderRegistry,
     output_file: Any,
+    a2a_server: Any = None,
+    agent_config_server: dict[str, Any] | None = None,
 ) -> None:
     """Async main chat loop — event-driven: each event is processed independently."""
+
+    # Start A2A HTTP server
+    if a2a_server and agent_config_server:
+        host = agent_config_server.get("host", "0.0.0.0")
+        port = agent_config_server.get("port", 8001)
+        await a2a_server.start(host=host, port=port)
+        console.print(f"[dim]A2A server running on {host}:{port}[/dim]")
 
     dot_counter = [0]  # mutable counter for silent heartbeats → toolbar dots
     input_task = hb_task = None
@@ -599,7 +632,7 @@ async def _async_chat_loop(
         if not user_input:
             continue
         if user_input.startswith("/"):
-            result = _handle_slash_command(user_input, agent, settings, skill_registry, cli_registry, memory)
+            result = await _handle_slash_command(user_input, agent, settings, skill_registry, cli_registry, memory)
             if result is None:
                 console.print("[dim]Goodbye![/dim]")
                 break
@@ -671,41 +704,9 @@ async def _async_chat_loop(
         output_file.close()
 
 
-@app.command()
-def serve() -> None:
-    """Start all local Agent processes (reads topology.json)."""
-    from qd_evolve.agents.registry import Topology
-    from qd_evolve.agents.launcher import AgentLauncher
-
-    topology = Topology("agents/topology.json")
-    if not topology.agents:
-        console.print("[yellow]No agents in topology.json — nothing to serve.[/yellow]")
-        raise SystemExit(0)
-
-    launcher = AgentLauncher(topology)
-    processes = launcher.launch_all()
-    if not processes:
-        console.print("[yellow]No local agents to launch.[/yellow]")
-        raise SystemExit(0)
-
-    console.print(f"[bold green]Launched {len(processes)} agent(s):[/bold green]")
-    for name, status in launcher.status().items():
-        console.print(f"  [cyan]{name}[/cyan] — {status}")
-
-    try:
-        console.print("[dim]Press Ctrl+C to stop all agents[/dim]")
-        import signal
-        signal.pause()  # Wait for Ctrl+C
-    except KeyboardInterrupt:
-        console.print("\n[dim]Stopping...[/dim]")
-    launcher.stop_all()
-    console.print("[dim]All agents stopped.[/dim]")
-
-
 @app.callback(invoke_without_command=True)
 def chat(
     ctx: typer.Context,
-    agent: str = typer.Option("", "--agent", help="Agent name to run (from agents/<name>/agent.json)"),
     replay: Path | None = typer.Option(None, "--replay", help="Replay inputs from file"),
     output: Path | None = typer.Option(None, "--output", help="Capture output to file"),
 ) -> None:
@@ -713,13 +714,12 @@ def chat(
         return  # toolbox or another subcommand was invoked
     from qd_evolve.agent.agent import Agent
     from qd_evolve.core.logger import setup_logging
-
-    agent_name = agent  # save --agent value before overwriting with Agent instance
+    from qd_evolve.core.config import LOG_DIR as LOG_DIR_PATH
 
     # 1. Config & logging
-    setup_logging("WARNING")
+    setup_logging("WARNING", log_dir=LOG_DIR_PATH)
     settings = load_settings()
-    setup_logging(settings.log.level)
+    setup_logging(settings.log.level, log_dir=LOG_DIR_PATH)
 
     # Inject env_vars from config into os.environ
     import os
@@ -727,7 +727,7 @@ def chat(
         os.environ[key] = value
 
     if not settings.is_configured:
-        console.print("[red]Error:[/red] No API key configured. Edit qd-evolve.json")
+        console.print("[red]Error:[/red] No API key configured. Edit config.json")
         raise SystemExit(1)
 
     # 2. Builtin tools
@@ -744,17 +744,18 @@ def chat(
     # 5. Bridges (MCP + OAT + ...)
     bridges = BridgeManager.connect_all(settings)
 
-    # 5b. Apply toolbox state from toolbox.json (per-agent if --agent given)
+    # 5b. Apply toolbox state from toolbox.json (per-agent if configured)
     from qd_evolve.core.toolbox import (
         apply_to_tools, apply_to_cli_registry, apply_to_skill_registry,
         get_preloaded,
     )
-    loaded_tool_names: set[str] = get_preloaded("tools", agent_name=agent_name or None)
-    loaded_skill_names: set[str] = get_preloaded("skills", agent_name=agent_name or None)
-    loaded_cli_names: set[str] = get_preloaded("cli", agent_name=agent_name or None)
-    apply_to_tools(registry, loaded_tool_names, agent_name=agent_name or None)
-    apply_to_cli_registry(cli_registry, loaded_cli_names, agent_name=agent_name or None)
-    apply_to_skill_registry(skill_registry, loaded_skill_names, agent_name=agent_name or None)
+    agent_name = settings.agents_config.default_agent
+    loaded_tool_names: set[str] = get_preloaded("tools", agent_name=agent_name)
+    loaded_skill_names: set[str] = get_preloaded("skills", agent_name=agent_name)
+    loaded_cli_names: set[str] = get_preloaded("cli", agent_name=agent_name)
+    apply_to_tools(registry, loaded_tool_names, agent_name=agent_name)
+    apply_to_cli_registry(cli_registry, loaded_cli_names, agent_name=agent_name)
+    apply_to_skill_registry(skill_registry, loaded_skill_names, agent_name=agent_name)
 
     # 6. Inject registries into loader tools
     from qd_evolve.tools.skill_loader import set_skill_registry
@@ -824,29 +825,31 @@ def chat(
         python_cmd=python_cmd,
         cwd=str(Path.cwd()),
         skills_dir=SKILLS_DIR,
+        agent_name=settings.agents_config.default_agent,
+        a2a_tools=", ".join(agent_entry.a2a_tools) if agent_entry and agent_entry.a2a_tools else "",
+        available_agents=", ".join(a.name for a in settings.agents_config.agents),
+        agent_relations=", ".join(f"{r['from']}→{r['to']} ({r.get('mode', 'peer')})" for r in settings.agents_config.topology.relations) if settings.agents_config.topology.relations else "",
     )
     logger.debug("Agent: system prompt (%d chars)\n%s", len(system_prompt), system_prompt)
 
     # 8. Provider
     providers = ProviderRegistry(settings)
 
-    # 9. Memory
-    # Use per-agent memory db if --agent is specified and agent.json has memory config
-    memory_db = MEMORY_DB
-    if agent_name:
-        from qd_evolve.agents.loader import load_agent_config
-        from pathlib import Path as _P
-        _card, _config = load_agent_config(_P("agents") / agent_name)
-        if _config.memory and _config.memory.get("db"):
-            memory_db = _config.memory["db"]
+    # 9. Memory — use per-agent db from config
+    agent_entry = None
+    for a in settings.agents_config.agents:
+        if a.name == settings.agents_config.default_agent:
+            agent_entry = a
+            break
+    memory_db = agent_entry.memory_db if agent_entry else DEFAULT_MEMORY_DB
 
     backend_name = settings.memory_search.default_embeddings_backend
     backend = settings.embeddings_backends.get(backend_name) if backend_name else None
     if backend is None:
         if not backend_name:
-            console.print("[red]Error:[/red] No embeddings backend configured. Set memory_search.default_embeddings_backend and embeddings_backends in qd-evolve.json")
+            console.print("[red]Error:[/red] No embeddings backend configured. Set memory_search.default_embeddings_backend and embeddings_backends in config.json")
         else:
-            console.print(f"[red]Error:[/red] Embeddings backend '{backend_name}' not found in config")
+            console.print(f"[red]Error:[/red] Embeddings backend '{backend_name}' not found in config.json")
         raise SystemExit(1)
     memory = MemoryStore(memory_db, backend,
                          list_all_limit=settings.memory_search.list_all_limit)
@@ -856,15 +859,61 @@ def chat(
     set_memory_store(memory)
     set_default_limit(settings.memory_search.recall_memory_limit)
 
-    agent = Agent(settings=settings, registry=registry, providers=providers, memory=memory,
-                  default_system_prompt=system_prompt,
-                  preload_tools=loaded_tool_names,
-                  preload_skills=loaded_skill_names,
-                  preload_cli=loaded_cli_names,
-                  template_mgr=template_mgr)
+    agent_core = Agent(settings=settings, registry=registry, providers=providers, memory=memory,
+                       default_system_prompt=system_prompt,
+                       preload_tools=loaded_tool_names,
+                       preload_skills=loaded_skill_names,
+                       preload_cli=loaded_cli_names,
+                       template_mgr=template_mgr)
+
+    # 11. Multi-agent setup — always initialize registry, topology, transport, A2A server
+    from qd_evolve.agent.server import A2AServer, TaskStore
+    from qd_evolve.agent.registry import AgentRegistry, Topology, set_agent_registry
+    from qd_evolve.agent.a2a import AgentCard, AgentCapabilities
+
+    # Build AgentCard from config
+    _entry = agent_entry or settings.agents_config.agents[0] if settings.agents_config.agents else None
+    card = AgentCard(
+        name=settings.agents_config.default_agent,
+        description=_entry.description if _entry else "",
+        url=f"http://localhost:{_entry.server.get('port', 8001)}" if _entry else "http://localhost:8001",
+        capabilities=AgentCapabilities(streaming=True),
+    )
+
+    # Attach card + task_store to agent_core for registry
+    task_store = TaskStore()
+    agent_core.card = card
+    agent_core.task_store = task_store
+
+    # Load topology and register current agent
+    topology = Topology(settings)
+    agent_reg = AgentRegistry(topology, current_agent=card.name)
+    agent_reg.register(agent_core)
+    set_agent_registry(agent_reg)
+
+    # Set up transport router (always, so delegate_to works if called)
+    from qd_evolve.tools.a2a import set_transport
+    from qd_evolve.agent.transport import InprocTransport, HttpTransport, TransportRouter
+    router = TransportRouter(InprocTransport(), HttpTransport())
+    set_transport(router)
+    logger.info("A2A: registry + transport initialized for agent '%s'", card.name)
+
+    # Always start A2A HTTP server
+    a2a_server = None
+    if _entry and _entry.server:
+        a2a_server = A2AServer(
+            agent_core=agent_core,
+            card=card,
+            task_store=task_store,
+        )
+        a2a_host = _entry.server.get("host", "0.0.0.0")
+        a2a_port = _entry.server.get("port", 8001)
+        logger.info("A2A: server configured on %s:%d", a2a_host, a2a_port)
+
+    agent = agent_core  # CLI uses AgentCore directly for chat
 
     model_info = escape(f"[{settings.default_provider}/{settings.default_model}]")
-    agent_label = f" ({agent_name})" if agent_name else ""
+    agent_label = f" ({settings.agents_config.default_agent})" if settings.agents_config.agents else ""
     console.print(Panel(
         f"qd-evolve v{__version__}{agent_label} {model_info} - /help for commands, /quit to leave",
         style="bold green",
@@ -886,9 +935,11 @@ def chat(
     else:
         input_session = _make_prompt_session()
 
+    _a2a_server_cfg = _entry.server if _entry and _entry.server else None
     asyncio.run(_async_chat_loop(
         input_session, agent, settings, skill_registry, cli_registry,
         memory, template_mgr, bridges, staged_bridges, providers, output_file,
+        a2a_server=a2a_server, agent_config_server=_a2a_server_cfg,
     ))
 
 

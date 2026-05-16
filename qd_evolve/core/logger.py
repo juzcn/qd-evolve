@@ -1,29 +1,33 @@
-﻿
+"""Logging — SharedFileHandler for real-time log visibility."""
+
 import logging
 import sys
 from datetime import datetime
 from pathlib import Path
 
-LOG_DIR = Path(__file__).resolve().parent.parent / "logs"
+LOG_DIR = Path("logs")
 
 
-class _SharedFileHandler(logging.FileHandler):
-    """Opens the file per-write instead of holding it open, allowing external
-    readers/watchers to see every line immediately and delete the file freely."""
+class SharedFileHandler(logging.FileHandler):
+    """FileHandler that opens/writes/flushes/closes per emit — safe for concurrent tail."""
 
     def emit(self, record: logging.LogRecord) -> None:
         try:
-            with open(self.baseFilename, self.mode, encoding=self.encoding) as f:
-                f.write(self.format(record) + self.terminator)
+            msg = self.format(record)
+            with open(self.baseFilename, "a", encoding="utf-8") as f:
+                f.write(msg + "\n")
                 f.flush()
         except Exception:
             self.handleError(record)
 
 
-def setup_logging(level: str = "INFO") -> None:
+def setup_logging(level: str = "INFO", log_dir: str | Path | None = None) -> None:
+    """Configure qd_evolve logger with file (all levels) + stderr (ERROR only)."""
+    global LOG_DIR
+    if log_dir is not None:
+        LOG_DIR = Path(log_dir)
+
     LOG_DIR.mkdir(parents=True, exist_ok=True)
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_file = LOG_DIR / f"{timestamp}.log"
 
     lvl = getattr(logging, level.upper(), logging.INFO)
 
@@ -32,21 +36,24 @@ def setup_logging(level: str = "INFO") -> None:
     root.handlers.clear()
     root.propagate = False
 
-    file_handler = _SharedFileHandler(str(log_file), encoding="utf-8")
-    file_handler.setLevel(logging.DEBUG)
-    file_handler.setFormatter(logging.Formatter(
+    fmt = logging.Formatter(
         "%(asctime)s | %(levelname)-8s | %(name)s:%(funcName)s:%(lineno)d - %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
-    ))
-    root.addHandler(file_handler)
+    )
 
-    stderr_handler = logging.StreamHandler(sys.stderr)
-    stderr_handler.setLevel(logging.ERROR)
-    stderr_handler.setFormatter(logging.Formatter(
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    fh = SharedFileHandler(LOG_DIR / f"{ts}.log", encoding="utf-8")
+    fh.setLevel(logging.DEBUG)
+    fh.setFormatter(fmt)
+    root.addHandler(fh)
+
+    stderr = logging.StreamHandler(sys.stderr)
+    stderr.setLevel(logging.ERROR)
+    stderr.setFormatter(logging.Formatter(
         "%(asctime)s | %(levelname)-8s | %(name)s:%(funcName)s - %(message)s",
         datefmt="%H:%M:%S",
     ))
-    root.addHandler(stderr_handler)
+    root.addHandler(stderr)
 
 
 logger = logging.getLogger("qd_evolve")

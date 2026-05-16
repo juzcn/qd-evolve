@@ -10,7 +10,7 @@ from textual.widgets import DataTable, Footer, Header, Input, Static
 from qd_evolve.core.toolbox import get_state, set_state
 
 
-def _build_data(connect_bridges: bool = True) -> tuple[dict, list, list]:
+def _build_data(connect_bridges: bool = True, agent_name: str | None = None) -> tuple[dict, list, list]:
     """Build category → [(name, desc, state), ...] and return (data, bridges, entries)."""
     from qd_evolve.tools import get_registry
     from qd_evolve.skills import SkillRegistry
@@ -46,7 +46,7 @@ def _build_data(connect_bridges: bool = True) -> tuple[dict, list, list]:
     builtin = []
     for td in registry.list_tools():
         if td.name not in tool_bridge:
-            builtin.append((td.name, td.description or "", get_state("tools", td.name)))
+            builtin.append((td.name, td.description or "", get_state("tools", td.name, agent_name=agent_name)))
     if builtin:
         categories["Builtin Tools"] = builtin
 
@@ -56,12 +56,12 @@ def _build_data(connect_bridges: bool = True) -> tuple[dict, list, list]:
         bname = tool_bridge.get(td.name)
         if bname:
             bridge_tool_groups.setdefault(bname, []).append(
-                (td.name, td.description or "", get_state("tools", td.name))
+                (td.name, td.description or "", get_state("tools", td.name, agent_name=agent_name))
             )
 
     # Bridge entries (with bridge-level state)
     from qd_evolve.core.toolbox import get_disabled_bridges
-    disabled_br = get_disabled_bridges()
+    disabled_br = get_disabled_bridges(agent_name=agent_name)
     for be in bridge_entries:
         bridge_key = f"{be.bridge_type}:{be.name}"
         srv_state = "disabled" if bridge_key in disabled_br else "enabled"
@@ -76,7 +76,7 @@ def _build_data(connect_bridges: bool = True) -> tuple[dict, list, list]:
     # CLI tools
     cr = CLIRegistry()
     cr.discover(CLI_TOOLS_DIR)
-    cli_data = [(t.name, t.description or t.command, get_state("cli", t.name))
+    cli_data = [(t.name, t.description or t.command, get_state("cli", t.name, agent_name=agent_name))
                 for t in cr._tools.values()]
     if cli_data:
         categories["CLI Tools"] = cli_data
@@ -84,7 +84,7 @@ def _build_data(connect_bridges: bool = True) -> tuple[dict, list, list]:
     # Skills
     sr = SkillRegistry()
     sr.discover_skills(SKILLS_DIR)
-    skills = [(s.name, s.summary or "", get_state("skills", s.name))
+    skills = [(s.name, s.summary or "", get_state("skills", s.name, agent_name=agent_name))
               for s in sr._skills.values()]
     if skills:
         categories["Skills"] = skills
@@ -141,7 +141,8 @@ class ToolboxApp(App):
         Binding("q", "quit", "Quit"),
     ]
 
-    def __init__(self, data: dict, bridges: list, bridge_entries: list | None = None) -> None:
+    def __init__(self, data: dict, bridges: list, bridge_entries: list | None = None,
+                 agent_name: str | None = None) -> None:
         super().__init__()
         self._data = data
         self._bridges = bridges
@@ -150,6 +151,9 @@ class ToolboxApp(App):
         self._cat_index = 0
         self._filter = ""
         self._expanded: set[str] = set()
+        self.agent_name = agent_name
+        if agent_name:
+            self.TITLE = f"Toolbox (agent: {agent_name})"
 
     def on_unmount(self) -> None:
         for bridge in self._bridges:
@@ -298,11 +302,12 @@ class ToolboxApp(App):
         name, section = self._selected_item()
         if not name:
             return
+        an = self.agent_name
         if "(bridge)" in name:
             bridge_key = self._bridge_name(name)
-            current = get_state("bridge", bridge_key)
+            current = get_state("bridge", bridge_key, agent_name=an)
             new_state = "disabled" if current != "disabled" else "enabled"
-            set_state("bridge", bridge_key, new_state)
+            set_state("bridge", bridge_key, new_state, agent_name=an)
             # Propagate to all subtools: find matching category
             cat_name = self._categories[self._cat_index]
             if cat_name in self._data:
@@ -310,12 +315,12 @@ class ToolboxApp(App):
                     if "(bridge)" in tool_name:
                         continue
                     clean = tool_name.strip()
-                    set_state("tools", clean, "disabled" if new_state == "disabled" else "enabled")
+                    set_state("tools", clean, "disabled" if new_state == "disabled" else "enabled", agent_name=an)
             self.notify(f"{bridge_key} → {new_state} (all tools)")
         else:
-            current = get_state(section, name)
+            current = get_state(section, name, agent_name=an)
             new_state = "enabled" if current == "disabled" else "disabled"
-            set_state(section, name, new_state)
+            set_state(section, name, new_state, agent_name=an)
             self.notify(f"{name} → {new_state}")
         self._refresh()
 
@@ -324,18 +329,19 @@ class ToolboxApp(App):
         name, section = self._selected_item()
         if not name:
             return
+        an = self.agent_name
         if "(bridge)" in name:
             self.notify("bridges don't support preload", severity="warning")
             return
-        current = get_state(section, name)
+        current = get_state(section, name, agent_name=an)
         if current == "disabled":
-            set_state(section, name, "preload")
+            set_state(section, name, "preload", agent_name=an)
         elif current == "preload":
-            set_state(section, name, "enabled")
+            set_state(section, name, "enabled", agent_name=an)
         else:
-            set_state(section, name, "preload")
+            set_state(section, name, "preload", agent_name=an)
         self._refresh()
-        self.notify(f"{name} → {get_state(section, name)}")
+        self.notify(f"{name} → {get_state(section, name, agent_name=an)}")
 
     def action_filter(self) -> None:
         def on_input(result: str) -> None:
@@ -407,7 +413,7 @@ class ToolboxApp(App):
                     section = "skills"
                 elif "(bridge)" in name:
                     section = "bridge"
-                items[i] = (name, desc, get_state(section, name))
+                items[i] = (name, desc, get_state(section, name, agent_name=self.agent_name))
         self._load_categories()
         self._load_tools()
 

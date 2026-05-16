@@ -1,11 +1,12 @@
 ﻿
 import json
 from pathlib import Path
+from typing import Any
 
 from qd_evolve.core.logger import logger
 from pydantic import BaseModel
 
-CONFIG_PATH = Path("qd-evolve.json")
+CONFIG_PATH = Path("config.json")
 
 # Project directory constants — not user-configurable
 SKILLS_DIR = "tools/skills"
@@ -14,7 +15,8 @@ FUNC_TOOLS_DIR = "qd_evolve/tools"
 MCP_DIR = "tools/mcp"
 BRIDGE_DIR = "tools/bridge"
 STAGING_DIR = ".qd-evolve/staging"
-MEMORY_DB = "memory.db"
+DEFAULT_MEMORY_DB = "memory.db"
+LOG_DIR = "logs"
 
 
 class ModelCost(BaseModel):
@@ -81,6 +83,30 @@ class LogConfig(BaseModel):
     truncation: int = 500
 
 
+class AgentEntry(BaseModel):
+    name: str
+    description: str = ""
+    provider: str = ""
+    model: str = ""
+    system_prompt_template: str = "default"
+    a2a_tools: list[str] = []
+    memory_db: str = DEFAULT_MEMORY_DB
+    server: dict[str, Any] = {"host": "0.0.0.0", "port": 8001}
+
+
+class TopologyConfig(BaseModel):
+    default_mode: str = "peer"
+    default_transport: str = "inproc"
+    transports: dict[str, str] = {}
+    relations: list[dict[str, str]] = []
+
+
+class AgentsConfig(BaseModel):
+    default_agent: str = "default"
+    agents: list[AgentEntry] = []
+    topology: TopologyConfig = TopologyConfig()
+
+
 class Settings(BaseModel):
     log: LogConfig = LogConfig()
     ui: UIConfig = UIConfig()
@@ -88,6 +114,7 @@ class Settings(BaseModel):
     providers: list[ProviderConfig] = []
     default_provider: str = ""
     default_model: str = ""
+    agents_config: AgentsConfig = AgentsConfig()
     embeddings_backends: dict[str, EmbeddingsBackend] = {}
     memory_search: MemorySearchConfig = MemorySearchConfig()
     compress_threshold: float = 0.7

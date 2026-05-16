@@ -1,11 +1,21 @@
 """Toolbox — manage tool state: enabled / preload / disabled.
 
-State is persisted to toolbox.json. Three states per item:
-  - "enabled"  — on-demand loading (default)
-  - "preload"  — full schema/definition in system prompt
-  - "disabled" — hidden from LLM entirely
+All state is in toolbox.json under agents.<name> sections.
+Every operation requires an agent_name (defaults to "default").
 
-Bridges only support "enabled"/"disabled" (no preload concept).
+Layout:
+{
+  "agents": {
+    "default": {
+      "tools": {"fetch": "disabled", ...},
+      "mcp_servers": {}, "bridge": {}, "cli": {}, "skills": {},
+      "defaults": {"timeout": 60}
+    },
+    "test": {
+      "tools": {}, ...
+    }
+  }
+}
 """
 
 import json
@@ -17,23 +27,27 @@ TOOLBOX_PATH = Path("toolbox.json")
 VALID_STATES = ("enabled", "preload", "disabled")
 BRIDGE_VALID_STATES = ("enabled", "disabled")
 
-
-def _toolbox_path(agent_name: str | None = None) -> Path:
-    """Return toolbox.json path. Per-agent if agent_name given, else global."""
-    if agent_name:
-        return Path("agents") / agent_name / "toolbox.json"
-    return TOOLBOX_PATH
+_EMPTY = {"tools": {}, "mcp_servers": {}, "bridge": {}, "cli": {}, "skills": {}}
 
 
 def _load(agent_name: str | None = None) -> dict[str, Any]:
-    path = _toolbox_path(agent_name)
-    if path.is_file():
-        return json.loads(path.read_text(encoding="utf-8"))
-    return {"tools": {}, "mcp_servers": {}, "bridge": {}, "cli": {}, "skills": {}}
+    name = agent_name or "default"
+    if TOOLBOX_PATH.is_file():
+        data = json.loads(TOOLBOX_PATH.read_text(encoding="utf-8"))
+        return data.get("agents", {}).get(name, dict(_EMPTY))
+    return dict(_EMPTY)
 
 
-def _save(data: dict[str, Any], agent_name: str | None = None) -> None:
-    _toolbox_path(agent_name).write_text(
+def _save(section_data: dict[str, Any], agent_name: str | None = None) -> None:
+    name = agent_name or "default"
+    if TOOLBOX_PATH.is_file():
+        data = json.loads(TOOLBOX_PATH.read_text(encoding="utf-8"))
+    else:
+        data = {"agents": {}}
+    if "agents" not in data:
+        data["agents"] = {}
+    data["agents"][name] = section_data
+    TOOLBOX_PATH.write_text(
         json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )
 
@@ -41,19 +55,16 @@ def _save(data: dict[str, Any], agent_name: str | None = None) -> None:
 # ── state queries ──────────────────────────────────────────────
 
 def get_state(section: str, name: str, agent_name: str | None = None) -> str:
-    """Return state for an item: 'enabled', 'preload', or 'disabled'."""
     data = _load(agent_name)
     return data.get(section, {}).get(name, "enabled")
 
 
 def get_disabled(section: str, agent_name: str | None = None) -> set[str]:
-    """Return names of disabled items in a section."""
     data = _load(agent_name)
     return {k for k, v in data.get(section, {}).items() if v == "disabled"}
 
 
 def get_preloaded(section: str, agent_name: str | None = None) -> set[str]:
-    """Return names of preloaded items in a section."""
     data = _load(agent_name)
     return {k for k, v in data.get(section, {}).items() if v == "preload"}
 
@@ -61,7 +72,6 @@ def get_preloaded(section: str, agent_name: str | None = None) -> set[str]:
 # ── state mutations ────────────────────────────────────────────
 
 def set_state(section: str, name: str, state: str, agent_name: str | None = None) -> bool:
-    """Set state for an item. Returns False if state is invalid."""
     if section in ("mcp_servers", "bridge"):
         if state not in BRIDGE_VALID_STATES:
             return False
@@ -72,7 +82,7 @@ def set_state(section: str, name: str, state: str, agent_name: str | None = None
     if section not in data:
         data[section] = {}
     if state == "enabled":
-        data[section].pop(name, None)  # remove to keep file clean
+        data[section].pop(name, None)
     else:
         data[section][name] = state
     _save(data, agent_name)
@@ -80,12 +90,10 @@ def set_state(section: str, name: str, state: str, agent_name: str | None = None
 
 
 def toggle(section: str, name: str, agent_name: str | None = None) -> str:
-    """Cycle state. Returns the new state."""
     if section in ("mcp_servers", "bridge"):
         current = get_state(section, name, agent_name)
         new_state = "disabled" if current != "disabled" else "enabled"
     else:
-        # disabled → enabled → preload → disabled
         cycle = {"disabled": "enabled", "enabled": "preload", "preload": "disabled"}
         current = get_state(section, name, agent_name)
         new_state = cycle[current]
@@ -96,7 +104,6 @@ def toggle(section: str, name: str, agent_name: str | None = None) -> str:
 # ── apply to registries ────────────────────────────────────────
 
 def apply_to_tools(registry: Any, preload_tools_config: set[str], agent_name: str | None = None) -> None:
-    """Apply toolbox state to ToolRegistry. Returns updated preload set."""
     for td in registry.list_tools():
         state = get_state("tools", td.name, agent_name)
         if state == "disabled":
@@ -108,7 +115,6 @@ def apply_to_tools(registry: Any, preload_tools_config: set[str], agent_name: st
 
 
 def apply_to_cli_registry(registry: Any, preload_cli_config: set[str], agent_name: str | None = None) -> None:
-    """Apply toolbox state to CLIRegistry. Returns updated preload set."""
     for tool in registry.list_tools():
         state = get_state("cli", tool.name, agent_name)
         if state == "disabled":
@@ -120,7 +126,6 @@ def apply_to_cli_registry(registry: Any, preload_cli_config: set[str], agent_nam
 
 
 def apply_to_skill_registry(registry: Any, preload_skills_config: set[str], agent_name: str | None = None) -> None:
-    """Apply toolbox state to SkillRegistry. Returns updated preload set."""
     for skill in registry.get_all_skills():
         state = get_state("skills", skill.name, agent_name)
         if state == "disabled":
@@ -132,7 +137,6 @@ def apply_to_skill_registry(registry: Any, preload_skills_config: set[str], agen
 
 
 def get_disabled_bridges(agent_name: str | None = None) -> set[str]:
-    """Return keys of disabled bridges (format: 'type:name')."""
     disabled = get_disabled("bridge", agent_name)
     for name in get_disabled("mcp_servers", agent_name):
         disabled.add(f"mcp:{name}")
@@ -141,10 +145,12 @@ def get_disabled_bridges(agent_name: str | None = None) -> set[str]:
 
 # ── tool defaults ─────────────────────────────────────────────
 
-def get_default(key: str, fallback: Any = None, agent_name: str | None = None) -> Any:
-    """Read a global default value from toolbox.json."""
-    data = _load(agent_name)
-    return data.get("defaults", {}).get(key, fallback)
+def get_default(key: str, fallback: Any = None) -> Any:
+    """Read a global default value from toolbox.json (not per-agent)."""
+    if TOOLBOX_PATH.is_file():
+        data = json.loads(TOOLBOX_PATH.read_text(encoding="utf-8"))
+        return data.get("defaults", {}).get(key, fallback)
+    return fallback
 
 
 # ── display helpers ────────────────────────────────────────────

@@ -48,7 +48,6 @@ def _delegate_to(agent: str, task: str) -> str:
         result_task = asyncio.run(transport.send_task(agent, message))
     except RuntimeError as e:
         if "async event loop" in str(e):
-            # Already in an async context — use thread to run async
             import concurrent.futures
             with concurrent.futures.ThreadPoolExecutor() as pool:
                 future = pool.submit(asyncio.run, transport.send_task(agent, message))
@@ -75,7 +74,6 @@ def _send_task(agent: str, task: str) -> str:
     transport = _get_transport()
     message = make_text_message("user", task)
 
-    # Start background execution
     async def _watch() -> None:
         try:
             result_task = await transport.send_task(agent, message)
