@@ -429,8 +429,7 @@ qd_evolve/
   cli_tools.py             — CLIRegistry, YAML-based CLI tool definitions
   cli.py                   — typer CLI with slash commands, toolbox
   toolbox_tui.py           — Textual TUI for interactive tool management
-  # Backward-compatible re-export shims:
-  config.py, providers.py, logger.py, prompts.py, memory.py, toolbox.py, tools/__init__.py, agent.py
+```
 
 tools/                       # Project root tool directories
   func/                      — Func tools (add/delete .py to add/remove tools)

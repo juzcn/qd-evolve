@@ -50,7 +50,7 @@
 - **BOAT via OAT bridge.** basic-open-agent-tools loaded in-process, no subprocess latency. Config in `tools/bridge/oat.json` — set `loadout` per package (coder, python, all, etc.).
 - **COAT via OAT bridge.** coding-open-agent-tools (485 code analysis functions) loaded in-process alongside boat. Same Google ADK format, same bridge, same schema/output converters.
 - **Bridge toolbox.** `toolbox.json` `bridge` section controls bridge enable/disable (e.g. `"oat:boat": "disabled"`). Bridges don't support preload — too many tools.
-- **Backward-compatible shims.** Old import paths (`from qd_evolve.config import Settings`) still work via re-export shims. Core code moved to `qd_evolve/core/`, agent to `qd_evolve/agent/`. No separate `agents/` package — registry and loader are in `qd_evolve/agent/`.
+- **No backward-compat shims.** All imports use the real paths: `qd_evolve.core.config`, `qd_evolve.core.providers`, `qd_evolve.core.logger`, etc.
 
 ## Rules
 
