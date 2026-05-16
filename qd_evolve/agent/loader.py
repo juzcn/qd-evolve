@@ -1,4 +1,4 @@
-"""Agent loader — creates Agent instances from config.json agents list."""
+"""Agent loader — creates AgentCore instances from config.json agents list."""
 
 from __future__ import annotations
 
@@ -6,11 +6,11 @@ from typing import Any
 
 from qd_evolve.agent.a2a import AgentCard, AgentCapabilities
 from qd_evolve.agent.server import TaskStore
-from qd_evolve.core.config import AgentEntry, Settings, load_settings
+from qd_evolve.core.config import DEFAULT_MEMORY_DB, DEFAULT_SERVER_PORT, AgentEntry, Settings, load_settings
 from qd_evolve.core.logger import logger
 from qd_evolve.core.memory import MemoryStore
 from qd_evolve.core.providers import ProviderRegistry
-from qd_evolve.core.registry import ToolRegistry, get_registry
+from qd_evolve.core.registry import get_registry
 
 
 def get_agent_entry(settings: Settings, name: str) -> AgentEntry | None:
@@ -21,40 +21,36 @@ def get_agent_entry(settings: Settings, name: str) -> AgentEntry | None:
     return None
 
 
-def create_agent(
+def create_agent_core(
     name: str,
     settings: Settings | None = None,
-    tool_registry: ToolRegistry | None = None,
 ) -> Any:
-    """Create a fully configured Agent from config.json agents list."""
-    from qd_evolve.agent.agent import Agent
+    """Create a fully configured AgentCore from config.json agents list."""
+    from qd_evolve.agent.agent import Agent as AgentCore
 
     settings = settings or load_settings()
-    tool_registry = tool_registry or get_registry()
     entry = get_agent_entry(settings, name)
     if entry is None:
         raise ValueError(f"Agent '{name}' not found in config.json agents list")
 
     # Provider — use agent-specific overrides or defaults
-    provider_name = entry.provider or settings.default_provider
-    model_name = entry.model or settings.default_model
     providers = ProviderRegistry(settings)
 
-    # Memory (optional, per-agent db)
-    memory: MemoryStore | None = None
-    if entry.memory and entry.memory.get("db"):
-        backend_name = settings.memory_search.default_embeddings_backend
-        backend = settings.embeddings_backends.get(backend_name) if backend_name else None
-        if backend:
-            memory = MemoryStore(
-                entry.memory["db"], backend,
-                list_all_limit=settings.memory_search.list_all_limit,
-            )
+    # Memory — per-agent db from config
+    memory_db = entry.memory_db or DEFAULT_MEMORY_DB
+    backend_name = settings.memory_search.default_embeddings_backend
+    backend = settings.embeddings_backends.get(backend_name) if backend_name else None
+    if backend is None:
+        logger.warning("Loader: no embeddings backend for agent '%s', skipping memory", name)
+        memory = None
+    else:
+        memory = MemoryStore(memory_db, backend,
+                             list_all_limit=settings.memory_search.list_all_limit)
 
     # System prompt via template
     from qd_evolve.core.prompts import PromptTemplateManager
     import platform
-    from pathlib import Path as P
+    from pathlib import Path
     template_mgr = PromptTemplateManager()
     template_name = entry.system_prompt_template or "default"
     system_prompt = template_mgr.render(
@@ -66,8 +62,15 @@ def create_agent(
         preloaded_cli="",
         os_name=platform.system(),
         python_cmd="python",
-        cwd=str(P.cwd()),
+        cwd=str(Path.cwd()),
         skills_dir="tools/skills",
+        agent_name=name,
+        a2a_tools=", ".join(entry.a2a_tools) if entry.a2a_tools else "",
+        available_agents=", ".join(a.name for a in settings.agents_config.agents),
+        agent_relations=", ".join(
+            f"{r['from']}→{r['to']} ({r.get('mode', 'peer')})"
+            for r in settings.agents_config.topology.relations
+        ) if settings.agents_config.topology.relations else "",
     )
 
     # Build preload sets from agent's own toolbox.json
@@ -76,20 +79,10 @@ def create_agent(
     preload_skills: set[str] = get_preloaded("skills", agent_name=name)
     preload_cli: set[str] = get_preloaded("cli", agent_name=name)
 
-    # Register A2A tools if configured
-    if entry.a2a_tools:
-        from qd_evolve.tools.a2a import set_transport
-        from qd_evolve.agent.transport import InprocTransport, HttpTransport, TransportRouter
-        inproc = InprocTransport()
-        http = HttpTransport()
-        router = TransportRouter(inproc, http)
-        set_transport(router)
-
     # Create AgentCore
-    from qd_evolve.agent.agent import Agent as AgentCore
     agent_core = AgentCore(
         settings=settings,
-        registry=tool_registry,
+        registry=get_registry(),
         providers=providers,
         memory=memory,
         default_system_prompt=system_prompt,
@@ -103,14 +96,13 @@ def create_agent(
     card = AgentCard(
         name=entry.name,
         description=entry.description,
-        url=f"http://localhost:{entry.server.get('port', 8001)}",
+        url=f"http://localhost:{entry.server.port}",
         capabilities=AgentCapabilities(streaming=True),
     )
 
-    return Agent(
-        card=card,
-        agent_core=agent_core,
-        memory=memory,
-        tool_registry=tool_registry,
-        task_store=TaskStore(),
-    )
+    # Attach card + task_store to agent_core for registry
+    task_store = TaskStore()
+    agent_core.card = card
+    agent_core.task_store = task_store
+
+    return agent_core

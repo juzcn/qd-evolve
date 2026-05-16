@@ -19,6 +19,7 @@ from qd_evolve.agent.a2a import (
     make_text_message,
     make_task_with_text,
 )
+from qd_evolve.core.config import DEFAULT_SERVER_HOST, DEFAULT_SERVER_PORT
 from qd_evolve.core.logger import logger
 
 
@@ -55,7 +56,7 @@ class A2AServer:
         self.card = card
         self.task_store = task_store or TaskStore()
 
-    async def start(self, host: str = "0.0.0.0", port: int = 8001) -> None:
+    async def start(self, host: str = DEFAULT_SERVER_HOST, port: int = DEFAULT_SERVER_PORT) -> None:
         app = web.Application()
         app.router.add_get("/.well-known/agent.json", self._handle_agent_card)
         app.router.add_post("/", self._handle_rpc)

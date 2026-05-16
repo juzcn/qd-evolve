@@ -44,16 +44,35 @@ def _delegate_to(agent: str, task: str) -> str:
     """Blocking: call target Agent, wait for result."""
     transport = _get_transport()
     message = make_text_message("user", task)
-    try:
-        result_task = asyncio.run(transport.send_task(agent, message))
-    except RuntimeError as e:
-        if "async event loop" in str(e):
-            import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor() as pool:
-                future = pool.submit(asyncio.run, transport.send_task(agent, message))
-                result_task = future.result()
-        else:
-            return f"Error: {e}"
+
+    # For inproc transport, call agent_core.run() directly (synchronous)
+    from qd_evolve.agent.transport import InprocTransport
+    if isinstance(transport._pick(agent), InprocTransport):
+        registry = transport._get_registry()
+        agent_node = registry.get(agent)
+        if agent_node is None:
+            # Try lazy load
+            try:
+                from qd_evolve.agent.loader import create_agent_core
+                agent_node = create_agent_core(agent)
+                registry.register(agent_node)
+                logger.info("delegate_to: lazy-loaded agent '%s'", agent)
+            except ValueError as e:
+                return f"Error: Agent '{agent}' not found in config — {e}"
+
+        try:
+            result = agent_node.run(task)
+            logger.info("delegate_to: %s completed (%d chars)", agent, len(result))
+            return result
+        except Exception as e:
+            logger.warning("delegate_to: %s failed: %s", agent, e)
+            return f"Error from agent '{agent}': {type(e).__name__}: {e}"
+
+    # For http transport, run async in a thread pool
+    import concurrent.futures
+    with concurrent.futures.ThreadPoolExecutor() as pool:
+        future = pool.submit(asyncio.run, transport.send_task(agent, message))
+        result_task = future.result(timeout=60)
 
     if result_task.status.state == TaskState.completed:
         text = _extract_result_text(result_task)

@@ -48,14 +48,17 @@ class InprocTransport:
         registry = self._get_registry()
         agent_node = registry.get(target)
         if agent_node is None:
-            return self._error_task(target, f"Agent '{target}' not found in registry")
+            # Try to lazy-load the agent from config
+            agent_node = self._lazy_load(target, registry)
+            if agent_node is None:
+                return self._error_task(target, f"Agent '{target}' not found in registry")
 
         task_text = self._extract_text(message)
         task = make_task_with_text(task_text)
         task.status.state = TaskState.working
 
         try:
-            result = await asyncio.to_thread(agent_node.agent_core.run, task_text)
+            result = await asyncio.to_thread(agent_node.run, task_text)
             task.status = TaskStatus(
                 state=TaskState.completed,
                 message=make_text_message("agent", result),
@@ -72,8 +75,10 @@ class InprocTransport:
         registry = self._get_registry()
         agent_node = registry.get(target)
         if agent_node is None:
-            yield self._error_task(target, f"Agent '{target}' not found in registry")
-            return
+            agent_node = self._lazy_load(target, registry)
+            if agent_node is None:
+                yield self._error_task(target, f"Agent '{target}' not found in registry")
+                return
 
         task_text = self._extract_text(message)
         task_id = _new_id()
@@ -86,7 +91,7 @@ class InprocTransport:
         # Background execution
         async def _run() -> None:
             try:
-                result = await asyncio.to_thread(agent_node.agent_core.run, task_text)
+                result = await asyncio.to_thread(agent_node.run, task_text)
                 await queue.put(Task(
                     id=task_id,
                     status=TaskStatus(
@@ -117,7 +122,9 @@ class InprocTransport:
         registry = self._get_registry()
         agent_node = registry.get(target)
         if agent_node is None:
-            return self._error_task(target, f"Agent '{target}' not found")
+            agent_node = self._lazy_load(target, registry)
+            if agent_node is None:
+                return self._error_task(target, f"Agent '{target}' not found")
         return agent_node.task_store.get(task_id, self._error_task(target, f"Task '{task_id}' not found"))
 
     async def cancel_task(self, target: str, task_id: str) -> Task:
@@ -125,7 +132,9 @@ class InprocTransport:
         registry = self._get_registry()
         agent_node = registry.get(target)
         if agent_node is None:
-            return self._error_task(target, f"Agent '{target}' not found")
+            agent_node = self._lazy_load(target, registry)
+            if agent_node is None:
+                return self._error_task(target, f"Agent '{target}' not found")
         task = agent_node.task_store.get(task_id)
         if task is None:
             return self._error_task(target, f"Task '{task_id}' not found")
@@ -136,8 +145,22 @@ class InprocTransport:
         registry = self._get_registry()
         agent_node = registry.get(target)
         if agent_node is None:
-            return AgentCard(name=target, description=f"Agent '{target}' not found")
+            agent_node = self._lazy_load(target, registry)
+            if agent_node is None:
+                return AgentCard(name=target, description=f"Agent '{target}' not found")
         return agent_node.card
+
+    def _lazy_load(self, target: str, registry: Any) -> Any | None:
+        """Try to create and register an AgentCore from config on demand."""
+        try:
+            from qd_evolve.agent.loader import create_agent_core
+            agent_core = create_agent_core(target)
+            registry.register(agent_core)
+            logger.info("InprocTransport: lazy-loaded agent '%s'", target)
+            return agent_core
+        except (ValueError, ImportError) as e:
+            logger.warning("InprocTransport: failed to lazy-load agent '%s': %s", target, e)
+            return None
 
     @staticmethod
     def _extract_text(message: Message) -> str:

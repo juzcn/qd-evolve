@@ -17,6 +17,8 @@ BRIDGE_DIR = "tools/bridge"
 STAGING_DIR = ".qd_evolve/staging"
 DEFAULT_MEMORY_DB = "memory.db"
 LOG_DIR = "logs"
+DEFAULT_SERVER_HOST = "0.0.0.0"
+DEFAULT_SERVER_PORT = 8001
 
 
 class ModelCost(BaseModel):
@@ -83,6 +85,11 @@ class LogConfig(BaseModel):
     truncation: int = 500
 
 
+class ServerConfig(BaseModel):
+    host: str = DEFAULT_SERVER_HOST
+    port: int = DEFAULT_SERVER_PORT
+
+
 class AgentEntry(BaseModel):
     name: str
     description: str = ""
@@ -91,7 +98,7 @@ class AgentEntry(BaseModel):
     system_prompt_template: str = "default"
     a2a_tools: list[str] = []
     memory_db: str = DEFAULT_MEMORY_DB
-    server: dict[str, Any] = {"host": "0.0.0.0", "port": 8001}
+    server: ServerConfig = ServerConfig()
 
 
 class TopologyConfig(BaseModel):

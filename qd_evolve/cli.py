@@ -1,4 +1,4 @@
-﻿import asyncio
+import asyncio
 from asyncio import CancelledError
 import platform
 import sys
@@ -15,7 +15,7 @@ from rich.spinner import Spinner
 from rich.table import Table
 from rich.text import Text
 
-from qd_evolve.core.config import CONFIG_PATH, SKILLS_DIR, CLI_TOOLS_DIR, DEFAULT_MEMORY_DB, Settings, load_settings, save_json
+from qd_evolve.core.config import CONFIG_PATH, SKILLS_DIR, CLI_TOOLS_DIR, DEFAULT_MEMORY_DB, DEFAULT_SERVER_HOST, DEFAULT_SERVER_PORT, Settings, load_settings, save_json
 from qd_evolve.cli_tools import CLIRegistry
 from qd_evolve.core.memory import MemoryStore
 from qd_evolve.core.prompts import PromptTemplateManager
@@ -513,7 +513,7 @@ async def _handle_slash_command(
             marker = " *" if a.name == current else ""
             prov = a.provider or settings.default_provider
             mdl = a.model or settings.default_model
-            srv = f"{a.server.get('host', '0.0.0.0')}:{a.server.get('port', 8001)}"
+            srv = f"{a.server.host}:{a.server.port}"
             table.add_row(str(i), a.name + marker, f"{prov}/{mdl}", srv)
         console.print(table)
         try:
@@ -557,8 +557,8 @@ async def _async_chat_loop(
 
     # Start A2A HTTP server
     if a2a_server and agent_config_server:
-        host = agent_config_server.get("host", "0.0.0.0")
-        port = agent_config_server.get("port", 8001)
+        host = agent_config_server.host
+        port = agent_config_server.port
         await a2a_server.start(host=host, port=port)
         console.print(f"[dim]A2A server running on {host}:{port}[/dim]")
 
@@ -814,6 +814,14 @@ def chat(
         unloaded_skill_count, unloaded_cli_count,
     )
 
+    # 8. Find agent entry (used by memory, system prompt, A2A setup)
+    agent_entry = None
+    for a in settings.agents_config.agents:
+        if a.name == settings.agents_config.default_agent:
+            agent_entry = a
+            break
+
+    # 9. System prompt via Jinja2 template
     system_prompt = template_mgr.render(
         "default",
         unpreloaded_skills=unloaded_skills,
@@ -832,15 +840,10 @@ def chat(
     )
     logger.debug("Agent: system prompt (%d chars)\n%s", len(system_prompt), system_prompt)
 
-    # 8. Provider
+    # 10. Provider
     providers = ProviderRegistry(settings)
 
-    # 9. Memory — use per-agent db from config
-    agent_entry = None
-    for a in settings.agents_config.agents:
-        if a.name == settings.agents_config.default_agent:
-            agent_entry = a
-            break
+    # 11. Memory — use per-agent db from config
     memory_db = agent_entry.memory_db if agent_entry else DEFAULT_MEMORY_DB
 
     backend_name = settings.memory_search.default_embeddings_backend
@@ -854,7 +857,7 @@ def chat(
     memory = MemoryStore(memory_db, backend,
                          list_all_limit=settings.memory_search.list_all_limit)
 
-    # 10. Inject memory store and defaults into recall_memory tool
+    # 12. Inject memory store and defaults into recall_memory tool
     from qd_evolve.tools.recall_memory import set_memory_store, set_default_limit
     set_memory_store(memory)
     set_default_limit(settings.memory_search.recall_memory_limit)
@@ -866,17 +869,16 @@ def chat(
                        preload_cli=loaded_cli_names,
                        template_mgr=template_mgr)
 
-    # 11. Multi-agent setup — always initialize registry, topology, transport, A2A server
+    # 13. Multi-agent setup — always initialize registry, topology, transport, A2A server
     from qd_evolve.agent.server import A2AServer, TaskStore
     from qd_evolve.agent.registry import AgentRegistry, Topology, set_agent_registry
     from qd_evolve.agent.a2a import AgentCard, AgentCapabilities
 
     # Build AgentCard from config
-    _entry = agent_entry or settings.agents_config.agents[0] if settings.agents_config.agents else None
     card = AgentCard(
         name=settings.agents_config.default_agent,
-        description=_entry.description if _entry else "",
-        url=f"http://localhost:{_entry.server.get('port', 8001)}" if _entry else "http://localhost:8001",
+        description=agent_entry.description if agent_entry else "",
+        url=f"http://localhost:{agent_entry.server.port}" if agent_entry else f"http://localhost:{DEFAULT_SERVER_PORT}",
         capabilities=AgentCapabilities(streaming=True),
     )
 
@@ -900,14 +902,14 @@ def chat(
 
     # Always start A2A HTTP server
     a2a_server = None
-    if _entry and _entry.server:
+    if agent_entry and agent_entry.server:
         a2a_server = A2AServer(
             agent_core=agent_core,
             card=card,
             task_store=task_store,
         )
-        a2a_host = _entry.server.get("host", "0.0.0.0")
-        a2a_port = _entry.server.get("port", 8001)
+        a2a_host = agent_entry.server.host
+        a2a_port = agent_entry.server.port
         logger.info("A2A: server configured on %s:%d", a2a_host, a2a_port)
 
     agent = agent_core  # CLI uses AgentCore directly for chat
@@ -935,7 +937,7 @@ def chat(
     else:
         input_session = _make_prompt_session()
 
-    _a2a_server_cfg = _entry.server if _entry and _entry.server else None
+    _a2a_server_cfg = agent_entry.server
     asyncio.run(_async_chat_loop(
         input_session, agent, settings, skill_registry, cli_registry,
         memory, template_mgr, bridges, staged_bridges, providers, output_file,

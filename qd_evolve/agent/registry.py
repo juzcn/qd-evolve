@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from qd_evolve.agent.a2a import AgentCard, AgentCapabilities
-from qd_evolve.core.config import Settings, load_settings
+from qd_evolve.core.config import DEFAULT_SERVER_PORT, Settings, load_settings
 from qd_evolve.core.logger import logger
 
 
@@ -23,7 +23,7 @@ class Topology:
         # Build agents map from settings.agents_config.agents (url derived from server config)
         self.agents: dict[str, dict[str, Any]] = {}
         for entry in a.agents:
-            port = entry.server.get("port", 8001)
+            port = entry.server.port
             self.agents[entry.name] = {"url": f"http://localhost:{port}"}
 
     def get_transport(self, from_agent: str, to_agent: str) -> str:
@@ -72,7 +72,7 @@ class AgentRegistry:
 
     def get_url(self, name: str) -> str:
         """Get URL for an agent from topology."""
-        return self.topology.agents.get(name, {}).get("url", "http://localhost:8001")
+        return self.topology.agents.get(name, {}).get("url", f"http://localhost:{DEFAULT_SERVER_PORT}")
 
     def get_transport(self, target: str) -> str:
         """Get transport mode for reaching a target agent."""
