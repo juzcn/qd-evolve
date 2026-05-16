@@ -51,7 +51,6 @@ def create_agent_core(
         memory = None
         logger.info("Loader: memory disabled for agent '%s' (memory_db is empty/null)", name)
         # Disable recall_memory tool so LLM won't attempt to call it
-        from qd_evolve.core.registry import get_registry
         recall_td = get_registry().get("recall_memory")
         if recall_td:
             recall_td.enabled = False
