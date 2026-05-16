@@ -77,7 +77,11 @@ class Agent:
         else:
             msg = f"[System heartbeat: idle {idle_seconds}s. Chat if you want, '.' to stay silent.]"
         logger.debug("Heartbeat: idle %ss, sending heartbeat message", idle_seconds)
-        response = self.run(msg)
+        try:
+            response = self.run(msg)
+        except Exception as e:
+            logger.warning("Heartbeat: LLM call failed: %s", e)
+            return None
         if response.strip() == ".":
             logger.debug("Heartbeat: LLM sent '.' — staying silent")
         else:
@@ -112,8 +116,8 @@ class Agent:
         provider: str | None = None,
         model: str | None = None,
     ) -> str:
-        self._provider_name = provider or self.settings.default_provider
-        self._model = model or self.settings.default_model
+        self._provider_name = provider or ""
+        self._model = model or ""
         system_prompt = system or self.default_system_prompt
         self.messages.append({"role": "user", "content": user_input})
         self.iteration = 0
@@ -137,14 +141,19 @@ class Agent:
                         self.iteration, self._provider_name, self._model, self._api_type, active,
                         self._trunc(msg, tail=True))
 
-            if self._api_type == "anthropic":
-                result = self._run_anthropic(client, system_prompt, max_tokens)
-            elif self._api_type == "openai_completion":
-                result = self._run_openai_completion(client, system_prompt, max_tokens)
-            elif self._api_type == "openai_response":
-                result = self._run_openai_response(client, system_prompt, max_tokens)
-            else:
-                raise ValueError(f"Unsupported api_type: {self._api_type}")
+            try:
+                if self._api_type == "anthropic":
+                    result = self._run_anthropic(client, system_prompt, max_tokens)
+                elif self._api_type == "openai_completion":
+                    result = self._run_openai_completion(client, system_prompt, max_tokens)
+                elif self._api_type == "openai_response":
+                    result = self._run_openai_response(client, system_prompt, max_tokens)
+                else:
+                    raise ValueError(f"Unsupported api_type: {self._api_type}")
+            except Exception as e:
+                logger.error("Agent: API call failed: %s", e)
+                self.messages.pop()  # remove the user message we just appended
+                return f"API error: {type(e).__name__}: {e}"
 
             if self.memory:
                 self._compress_messages()

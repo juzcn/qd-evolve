@@ -1,4 +1,6 @@
-﻿
+
+from __future__ import annotations
+
 import json
 from pathlib import Path
 from typing import Any
@@ -67,7 +69,7 @@ class EmbeddingsBackend(BaseModel):
 
 
 class MemorySearchConfig(BaseModel):
-    default_embeddings_backend: str = ""
+    embeddings_backend: str = ""
     auto_recall: bool = True
     auto_recall_top_k: int = 1
     recall_memory_limit: int = 5
@@ -100,6 +102,12 @@ class AgentEntry(BaseModel):
     memory_db: str = DEFAULT_MEMORY_DB
     server: ServerConfig = ServerConfig()
 
+    def effective_provider(self, settings: Settings) -> str:
+        return self.provider or settings.default_provider
+
+    def effective_model(self, settings: Settings) -> str:
+        return self.model or settings.default_model
+
 
 class TopologyConfig(BaseModel):
     default_mode: str = "peer"
@@ -109,7 +117,7 @@ class TopologyConfig(BaseModel):
 
 
 class AgentsConfig(BaseModel):
-    default_agent: str = "default"
+    chat_agent: str = "default"
     agents: list[AgentEntry] = []
     topology: TopologyConfig = TopologyConfig()
 
@@ -131,17 +139,21 @@ class Settings(BaseModel):
     stream: bool = False
     heartbeat_idle_seconds: int = 0
 
-    def get_provider(self, name: str | None = None) -> ProviderConfig | None:
-        target = name or self.default_provider
+    def get_provider(self, name: str) -> ProviderConfig | None:
         for p in self.providers:
-            if p.name == target:
+            if p.name == name:
                 return p
         return None
 
     @property
     def is_configured(self) -> bool:
-        p = self.get_provider()
-        return bool(p and p.api_key)
+        current = self.agents_config.chat_agent
+        for a in self.agents_config.agents:
+            if a.name == current:
+                prov = a.effective_provider(self)
+                p = self.get_provider(prov)
+                return bool(p and p.api_key)
+        return False
 
 
 def load_json(path: Path) -> dict:

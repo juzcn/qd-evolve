@@ -83,7 +83,7 @@ class ProviderRegistry:
             self._providers[pc.name] = Provider(pc)
 
     def get(self, name: str | None = None) -> Provider:
-        target = name or self.settings.default_provider
-        if target not in self._providers:
+        target = name or ""
+        if not target or target not in self._providers:
             raise KeyError(f"Provider not found: {target}")
         return self._providers[target]

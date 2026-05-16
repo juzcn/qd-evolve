@@ -384,6 +384,7 @@ async def _handle_slash_command(
     skill_registry: SkillRegistry,
     cli_registry: CLIRegistry,
     memory: MemoryStore | None = None,
+    agent_entry: Any = None,
 ) -> str | None:
     name = cmd.lower().strip()
     if name == "/quit":
@@ -438,15 +439,18 @@ async def _handle_slash_command(
             return "  Cancelled."
         if choice.isdigit() and 1 <= int(choice) <= len(all_models):
             prov_name, mname = all_models[int(choice) - 1]
-            settings.default_provider = prov_name
-            settings.default_model = mname
+            agent._provider_name = prov_name
+            agent._model = mname
+            if agent_entry:
+                agent_entry.provider = prov_name
+                agent_entry.model = mname
             save_json(settings.model_dump(), CONFIG_PATH)
-            logger.info("CLI: switched default model to %s/%s and saved config", prov_name, mname)
+            logger.info("CLI: switched model to %s/%s and saved config", prov_name, mname)
             return f"  Switched to {prov_name}/{mname}"
         return "  Cancelled."
     if name == "/status":
-        prov_name = agent._provider_name or settings.default_provider
-        model_name = agent._model or settings.default_model
+        prov_name = agent._provider_name or (agent_entry.effective_provider(settings) if agent_entry else settings.default_provider)
+        model_name = agent._model or (agent_entry.effective_model(settings) if agent_entry else settings.default_model)
         lines = [f"  [bold]Provider:[/bold] {prov_name}/{model_name}"]
 
         preload_tools = sorted(agent._always_active)
@@ -508,11 +512,11 @@ async def _handle_slash_command(
         table.add_column("Agent", style="bold cyan")
         table.add_column("Provider/Model", style="bold")
         table.add_column("Server", style="dim")
-        current = settings.agents_config.default_agent
+        current = settings.agents_config.chat_agent
         for i, a in enumerate(agent_list, 1):
             marker = " *" if a.name == current else ""
-            prov = a.provider or settings.default_provider
-            mdl = a.model or settings.default_model
+            prov = a.effective_provider(settings)
+            mdl = a.effective_model(settings)
             srv = f"{a.server.host}:{a.server.port}"
             table.add_row(str(i), a.name + marker, f"{prov}/{mdl}", srv)
         console.print(table)
@@ -524,13 +528,9 @@ async def _handle_slash_command(
             return "  Cancelled."
         if choice.isdigit() and 1 <= int(choice) <= len(agent_list):
             target = agent_list[int(choice) - 1]
-            settings.agents_config.default_agent = target.name
-            if target.provider:
-                settings.default_provider = target.provider
-            if target.model:
-                settings.default_model = target.model
-            agent._provider_name = target.provider or settings.default_provider
-            agent._model = target.model or settings.default_model
+            settings.agents_config.chat_agent = target.name
+            agent._provider_name = target.effective_provider(settings)
+            agent._model = target.effective_model(settings)
             save_json(settings.model_dump(), CONFIG_PATH)
             logger.info("CLI: switched to agent '%s' (%s/%s)", target.name, agent._provider_name, agent._model)
             return f"  Switched to agent '{target.name}' ({agent._provider_name}/{agent._model})"
@@ -551,7 +551,8 @@ async def _async_chat_loop(
     providers: ProviderRegistry,
     output_file: Any,
     a2a_server: Any = None,
-    agent_config_server: dict[str, Any] | None = None,
+    agent_config_server: Any = None,
+    agent_entry: Any = None,
 ) -> None:
     """Async main chat loop — event-driven: each event is processed independently."""
 
@@ -597,7 +598,11 @@ async def _async_chat_loop(
                     return
 
             if hb_task in done:
-                response = hb_task.result()
+                try:
+                    response = hb_task.result()
+                except Exception as e:
+                    logger.warning("Heartbeat task failed: %s", e)
+                    continue
                 if response is not None:
                     # Case 3: speaking heartbeat → display as assistant message
                     dot_counter[0] = 0
@@ -632,7 +637,7 @@ async def _async_chat_loop(
         if not user_input:
             continue
         if user_input.startswith("/"):
-            result = await _handle_slash_command(user_input, agent, settings, skill_registry, cli_registry, memory)
+            result = await _handle_slash_command(user_input, agent, settings, skill_registry, cli_registry, memory, agent_entry=agent_entry)
             if result is None:
                 console.print("[dim]Goodbye![/dim]")
                 break
@@ -658,7 +663,9 @@ async def _async_chat_loop(
         agent.set_print_callback(lambda text: (output_lines.append(text), _refresh()))
         with Live(Group(spinner), console=console, refresh_per_second=settings.ui.refresh_per_second) as live:
             try:
-                response = agent.run(user_input)
+                response = agent.run(user_input,
+                    provider=agent_entry.effective_provider(settings) if agent_entry else settings.default_provider,
+                    model=agent_entry.effective_model(settings) if agent_entry else settings.default_model)
                 skill_registry.reload()
                 cli_registry.reload()
                 bridges = BridgeManager.reload(settings, bridges)
@@ -669,8 +676,8 @@ async def _async_chat_loop(
                 console.print(f"[red]Error:[/red] {e}")
                 continue
         console.print(f"[bold]Assistant:[/bold] {response}")
-        prov = providers.get()
-        model_name = agent._model or settings.default_model
+        prov = providers.get(agent._provider_name)
+        model_name = agent._model or (agent_entry.effective_model(settings) if agent_entry else settings.default_model)
         ctx = prov.get_context_window(model_name)
         max_tok = prov.get_max_tokens(model_name)
         last_in = agent.last_input_tokens
@@ -749,7 +756,7 @@ def chat(
         apply_to_tools, apply_to_cli_registry, apply_to_skill_registry,
         get_preloaded,
     )
-    agent_name = settings.agents_config.default_agent
+    agent_name = settings.agents_config.chat_agent
     loaded_tool_names: set[str] = get_preloaded("tools", agent_name=agent_name)
     loaded_skill_names: set[str] = get_preloaded("skills", agent_name=agent_name)
     loaded_cli_names: set[str] = get_preloaded("cli", agent_name=agent_name)
@@ -817,7 +824,7 @@ def chat(
     # 8. Find agent entry (used by memory, system prompt, A2A setup)
     agent_entry = None
     for a in settings.agents_config.agents:
-        if a.name == settings.agents_config.default_agent:
+        if a.name == settings.agents_config.chat_agent:
             agent_entry = a
             break
 
@@ -833,7 +840,7 @@ def chat(
         python_cmd=python_cmd,
         cwd=str(Path.cwd()),
         skills_dir=SKILLS_DIR,
-        agent_name=settings.agents_config.default_agent,
+        agent_name=settings.agents_config.chat_agent,
         a2a_tools=", ".join(agent_entry.a2a_tools) if agent_entry and agent_entry.a2a_tools else "",
         available_agents=", ".join(a.name for a in settings.agents_config.agents),
         agent_relations=", ".join(f"{r['from']}→{r['to']} ({r.get('mode', 'peer')})" for r in settings.agents_config.topology.relations) if settings.agents_config.topology.relations else "",
@@ -846,7 +853,7 @@ def chat(
     # 11. Memory — use per-agent db from config
     memory_db = agent_entry.memory_db if agent_entry else DEFAULT_MEMORY_DB
 
-    backend_name = settings.memory_search.default_embeddings_backend
+    backend_name = settings.memory_search.embeddings_backend
     backend = settings.embeddings_backends.get(backend_name) if backend_name else None
     if backend is None:
         if not backend_name:
@@ -876,7 +883,7 @@ def chat(
 
     # Build AgentCard from config
     card = AgentCard(
-        name=settings.agents_config.default_agent,
+        name=settings.agents_config.chat_agent,
         description=agent_entry.description if agent_entry else "",
         url=f"http://localhost:{agent_entry.server.port}" if agent_entry else f"http://localhost:{DEFAULT_SERVER_PORT}",
         capabilities=AgentCapabilities(streaming=True),
@@ -913,9 +920,11 @@ def chat(
         logger.info("A2A: server configured on %s:%d", a2a_host, a2a_port)
 
     agent = agent_core  # CLI uses AgentCore directly for chat
+    agent._provider_name = agent_entry.effective_provider(settings) if agent_entry else settings.default_provider
+    agent._model = agent_entry.effective_model(settings) if agent_entry else settings.default_model
 
-    model_info = escape(f"[{settings.default_provider}/{settings.default_model}]")
-    agent_label = f" ({settings.agents_config.default_agent})" if settings.agents_config.agents else ""
+    model_info = escape(f"[{agent_entry.effective_provider(settings)}/{agent_entry.effective_model(settings)}]")
+    agent_label = f" ({settings.agents_config.chat_agent})" if settings.agents_config.agents else ""
     console.print(Panel(
         f"qd-evolve v{__version__}{agent_label} {model_info} - /help for commands, /quit to leave",
         style="bold green",
@@ -942,6 +951,7 @@ def chat(
         input_session, agent, settings, skill_registry, cli_registry,
         memory, template_mgr, bridges, staged_bridges, providers, output_file,
         a2a_server=a2a_server, agent_config_server=_a2a_server_cfg,
+        agent_entry=agent_entry,
     ))
 
 

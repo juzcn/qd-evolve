@@ -38,7 +38,7 @@ def create_agent_core(
 
     # Memory — per-agent db from config
     memory_db = entry.memory_db or DEFAULT_MEMORY_DB
-    backend_name = settings.memory_search.default_embeddings_backend
+    backend_name = settings.memory_search.embeddings_backend
     backend = settings.embeddings_backends.get(backend_name) if backend_name else None
     if backend is None:
         logger.warning("Loader: no embeddings backend for agent '%s', skipping memory", name)

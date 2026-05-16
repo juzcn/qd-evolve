@@ -61,7 +61,13 @@ def _delegate_to(agent: str, task: str) -> str:
                 return f"Error: Agent '{agent}' not found in config — {e}"
 
         try:
-            result = agent_node.run(task)
+            from qd_evolve.core.config import load_settings
+            settings = load_settings()
+            from qd_evolve.agent.loader import get_agent_entry
+            entry = get_agent_entry(settings, agent)
+            prov = entry.effective_provider(settings) if entry else settings.default_provider
+            mdl = entry.effective_model(settings) if entry else settings.default_model
+            result = agent_node.run(task, provider=prov, model=mdl)
             logger.info("delegate_to: %s completed (%d chars)", agent, len(result))
             return result
         except Exception as e:
