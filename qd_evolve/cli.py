@@ -945,14 +945,16 @@ def chat(
     # Build startup panel — different layout for single vs multi-agent
     agents = settings.agents_config.agents
     if len(agents) > 1:
+        max_name_len = max(len(a.name) for a in agents)
         agent_lines = []
         for a in agents:
             prov = a.effective_provider(settings)
             mdl = a.effective_model(settings)
+            name_col = f"{a.name:<{max_name_len}}"
             if a.name == settings.agents_config.chat_agent:
-                agent_lines.append(f"  [bold]► {a.name}[/bold]  {prov}/{mdl}")
+                agent_lines.append(f"  [bold]► {name_col}[/bold]  {prov}/{mdl}")
             else:
-                agent_lines.append(f"    {a.name}  {prov}/{mdl}")
+                agent_lines.append(f"    {name_col}  {prov}/{mdl}")
         panel_text = (
             f"qd-evolve v{__version__}\n\n"
             + "\n".join(agent_lines)
