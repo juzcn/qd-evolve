@@ -28,6 +28,7 @@ class A2ATransport(Protocol):
     async def get_task(self, target: str, task_id: str) -> Task: ...
     async def cancel_task(self, target: str, task_id: str) -> Task: ...
     async def get_agent_card(self, target: str) -> AgentCard: ...
+    async def chat_subscribe(self, target: str) -> AsyncIterator[dict]: ...
 
 
 class InprocTransport:
@@ -150,6 +151,28 @@ class InprocTransport:
                 return AgentCard(name=target, description=f"Agent '{target}' not found")
         return agent_node.card
 
+    async def chat_subscribe(self, target: str) -> AsyncIterator[dict]:
+        """Subscribe to agent events from a local agent via asyncio.Queue."""
+        registry = self._get_registry()
+        agent_node = registry.get(target)
+        if agent_node is None:
+            agent_node = self._lazy_load(target, registry)
+            if agent_node is None:
+                return
+
+        queue = agent_node.subscribe_events()
+        try:
+            while True:
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=30)
+                    yield event
+                except asyncio.TimeoutError:
+                    yield {"type": "ping"}
+        except (asyncio.CancelledError, GeneratorExit):
+            pass
+        finally:
+            agent_node.unsubscribe_events(queue)
+
     def _lazy_load(self, target: str, registry: Any) -> Any | None:
         """Try to create and register an AgentCore from config on demand."""
         try:
@@ -267,6 +290,24 @@ class HttpTransport:
             logger.error("HttpTransport: get_agent_card for '%s' failed: %s", target, e)
             return AgentCard(name=target, description=f"Error: {type(e).__name__}: {e}")
 
+    async def chat_subscribe(self, target: str) -> AsyncIterator[dict]:
+        """SSE stream for heartbeat events from a remote agent."""
+        import aiohttp
+
+        try:
+            url = self._get_registry().get_url(target)
+            payload = self._rpc("chat/subscribe", {})
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, json=payload) as resp:
+                    async for line in resp.content:
+                        if line.startswith(b"data:"):
+                            try:
+                                yield json.loads(line[5:].strip())
+                            except json.JSONDecodeError:
+                                pass
+        except Exception as e:
+            logger.debug("HttpTransport: chat_subscribe for '%s' failed: %s", target, e)
+
     @staticmethod
     def _error_task(target: str, error: str) -> Task:
         return Task(
@@ -324,6 +365,11 @@ class TransportRouter:
 
     async def get_agent_card(self, target: str) -> AgentCard:
         return await self._pick(target).get_agent_card(target)
+
+    async def chat_subscribe(self, target: str) -> AsyncIterator[dict]:
+        transport = self._pick(target)
+        async for event in transport.chat_subscribe(target):
+            yield event
 
 
 def _new_id() -> str:

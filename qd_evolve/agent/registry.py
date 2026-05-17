@@ -78,7 +78,13 @@ class AgentRegistry:
         """Get transport mode for reaching a target agent."""
         from_agent = self.current_agent or next(iter(self._agents), "")
         if from_agent:
-            return self.topology.get_transport(from_agent, target)
+            result = self.topology.get_transport(from_agent, target)
+            if result != self.topology.default_transport:
+                return result
+        # Fallback: check if any agent→target is "http" in topology
+        for key, mode in self.topology.transports.items():
+            if key.endswith(f"→{target}") and mode == "http":
+                return "http"
         return self.topology.default_transport
 
     def get_card(self, name: str) -> AgentCard | None:

@@ -46,6 +46,30 @@ class Agent:
         self._loaded_cli_names: set[str] = set()
         self._preload_skills: set[str] = preload_skills or set()
         self._preload_cli: set[str] = preload_cli or set()
+        self._event_subscribers: list[asyncio.Queue] = []
+
+    def subscribe_events(self) -> asyncio.Queue:
+        q: asyncio.Queue = asyncio.Queue()
+        self._event_subscribers.append(q)
+        return q
+
+    def unsubscribe_events(self, q: asyncio.Queue) -> None:
+        if q in self._event_subscribers:
+            self._event_subscribers.remove(q)
+
+    # Backward compat aliases
+    def subscribe_heartbeat(self) -> asyncio.Queue:
+        return self.subscribe_events()
+
+    def unsubscribe_heartbeat(self, q: asyncio.Queue) -> None:
+        self.unsubscribe_events(q)
+
+    def _push_event(self, event: dict) -> None:
+        for q in self._event_subscribers:
+            try:
+                q.put_nowait(event)
+            except Exception:
+                pass
 
     def set_status_callback(self, cb: Callable[[str], None]) -> None:
         self._on_status = cb
@@ -54,12 +78,15 @@ class Agent:
         self._on_print = cb
 
     def _update_status(self, text: str) -> None:
+        msg = f"[#{self.iteration}] {text}"
         if self._on_status:
-            self._on_status(f"[#{self.iteration}] {text}")
+            self._on_status(msg)
+        self._push_event({"type": "status", "text": msg})
 
     def _print(self, text: str) -> None:
         if self._on_print:
             self._on_print(text)
+        self._push_event({"type": "print", "text": text})
 
     @property
     def total_tokens(self) -> int:
@@ -84,8 +111,10 @@ class Agent:
             return None
         if response.strip() == ".":
             logger.debug("Heartbeat: LLM sent '.' — staying silent")
+            self._push_event({"type": "heartbeat_silent"})
         else:
             logger.info("Heartbeat: LLM responded (%s chars)", len(response))
+            self._push_event({"type": "heartbeat", "content": response})
         return response
 
     def create_heartbeat_coro(self) -> Any:
@@ -116,8 +145,15 @@ class Agent:
         provider: str | None = None,
         model: str | None = None,
     ) -> str:
-        self._provider_name = provider or ""
-        self._model = model or ""
+        if provider is not None:
+            self._provider_name = provider
+        if model is not None:
+            self._model = model
+        # Fallback to config defaults if not set
+        if not self._provider_name:
+            self._provider_name = self.settings.default_provider
+        if not self._model:
+            self._model = self.settings.default_model
         system_prompt = system or self.default_system_prompt
         self.messages.append({"role": "user", "content": user_input})
         self.iteration = 0
@@ -133,6 +169,8 @@ class Agent:
 
         while True:
             self.iteration += 1
+            self._push_event({"type": "iteration", "num": self.iteration,
+                              "provider": self._provider_name, "model": self._model})
             client = prov.create_client()
             active = self._active_tools | self._always_active
             msg = self._format_messages_log()
@@ -152,6 +190,7 @@ class Agent:
                     raise ValueError(f"Unsupported api_type: {self._api_type}")
             except Exception as e:
                 logger.error("Agent: API call failed: %s", e)
+                self._push_event({"type": "error", "content": f"API error: {type(e).__name__}: {e}"})
                 self.messages.pop()  # remove the user message we just appended
                 return f"API error: {type(e).__name__}: {e}"
 
@@ -161,6 +200,7 @@ class Agent:
                     self.memory.save(user_input, result)
                 except Exception as e:
                     logger.warning("Agent: memory.save failed: %s", e)
+            self._push_event({"type": "completed", "content": result})
             return result
 
     def _compress_messages(self) -> None:
@@ -617,6 +657,8 @@ class Agent:
         self.total_input_tokens += usage.input_tokens
         self.total_output_tokens += usage.output_tokens
         logger.debug("Agent: token usage: input=%s, output=%s, total=%s", usage.input_tokens, usage.output_tokens, self.total_tokens)
+        self._push_event({"type": "tokens", "input": self.last_input_tokens, "output": self.last_output_tokens,
+                          "total_in": self.total_input_tokens, "total_out": self.total_output_tokens})
 
     def _track_tokens_openai_completion(self, usage: Any) -> None:
         self.last_input_tokens = usage.prompt_tokens
@@ -624,6 +666,8 @@ class Agent:
         self.total_input_tokens += usage.prompt_tokens
         self.total_output_tokens += usage.completion_tokens
         logger.debug("Agent: token usage: input=%s, output=%s, total=%s", usage.prompt_tokens, usage.completion_tokens, self.total_tokens)
+        self._push_event({"type": "tokens", "input": self.last_input_tokens, "output": self.last_output_tokens,
+                          "total_in": self.total_input_tokens, "total_out": self.total_output_tokens})
 
     def _track_tokens_openai_response(self, usage: Any) -> None:
         self.last_input_tokens = usage.input_tokens
@@ -631,6 +675,8 @@ class Agent:
         self.total_input_tokens += usage.input_tokens
         self.total_output_tokens += usage.output_tokens
         logger.debug("Agent: token usage: input=%s, output=%s, total=%s", usage.input_tokens, usage.output_tokens, self.total_tokens)
+        self._push_event({"type": "tokens", "input": self.last_input_tokens, "output": self.last_output_tokens,
+                          "total_in": self.total_input_tokens, "total_out": self.total_output_tokens})
 
     def _activate_tool(self, tool_name: str, tool_args: dict, result: str = "") -> None:
         """After a tool call, activate tools and track loaded skill/CLI names."""

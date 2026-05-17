@@ -83,11 +83,13 @@ class A2AServer:
             if method == "tasks/send":
                 result = await self._tasks_send(params)
             elif method == "tasks/sendSubscribe":
-                return await self._tasks_send_subscribe(params)
+                return await self._tasks_send_subscribe(params, request)
             elif method == "tasks/get":
                 result = await self._tasks_get(params)
             elif method == "tasks/cancel":
                 result = await self._tasks_cancel(params)
+            elif method == "chat/subscribe":
+                return await self._chat_subscribe(params, request)
             else:
                 return web.json_response(self._error(-32601, "Method not found", req_id))
 
@@ -122,7 +124,7 @@ class A2AServer:
         self.task_store.put(task)
         return task
 
-    async def _tasks_send_subscribe(self, params: dict) -> web.StreamResponse:
+    async def _tasks_send_subscribe(self, params: dict, request: web.Request) -> web.StreamResponse:
         """Non-blocking: SSE stream of task status updates."""
         message_data = params.get("message", {})
         message = Message.model_validate(message_data) if message_data else make_text_message("user", "")
@@ -134,7 +136,7 @@ class A2AServer:
         resp = web.StreamResponse()
         resp.content_type = "text/event-stream"
         resp.charset = "utf-8"
-        await resp.prepare(self._request)
+        await resp.prepare(request)
 
         # Submit working state
         event = TaskStatusUpdateEvent(id=task.id, status=TaskStatus(state=TaskState.working))
@@ -180,6 +182,27 @@ class A2AServer:
             if part.type == "text" and part.text:
                 return part.text
         return ""
+
+    async def _chat_subscribe(self, params: dict, request: web.Request) -> web.StreamResponse:
+        """SSE stream for agent events — CLI subscribes to receive iteration, tool, reasoning, heartbeat events."""
+        resp = web.StreamResponse()
+        resp.content_type = "text/event-stream"
+        resp.charset = "utf-8"
+        await resp.prepare(request)
+
+        queue = self.agent_core.subscribe_events()
+        try:
+            while True:
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=30)
+                    await resp.write(f"data: {json.dumps(event, ensure_ascii=False)}\n\n".encode())
+                except asyncio.TimeoutError:
+                    await resp.write(b": ping\n\n")
+        except (ConnectionError, asyncio.CancelledError):
+            pass
+        finally:
+            self.agent_core.unsubscribe_events(queue)
+        return resp
 
     @staticmethod
     def _error(code: int, message: str, req_id: Any = None) -> dict:

@@ -28,13 +28,13 @@ Multi-agent AI system with A2A protocol, dual transport, tool use, skills, MCP i
 - **Context compression** — Auto Q/A removal when tokens exceed threshold; set `context_window` to 0 or omit it to disable
 - **Auto recall** — Relevant past conversations auto-injected into system prompt
 - **Per-turn token stats** — Input/output tracking with context window usage
-- **Heartbeat** — Idle detection with LLM-driven heartbeat messages; silent dot counter in terminal; configurable via `heartbeat_idle_seconds`
+- **Heartbeat** — Idle detection with LLM-driven heartbeat messages; per-agent counters displayed as colored `♡ name:N` in prompt; configurable via `heartbeat_idle_seconds`
 - **Hot-loading** — `install_func/install_mcp/install_skill` hot-load new tools into current session without restart; `register_func/register_mcp/register_skill` persist to permanent directories; staging area `.qd_evolve/staging/` for user confirmation before permanent registration
 - **Streaming** — Global `stream` setting for token-by-token output to terminal (OpenAI-compatible providers)
 - **Reasoning/thinking mode** — Per-model `reasoning` flag for DeepSeek-style reasoning_content passthrough with terminal display
 - **Dual embedder support** — sentence-transformers or llama-cpp-python
 - **Structured logging** — Standard library logging with SharedFileHandler for real-time log visibility
-- **Rich CLI** — Interactive prompt with tab completion, spinner, heartbeat dots, and slash commands
+- **Rich CLI** — Interactive prompt with tab completion, spinner, per-agent heartbeat counters, iteration/tool-call display, and slash commands
 
 ## Quick Start
 
@@ -184,13 +184,33 @@ Full A2A v1.0 spec implementation:
 | `tasks/sendSubscribe` | Create task, SSE stream status updates | No |
 | `tasks/get` | Query task status | No |
 | `tasks/cancel` | Cancel a task | No |
+| `chat/subscribe` | SSE stream of agent events (iteration, status, tokens, heartbeat) | No |
 | AgentCard | `/.well-known/agent.json` — discover agent capabilities | — |
 
 ### Dual Transport
 
-- **InprocTransport** — Direct `AgentCore.run()` call via `asyncio.to_thread`. Zero network latency for same-machine agents. Lazy-loads target agent from config on demand.
-- **HttpTransport** — aiohttp JSON-RPC client for cross-machine agents. Standard A2A protocol.
+- **InprocTransport** — Direct `AgentCore.run()` call via `asyncio.to_thread`. Zero network latency for same-machine agents. Lazy-loads target agent from config on demand. CLI uses `set_status_callback`/`set_print_callback` for iteration display and `create_heartbeat_coro()` for heartbeat.
+- **HttpTransport** — aiohttp JSON-RPC client for cross-machine agents. Standard A2A protocol. CLI uses SSE event stream from `chat/subscribe` for iteration/heartbeat/tool-call display.
 - **TransportRouter** — Auto-selects transport based on `agents_config.topology` config. `delegate_to` and other tools only depend on the transport interface.
+- **Unified event display** — Both paths share a `event_queue` for per-agent heartbeat counters (`♡ name:N` in rprompt). Inproc events bridge via `_inproc_event_worker`; HTTP events bridge via `_event_worker`. Same `Live(Group)` iteration display pattern for both modes.
+
+### Event Stream
+
+`chat/subscribe` carries all agent events via SSE, not just heartbeat. Event types:
+
+| Event | Fields | Description |
+|-------|--------|-------------|
+| `iteration` | `num`, `provider`, `model` | New iteration started |
+| `status` | `text` | Tool call / step progress |
+| `print` | `text` | Reasoning content, tool output |
+| `tokens` | `input`, `output`, `total_in`, `total_out` | Token usage after API call |
+| `completed` | `content` | Agent finished, final response |
+| `error` | `content` | API error during run |
+| `heartbeat` | `content` | Speaking heartbeat response |
+| `heartbeat_silent` | — | Silent heartbeat (no content) |
+| `ping` | — | SSE keepalive (30s timeout) |
+
+AgentCore pushes events via `_push_event()` to all subscriber queues. `_update_status` and `_print` are wired to also push events, so tool calls and reasoning flow through the same stream.
 
 ## System Tools
 

@@ -1,9 +1,8 @@
 import asyncio
 from asyncio import CancelledError
-import platform
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, AsyncIterator
 
 import typer
 from qd_evolve.core.logger import logger
@@ -15,10 +14,9 @@ from rich.spinner import Spinner
 from rich.table import Table
 from rich.text import Text
 
-from qd_evolve.core.config import CONFIG_PATH, SKILLS_DIR, CLI_TOOLS_DIR, DEFAULT_MEMORY_DB, DEFAULT_SERVER_HOST, DEFAULT_SERVER_PORT, Settings, load_settings, save_json
+from qd_evolve.core.config import CONFIG_PATH, SKILLS_DIR, CLI_TOOLS_DIR, DEFAULT_SERVER_PORT, Settings, load_settings, save_json
 from qd_evolve.cli_tools import CLIRegistry
 from qd_evolve.core.memory import MemoryStore
-from qd_evolve.core.prompts import PromptTemplateManager
 from qd_evolve.core.providers import ProviderRegistry
 from qd_evolve.skills import SkillRegistry
 from qd_evolve.core.registry import get_registry
@@ -76,22 +74,6 @@ SLASH_COMMANDS = {
     "/agents": "List discovered agents",
     "/help": "Show available commands",
 }
-
-
-def _detect_python_cmd() -> str:
-    """Detect a working python command by actually running it."""
-    import subprocess
-    for cmd in (sys.executable, "python3", "python"):
-        try:
-            result = subprocess.run(
-                [cmd, "--version"],
-                capture_output=True, text=True, timeout=5,
-            )
-            if result.returncode == 0:
-                return cmd
-        except Exception:
-            continue
-    return "python"
 
 
 @app.command()
@@ -349,19 +331,29 @@ def _make_prompt_session() -> "PromptSession":
         raise
 
 
-async def _read_input_async(session: "PromptSession | ReplayInput", dot_counter: list[int] | None = None) -> str:
+async def _read_input_async(session: "PromptSession | ReplayInput", hb_counts: dict[str, int] | None = None) -> str:
     """Read user input from prompt_toolkit or replay session.
 
-    When dot_counter is a list, its [0] element tracks silent heartbeat count.
-    A bottom_toolbar renders accumulated dots without disturbing the prompt area.
+    When hb_counts is a dict, it tracks per-agent silent heartbeat counts.
+    An rprompt renders agent heartbeat dots on the right side of the prompt.
     """
     if isinstance(session, ReplayInput):
         result = await asyncio.to_thread(session.prompt)
         return result.strip()
-    if dot_counter is not None:
-        def _rprompt() -> str:
-            n = dot_counter[0]
-            return f"♡ {n}" if n else ""
+    if hb_counts is not None:
+        _agent_colors = ["cyan", "magenta", "yellow", "green", "blue", "red"]
+        def _rprompt() -> "FormattedText":
+            from prompt_toolkit.formatted_text import FormattedText
+            fragments: list[tuple[str, str]] = []
+            for i, (name, n) in enumerate(hb_counts.items()):
+                color = _agent_colors[i % len(_agent_colors)]
+                if fragments:
+                    fragments.append(("", "  "))
+                if n > 0:
+                    fragments.append((f"fg:{color} bold", f"♡ {name}:{n}"))
+                else:
+                    fragments.append((f"fg:{color}", f"♡ {name}"))
+            return FormattedText(fragments) if fragments else FormattedText([("", "")])
         try:
             result = await session.prompt_async(
                 rprompt=_rprompt,
@@ -381,17 +373,20 @@ async def _handle_slash_command(
     cmd: str,
     agent: Any,
     settings: Settings,
-    skill_registry: SkillRegistry,
-    cli_registry: CLIRegistry,
     memory: MemoryStore | None = None,
     agent_entry: Any = None,
 ) -> str | None:
+    from qd_evolve.agent.loader import get_skill_registry, get_cli_registry
+    skill_registry = get_skill_registry()
+    cli_registry = get_cli_registry()
     name = cmd.lower().strip()
     if name == "/quit":
         return None
     if name == "/reset":
-        agent.reset()
-        return "Conversation reset."
+        if agent is not None:
+            agent.reset()
+            return "Conversation reset."
+        return "  Reset not available for remote agents."
     if name == "/help":
         table = Table(title="Commands", show_header=False)
         table.add_column("Command", style="bold cyan")
@@ -439,8 +434,9 @@ async def _handle_slash_command(
             return "  Cancelled."
         if choice.isdigit() and 1 <= int(choice) <= len(all_models):
             prov_name, mname = all_models[int(choice) - 1]
-            agent._provider_name = prov_name
-            agent._model = mname
+            if agent is not None:
+                agent._provider_name = prov_name
+                agent._model = mname
             if agent_entry:
                 agent_entry.provider = prov_name
                 agent_entry.model = mname
@@ -449,30 +445,33 @@ async def _handle_slash_command(
             return f"  Switched to {prov_name}/{mname}"
         return "  Cancelled."
     if name == "/status":
-        prov_name = agent._provider_name or (agent_entry.effective_provider(settings) if agent_entry else settings.default_provider)
-        model_name = agent._model or (agent_entry.effective_model(settings) if agent_entry else settings.default_model)
+        prov_name = (agent._provider_name if agent else "") or (agent_entry.effective_provider(settings) if agent_entry else settings.default_provider)
+        model_name = (agent._model if agent else "") or (agent_entry.effective_model(settings) if agent_entry else settings.default_model)
         lines = [f"  [bold]Provider:[/bold] {prov_name}/{model_name}"]
 
-        preload_tools = sorted(agent._always_active)
-        loaded_tools = sorted(agent._active_tools - agent._always_active)
-        if preload_tools:
-            lines.append(f"  [bold]Tool (preload):[/bold] {', '.join(preload_tools)}")
-        if loaded_tools:
-            lines.append(f"  [bold]Tool (loaded):[/bold] {', '.join(loaded_tools)}")
+        if agent is not None:
+            preload_tools = sorted(agent._always_active)
+            loaded_tools = sorted(agent._active_tools - agent._always_active)
+            if preload_tools:
+                lines.append(f"  [bold]Tool (preload):[/bold] {', '.join(preload_tools)}")
+            if loaded_tools:
+                lines.append(f"  [bold]Tool (loaded):[/bold] {', '.join(loaded_tools)}")
 
-        preload_skills = sorted(agent._preload_skills)
-        loaded_skills = sorted(s for s in agent._loaded_skill_names if s not in agent._preload_skills)
-        if preload_skills:
-            lines.append(f"  [bold]Skill (preload):[/bold] {', '.join(preload_skills)}")
-        if loaded_skills:
-            lines.append(f"  [bold]Skill (loaded):[/bold] {', '.join(loaded_skills)}")
+            preload_skills = sorted(agent._preload_skills)
+            loaded_skills = sorted(s for s in agent._loaded_skill_names if s not in agent._preload_skills)
+            if preload_skills:
+                lines.append(f"  [bold]Skill (preload):[/bold] {', '.join(preload_skills)}")
+            if loaded_skills:
+                lines.append(f"  [bold]Skill (loaded):[/bold] {', '.join(loaded_skills)}")
 
-        preload_cli = sorted(agent._preload_cli)
-        loaded_cli = sorted(c for c in agent._loaded_cli_names if c not in agent._preload_cli)
-        if preload_cli:
-            lines.append(f"  [bold]CLI (preload):[/bold] {', '.join(preload_cli)}")
-        if loaded_cli:
-            lines.append(f"  [bold]CLI (loaded):[/bold] {', '.join(loaded_cli)}")
+            preload_cli = sorted(agent._preload_cli)
+            loaded_cli = sorted(c for c in agent._loaded_cli_names if c not in agent._preload_cli)
+            if preload_cli:
+                lines.append(f"  [bold]CLI (preload):[/bold] {', '.join(preload_cli)}")
+            if loaded_cli:
+                lines.append(f"  [bold]CLI (loaded):[/bold] {', '.join(loaded_cli)}")
+        else:
+            lines.append("  [dim](remote agent — local status not available)[/dim]")
 
         return "\n".join(lines)
     if name == "/memory":
@@ -529,34 +528,46 @@ async def _handle_slash_command(
         if choice.isdigit() and 1 <= int(choice) <= len(agent_list):
             target = agent_list[int(choice) - 1]
             settings.agents_config.chat_agent = target.name
-            agent._provider_name = target.effective_provider(settings)
-            agent._model = target.effective_model(settings)
+            if agent is not None:
+                agent._provider_name = target.effective_provider(settings)
+                agent._model = target.effective_model(settings)
             save_json(settings.model_dump(), CONFIG_PATH)
-            logger.info("CLI: switched to agent '%s' (%s/%s)", target.name, agent._provider_name, agent._model)
-            return f"  Switched to agent '{target.name}' ({agent._provider_name}/{agent._model})"
+            prov = target.effective_provider(settings)
+            mdl = target.effective_model(settings)
+            logger.info("CLI: switched to agent '%s' (%s/%s)", target.name, prov, mdl)
+            return f"  Switched to agent '{target.name}' ({prov}/{mdl})"
         return "  Cancelled."
     return None
 
 
 async def _async_chat_loop(
     input_session: "PromptSession | ReplayInput",
-    agent: Any,
     settings: Settings,
-    skill_registry: SkillRegistry,
-    cli_registry: CLIRegistry,
-    memory: MemoryStore | None,
-    template_mgr: PromptTemplateManager,
-    bridges: list[Any],
-    staged_bridges: list[Any],
-    providers: ProviderRegistry,
     output_file: Any,
+    router: Any,
+    chat_agent_name: str,
+    agent_core: Any = None,
     a2a_server: Any = None,
     agent_config_server: Any = None,
     agent_entry: Any = None,
+    inproc_agents: dict[str, Any] | None = None,
 ) -> None:
-    """Async main chat loop — event-driven: each event is processed independently."""
+    """Async main chat loop — pure A2A client via transport.
 
-    # Start A2A HTTP server
+    CLI never calls agent.run() directly. All communication goes through
+    the transport router: tasks/send for chat, chat_subscribe for heartbeat.
+    For inproc agents, InprocTransport wraps the local AgentCore.
+    For HTTP agents, HttpTransport talks to the remote serve process.
+    """
+    from qd_evolve.agent.loader import get_skill_registry, get_cli_registry, get_bridges
+
+    skill_registry = get_skill_registry()
+    cli_registry = get_cli_registry()
+    bridges = get_bridges()
+    providers = ProviderRegistry(settings)
+    memory = agent_core.memory if agent_core else None
+
+    # Start A2A HTTP servers for all inproc agents
     if a2a_server and agent_config_server:
         host = agent_config_server.host
         port = agent_config_server.port
@@ -567,146 +578,478 @@ async def _async_chat_loop(
             logger.warning("A2A: failed to start server on %s:%s: %s (may already be running)", host, port, e)
             console.print(f"[dim]A2A server on {host}:{port} skipped (port in use)[/dim]")
 
-    dot_counter = [0]  # mutable counter for silent heartbeats → toolbar dots
-    input_task = hb_task = None
-
-    try:
-      while True:
-        input_task = asyncio.ensure_future(_read_input_async(input_session, dot_counter))
-
-        while True:
-            hb_coro = agent.create_heartbeat_coro()
-            if hb_coro is None:
-                dot_counter[0] = 0
+    # Start A2A servers and heartbeat loops for non-chat inproc agents
+    inproc_hb_tasks: list[asyncio.Task] = []
+    if inproc_agents:
+        from qd_evolve.agent.server import A2AServer
+        for name, core in inproc_agents.items():
+            entry = next((a for a in settings.agents_config.agents if a.name == name), None)
+            if entry:
+                server = A2AServer(core, core.card, core.task_store)
                 try:
-                    user_input = (await input_task).strip()
+                    await server.start(host=entry.server.host, port=entry.server.port)
+                    console.print(f"[dim]A2A server for '{name}' running on {entry.server.host}:{entry.server.port}[/dim]")
+                except OSError as e:
+                    logger.warning("A2A: failed to start server for '%s' on %s:%s: %s", name, entry.server.host, entry.server.port, e)
+                    console.print(f"[dim]A2A server for '{name}' on {entry.server.host}:{entry.server.port} skipped[/dim]")
+            # Start heartbeat loop for inproc non-chat agents
+            if name != chat_agent_name:
+                hb_seconds = settings.heartbeat_idle_seconds
+                if hb_seconds > 0:
+                    async def _hb_loop(agent_core: Any, seconds: int) -> None:
+                        while True:
+                            await asyncio.sleep(seconds)
+                            try:
+                                await asyncio.to_thread(agent_core.heartbeat_check, seconds)
+                            except Exception as e:
+                                logger.debug("Inproc heartbeat for '%s' failed: %s", agent_core.card.name, e)
+                    inproc_hb_tasks.append(asyncio.ensure_future(_hb_loop(core, hb_seconds)))
+
+    hb_idle = settings.heartbeat_idle_seconds
+    all_agent_names = [a.name for a in settings.agents_config.agents]
+    hb_counts: dict[str, int] = {name: 0 for name in all_agent_names}
+
+    def _handle_event(agent_name: str, event: dict) -> None:
+        """Process an event from any agent — update hb_counts, display heartbeat."""
+        etype = event.get("type", "")
+        if etype == "heartbeat":
+            hb_counts[agent_name] = 0
+            console.print(f"[bold]Assistant ({agent_name}):[/bold] {event.get('content', '')}")
+        elif etype == "heartbeat_silent":
+            hb_counts[agent_name] += 1
+
+    # --- Inproc mode: old pattern (callbacks + heartbeat_coro) ---
+    if agent_core is not None:
+        iteration_lines: list[str] = []
+        output_lines: list[str] = []
+
+        def _on_status(text: str) -> None:
+            iteration_lines.append(text)
+            _refresh()
+
+        def _on_print(text: str) -> None:
+            output_lines.append(text)
+            _refresh()
+
+        def _refresh() -> None:
+            items = [Text(line, style="bold green") for line in iteration_lines]
+            items.append(spinner)
+            for line in output_lines:
+                items.append(Text.from_markup(line, style="dim cyan"))
+            live.update(Group(*items))
+
+        agent_core.set_status_callback(_on_status)
+        agent_core.set_print_callback(_on_print)
+
+        # Event queue for other agents' heartbeat events
+        event_queue: asyncio.Queue[tuple[str, dict]] = asyncio.Queue()
+        event_workers: list[asyncio.Task] = []
+
+        async def _inproc_event_worker(name: str, core: Any) -> None:
+            """Subscribe to inproc agent events directly (zero latency).
+            Heartbeat events are handled by hb_task for chat_agent, so skip them here."""
+            queue = core.subscribe_events()
+            try:
+                while True:
+                    event = await queue.get()
+                    if name == chat_agent_name and event.get("type", "") in ("heartbeat", "heartbeat_silent"):
+                        continue
+                    await event_queue.put((name, event))
+            except asyncio.CancelledError:
+                pass
+            finally:
+                core.unsubscribe_events(queue)
+
+        async def _remote_event_worker(name: str) -> None:
+            """Subscribe to a remote agent's events via chat/subscribe SSE."""
+            retry_delay = 5
+            while True:
+                try:
+                    async for agent_name, event in _event_collector(
+                        router.chat_subscribe(name), agent_name=name,
+                    ):
+                        await event_queue.put((agent_name, event))
+                        retry_delay = 5
+                except asyncio.CancelledError:
+                    return
+                except Exception:
+                    logger.debug("Event worker for '%s': retrying in %ds", name, retry_delay)
+                    await asyncio.sleep(retry_delay)
+                    retry_delay = min(retry_delay * 2, 60)
+
+        if hb_idle > 0:
+            # Inproc agents: direct subscribe_events() — zero latency
+            for name, core in inproc_agents.items():
+                event_workers.append(asyncio.ensure_future(_inproc_event_worker(name, core)))
+            # Remote agents: SSE via HttpTransport
+            for name in all_agent_names:
+                if name not in inproc_agents:
+                    event_workers.append(asyncio.ensure_future(_remote_event_worker(name)))
+
+        input_task = hb_task = None
+
+        try:
+          while True:
+            input_task = asyncio.ensure_future(_read_input_async(input_session, hb_counts))
+
+            while True:
+                hb_coro = agent_core.create_heartbeat_coro()
+                if hb_coro is None:
+                    for k in hb_counts:
+                        hb_counts[k] = 0
+                    try:
+                        user_input = (await input_task).strip()
+                    except (EOFError, KeyboardInterrupt):
+                        console.print("\n[dim]Goodbye![/dim]")
+                        return
+                    break
+
+                hb_task = asyncio.ensure_future(hb_coro)
+                event_wait = asyncio.ensure_future(event_queue.get())
+                try:
+                    done, pending = await asyncio.wait(
+                        [input_task, hb_task, event_wait], return_when=asyncio.FIRST_COMPLETED,
+                    )
+                except (EOFError, KeyboardInterrupt):
+                    console.print("\n[dim]Goodbye![/dim]")
+                    return
+
+                if input_task.done():
+                    exc = input_task.exception()
+                    if exc is not None and not isinstance(exc, CancelledError):
+                        console.print("\n[dim]Goodbye![/dim]")
+                        return
+
+                # Event arrived from any agent (inproc or remote)
+                if event_wait in done:
+                    try:
+                        agent_name, event = event_wait.result()
+                    except Exception:
+                        pass
+                    else:
+                        _handle_event(agent_name, event)
+                    # hb_task / input_task not done yet — re-wait
+                    continue
+
+                if hb_task in done:
+                    try:
+                        response = hb_task.result()
+                    except Exception as e:
+                        logger.debug("Heartbeat failed: %s", e)
+                        await asyncio.sleep(5)
+                        event_wait.cancel()
+                        try:
+                            await event_wait
+                        except (CancelledError, Exception):
+                            pass
+                        continue
+                    # Speaking heartbeat — cancel input, display response
+                    if response is not None:
+                        hb_counts[chat_agent_name] = 0
+                        input_task.cancel()
+                        try:
+                            await input_task
+                        except (CancelledError, EOFError, KeyboardInterrupt):
+                            pass
+                        event_wait.cancel()
+                        try:
+                            await event_wait
+                        except (CancelledError, Exception):
+                            pass
+                        console.print(f"[bold]Assistant:[/bold] {response}")
+                        user_input = None
+                        break
+                    # Silent heartbeat — increment counter
+                    hb_counts[chat_agent_name] += 1
+                    event_wait.cancel()
+                    try:
+                        await event_wait
+                    except (CancelledError, Exception):
+                        pass
+                    continue
+
+                # User input arrived
+                for k in hb_counts:
+                    hb_counts[k] = 0
+                hb_task.cancel()
+                try:
+                    await hb_task
+                except (CancelledError, Exception):
+                    pass
+                event_wait.cancel()
+                try:
+                    await event_wait
+                except (CancelledError, Exception):
+                    pass
+                try:
+                    user_input = input_task.result().strip()
                 except (EOFError, KeyboardInterrupt):
                     console.print("\n[dim]Goodbye![/dim]")
                     return
                 break
 
-            hb_task = asyncio.ensure_future(hb_coro)
-            try:
-                done, pending = await asyncio.wait(
-                    [input_task, hb_task], return_when=asyncio.FIRST_COMPLETED,
-                )
-            except (EOFError, KeyboardInterrupt):
-                console.print("\n[dim]Goodbye![/dim]")
-                return
+            if user_input is None:
+                continue
+            if not user_input:
+                continue
+            if user_input.startswith("/"):
+                result = await _handle_slash_command(user_input, agent_core, settings, memory, agent_entry=agent_entry)
+                if result is None:
+                    console.print("[dim]Goodbye![/dim]")
+                    break
+                if result:
+                    console.print(result)
+                continue
 
-            # If input_task died unexpectedly (not cancelled), exit
-            if input_task.done():
-                exc = input_task.exception()
-                if exc is not None and not isinstance(exc, CancelledError):
+            # Chat — direct agent.run() with Live display (old pattern)
+            iteration_lines.clear()
+            output_lines.clear()
+            spinner = Spinner("dots", text=Text("Thinking...", style="bold green"))
+            with Live(Group(spinner), console=console, refresh_per_second=10) as live:
+                try:
+                    response = await asyncio.to_thread(agent_core.run, user_input)
+                except Exception as e:
+                    response = f"[red]Error:[/red] {e}"
+
+            console.print(f"[bold]Assistant:[/bold] {response}")
+
+            # Token stats — read directly from agent_core
+            try:
+                prov = providers.get(agent_core._provider_name)
+                model_name = agent_core._model or settings.default_model
+                ctx = prov.get_context_window(model_name)
+                max_tok = prov.get_max_tokens(model_name)
+                last_in = agent_core.last_input_tokens
+                last_out = agent_core.last_output_tokens
+                pct_ctx = f" ({last_in / ctx * 100:.1f}% of {ctx} context)" if ctx > 0 else ""
+                pct_max = f" ({last_out / max_tok * 100:.1f}% of {max_tok} max)" if max_tok > 0 else ""
+                console.print(f"[dim]This turn: {last_in} in{pct_ctx} + {last_out} out{pct_max}[/dim]")
+                console.print(f"[dim]Cumulative: {agent_core.total_input_tokens + agent_core.total_output_tokens} tokens used[/dim]")
+            except (KeyError, ZeroDivisionError):
+                pass
+
+            skill_registry.reload()
+            cli_registry.reload()
+            bridges = BridgeManager.reload(settings, bridges)
+
+        except KeyboardInterrupt:
+            if input_task and not input_task.done():
+                input_task.cancel()
+                try:
+                    input_task.result()
+                except BaseException:
+                    pass
+            if hb_task and not hb_task.done():
+                hb_task.cancel()
+            for t in event_workers:
+                if not t.done():
+                    t.cancel()
+            console.print("\n[dim]Goodbye![/dim]")
+
+    # --- HTTP mode: SSE event stream ---
+    else:
+        event_queue: asyncio.Queue[tuple[str, dict]] = asyncio.Queue()
+        event_workers: list[asyncio.Task] = []
+
+        async def _inproc_event_worker(name: str, core: Any) -> None:
+            """Subscribe to inproc agent events directly (zero latency)."""
+            queue = core.subscribe_events()
+            try:
+                while True:
+                    event = await queue.get()
+                    await event_queue.put((name, event))
+            except asyncio.CancelledError:
+                pass
+            finally:
+                core.unsubscribe_events(queue)
+
+        async def _remote_event_worker(name: str) -> None:
+            """Subscribe to a remote agent's events via chat/subscribe SSE."""
+            retry_delay = 5
+            while True:
+                try:
+                    async for agent_name, event in _event_collector(
+                        router.chat_subscribe(name), agent_name=name,
+                    ):
+                        await event_queue.put((agent_name, event))
+                        retry_delay = 5
+                except asyncio.CancelledError:
+                    return
+                except Exception:
+                    logger.debug("Event worker for '%s': retrying in %ds", name, retry_delay)
+                    await asyncio.sleep(retry_delay)
+                    retry_delay = min(retry_delay * 2, 60)
+
+        if hb_idle > 0:
+            # Inproc agents: direct subscribe_events() — zero latency
+            for name, core in (inproc_agents or {}).items():
+                event_workers.append(asyncio.ensure_future(_inproc_event_worker(name, core)))
+            # Remote agents: SSE via HttpTransport
+            for name in all_agent_names:
+                if name not in (inproc_agents or {}):
+                    event_workers.append(asyncio.ensure_future(_remote_event_worker(name)))
+
+        input_task = None
+
+        try:
+          while True:
+            input_task = asyncio.ensure_future(_read_input_async(input_session, hb_counts))
+
+            while True:
+                if hb_idle <= 0:
+                    for k in hb_counts:
+                        hb_counts[k] = 0
+                    try:
+                        user_input = (await input_task).strip()
+                    except (EOFError, KeyboardInterrupt):
+                        console.print("\n[dim]Goodbye![/dim]")
+                        return
+                    break
+
+                # Wait for either user input or an event
+                event_wait = asyncio.ensure_future(event_queue.get())
+                try:
+                    done, pending = await asyncio.wait(
+                        [input_task, event_wait], return_when=asyncio.FIRST_COMPLETED,
+                    )
+                except (EOFError, KeyboardInterrupt):
                     console.print("\n[dim]Goodbye![/dim]")
                     return
 
-            if hb_task in done:
-                try:
-                    response = hb_task.result()
-                except Exception as e:
-                    logger.warning("Heartbeat task failed: %s", e)
-                    continue
-                if response is not None:
-                    # Case 3: speaking heartbeat → display as assistant message
-                    dot_counter[0] = 0
-                    input_task.cancel()
+                if input_task.done():
+                    exc = input_task.exception()
+                    if exc is not None and not isinstance(exc, CancelledError):
+                        console.print("\n[dim]Goodbye![/dim]")
+                        return
+
+                # Event arrived
+                if event_wait in done:
                     try:
-                        await input_task
-                    except (CancelledError, EOFError, KeyboardInterrupt):
-                        pass
-                    console.print(response)
-                    break  # exit inner loop → recreate input_task
-                else:
-                    # Case 2: silent heartbeat → increment dot counter
-                    dot_counter[0] += 1
-                continue
+                        agent_name, event = event_wait.result()
+                    except Exception:
+                        continue
+                    _handle_event(agent_name, event)
+                    etype = event.get("type", "")
+                    if etype == "heartbeat" and agent_name == chat_agent_name:
+                        input_task.cancel()
+                        try:
+                            await input_task
+                        except (CancelledError, EOFError, KeyboardInterrupt):
+                            pass
+                        user_input = None
+                        break
+                    continue
 
-            # User input arrived
-            dot_counter[0] = 0
-            hb_task.cancel()
-            try:
-                await hb_task
-            except (CancelledError, Exception):
-                pass
-            try:
-                user_input = input_task.result().strip()
-            except (EOFError, KeyboardInterrupt):
-                console.print("\n[dim]Goodbye![/dim]")
-                return
-            break  # exit inner loop
-
-        if user_input is None:
-            continue  # heartbeat spoke, restart fresh
-        if not user_input:
-            continue
-        if user_input.startswith("/"):
-            result = await _handle_slash_command(user_input, agent, settings, skill_registry, cli_registry, memory, agent_entry=agent_entry)
-            if result is None:
-                console.print("[dim]Goodbye![/dim]")
+                # User input arrived — cancel event_wait
+                event_wait.cancel()
+                try:
+                    await event_wait
+                except (CancelledError, Exception):
+                    pass
+                try:
+                    user_input = input_task.result().strip()
+                except (EOFError, KeyboardInterrupt):
+                    console.print("\n[dim]Goodbye![/dim]")
+                    return
                 break
-            if result:
-                console.print(result)
-            continue
 
-        spinner = Spinner("dots", text=Text("Thinking...", style="bold green"))
-        iteration_lines: list[str] = []
-        output_lines: list[str] = []
-        def _on_status(text: str) -> None:
-            iteration_lines.append(text)
-            _refresh()
-        def _refresh() -> None:
-            items = []
-            for line in iteration_lines:
-                items.append(Text(line, style="bold green"))
-            items.append(spinner)
-            for line in output_lines:
-                items.append(Text.from_markup(line, style="dim cyan"))
-            live.update(Group(*items))
-        agent.set_status_callback(_on_status)
-        agent.set_print_callback(lambda text: (output_lines.append(text), _refresh()))
-        with Live(Group(spinner), console=console, refresh_per_second=settings.ui.refresh_per_second) as live:
-            try:
-                response = agent.run(user_input,
-                    provider=agent_entry.effective_provider(settings) if agent_entry else settings.default_provider,
-                    model=agent_entry.effective_model(settings) if agent_entry else settings.default_model)
-                skill_registry.reload()
-                cli_registry.reload()
-                bridges = BridgeManager.reload(settings, bridges)
-            except KeyboardInterrupt:
-                console.print("\n[dim]Interrupted.[/dim]")
+            if user_input is None:
                 continue
-            except Exception as e:
-                console.print(f"[red]Error:[/red] {e}")
+            if not user_input:
                 continue
-        console.print(f"[bold]Assistant:[/bold] {response}")
-        try:
-            prov = providers.get(agent._provider_name)
-            model_name = agent._model or (agent_entry.effective_model(settings) if agent_entry else settings.default_model)
-            ctx = prov.get_context_window(model_name)
-            max_tok = prov.get_max_tokens(model_name)
-            last_in = agent.last_input_tokens
-            last_out = agent.last_output_tokens
-            pct_ctx = f" ({last_in / ctx * 100:.1f}% of {ctx} context)" if ctx > 0 else ""
-            pct_max = f" ({last_out / max_tok * 100:.1f}% of {max_tok} max)" if max_tok > 0 else ""
-            console.print(f"[dim]This turn: {last_in} in{pct_ctx} + {last_out} out{pct_max}[/dim]")
-            console.print(f"[dim]Cumulative: {agent.total_input_tokens + agent.total_output_tokens} tokens used[/dim]")
-        except (KeyError, ZeroDivisionError) as e:
-            logger.debug("CLI: token stats display skipped: %s", e)
+            if user_input.startswith("/"):
+                result = await _handle_slash_command(user_input, agent_core, settings, memory, agent_entry=agent_entry)
+                if result is None:
+                    console.print("[dim]Goodbye![/dim]")
+                    break
+                if result:
+                    console.print(result)
+                continue
 
-    except KeyboardInterrupt:
-        for t in (input_task, hb_task):
-            if t is None:
-                continue
-            if not t.done():
-                t.cancel()
-            try:
-                t.result()
-            except BaseException:
-                pass
-        console.print("\n[dim]Goodbye![/dim]")
+            # Chat via transport with SSE iteration display
+            from qd_evolve.agent.a2a import Message, Part
+            iteration_lines: list[str] = []
+            output_lines: list[str] = []
+            last_tokens_event: dict | None = None
+            spinner = Spinner("dots", text=Text("Thinking...", style="bold green"))
 
-    for b in bridges + staged_bridges:
+            def _refresh() -> None:
+                items = [Text(line, style="bold green") for line in iteration_lines]
+                items.append(spinner)
+                for line in output_lines:
+                    items.append(Text.from_markup(line, style="dim cyan"))
+                live.update(Group(*items))
+
+            with Live(Group(spinner), console=console, refresh_per_second=10) as live:
+                try:
+                    msg = Message(role="user", parts=[Part(type="text", text=user_input)])
+                    send_task = asyncio.ensure_future(router.send_task(chat_agent_name, msg))
+                    while not send_task.done():
+                        try:
+                            agent_name, event = await asyncio.wait_for(event_queue.get(), timeout=0.5)
+                        except asyncio.TimeoutError:
+                            continue
+                        etype = event.get("type", "")
+                        if etype == "status":
+                            iteration_lines.append(event["text"])
+                            _refresh()
+                        elif etype == "print":
+                            output_lines.append(event["text"])
+                            _refresh()
+                        elif etype == "iteration":
+                            spinner.update(text=Text("Thinking...", style="bold green"))
+                            _refresh()
+                        elif etype == "tokens":
+                            last_tokens_event = event
+                    task = send_task.result()
+                    response = ""
+                    if task.status and task.status.message:
+                        for part in task.status.message.parts:
+                            if part.type == "text" and part.text:
+                                response = part.text
+                                break
+                    if not response and task.status and task.status.state:
+                        response = f"[Task state: {task.status.state}]"
+                except Exception as e:
+                    response = f"[red]Error:[/red] {e}"
+
+            console.print(f"[bold]Assistant:[/bold] {response}")
+
+            # Token stats — from SSE event
+            if last_tokens_event:
+                try:
+                    last_in = last_tokens_event["input"]
+                    last_out = last_tokens_event["output"]
+                    total_in = last_tokens_event["total_in"]
+                    total_out = last_tokens_event["total_out"]
+                    prov = providers.get(settings.default_provider)
+                    model_name = settings.default_model
+                    ctx = prov.get_context_window(model_name)
+                    max_tok = prov.get_max_tokens(model_name)
+                    pct_ctx = f" ({last_in / ctx * 100:.1f}% of {ctx} context)" if ctx > 0 else ""
+                    pct_max = f" ({last_out / max_tok * 100:.1f}% of {max_tok} max)" if max_tok > 0 else ""
+                    console.print(f"[dim]This turn: {last_in} in{pct_ctx} + {last_out} out{pct_max}[/dim]")
+                    console.print(f"[dim]Cumulative: {total_in + total_out} tokens used[/dim]")
+                except (KeyError, ZeroDivisionError):
+                    pass
+
+            skill_registry.reload()
+            cli_registry.reload()
+            bridges = BridgeManager.reload(settings, bridges)
+
+        except KeyboardInterrupt:
+            if input_task and not input_task.done():
+                input_task.cancel()
+                try:
+                    input_task.result()
+                except BaseException:
+                    pass
+            for t in event_workers:
+                if not t.done():
+                    t.cancel()
+            console.print("\n[dim]Goodbye![/dim]")
+
+    for b in bridges:
         try:
             b.disconnect(shutdown=True)
         except Exception:
@@ -719,6 +1062,15 @@ async def _async_chat_loop(
         output_file.close()
 
 
+async def _event_collector(event_iter: Any, agent_name: str = "") -> AsyncIterator[tuple[str, dict]]:
+    """Yield (agent_name, event_dict) from a chat_subscribe stream.
+
+    Passes all events through — heartbeat, iteration, status, print, tokens, etc.
+    """
+    async for event in event_iter:
+        yield (agent_name, event)
+
+
 @app.command()
 def serve(
     agent: str = typer.Option("", "--agent", help="Agent name from config.json to serve"),
@@ -726,9 +1078,8 @@ def serve(
     """Start an agent as a standalone A2A HTTP server (for cross-process communication)."""
     from qd_evolve.core.logger import setup_logging
     from qd_evolve.core.config import LOG_DIR as LOG_DIR_PATH, load_settings
-    from qd_evolve.agent.loader import create_agent_core, get_agent_entry
-    from qd_evolve.agent.server import A2AServer, TaskStore
-    from qd_evolve.agent.a2a import AgentCard, AgentCapabilities
+    from qd_evolve.agent.loader import init_process, create_agent_core
+    from qd_evolve.agent.server import A2AServer
 
     # 1. Config & logging
     setup_logging("WARNING", log_dir=LOG_DIR_PATH)
@@ -744,30 +1095,30 @@ def serve(
         console.print("[red]Error:[/red] --agent is required. E.g. qd-evolve serve --agent test")
         raise SystemExit(1)
 
-    # 2. Find agent entry
-    entry = get_agent_entry(settings, agent)
-    if entry is None:
-        console.print(f"[red]Error:[/red] Agent '{agent}' not found in config.json")
-        raise SystemExit(1)
+    # 2. Per-process init (skills, CLI tools, bridges, registry injection)
+    init_process(settings)
 
-    # 3. Create AgentCore via loader
-    agent_core = create_agent_core(agent)
+    # 3. Create AgentCore via loader (full init: toolbox, system prompt, memory, etc.)
+    agent_core = create_agent_core(agent, settings=settings)
 
-    # 4. Build card + task_store
-    card = AgentCard(
-        name=entry.name,
-        description=entry.description,
-        url=f"http://localhost:{entry.server.port}",
-        capabilities=AgentCapabilities(streaming=True),
-    )
-    task_store = TaskStore()
-    agent_core.card = card
-    agent_core.task_store = task_store
+    # 4. A2A setup — register in AgentRegistry + set transport
+    from qd_evolve.agent.registry import AgentRegistry, Topology, set_agent_registry
+    from qd_evolve.agent.transport import InprocTransport, HttpTransport, TransportRouter
+
+    topology = Topology(settings)
+    router = TransportRouter(InprocTransport(), HttpTransport())
+    agent_reg = AgentRegistry(topology, current_agent=agent)
+    agent_reg.register(agent_core)
+    set_agent_registry(agent_reg)
+
+    from qd_evolve.tools.a2a import set_transport
+    set_transport(router)
 
     # 5. Start A2A server
-    server = A2AServer(agent_core, card, task_store)
-    host = entry.server.host
-    port = entry.server.port
+    server = A2AServer(agent_core, agent_core.card, agent_core.task_store)
+    entry = next((a for a in settings.agents_config.agents if a.name == agent), None)
+    host = entry.server.host if entry else "0.0.0.0"
+    port = entry.server.port if entry else DEFAULT_SERVER_PORT
     console.print(Panel(
         f"Serving agent [bold]{agent}[/bold] on {host}:{port}\nA2A v1.0 JSON-RPC + SSE",
         style="bold green",
@@ -775,6 +1126,17 @@ def serve(
 
     async def _run() -> None:
         await server.start(host=host, port=port)
+        # Start heartbeat loop in background
+        hb_seconds = settings.heartbeat_idle_seconds
+        if hb_seconds > 0:
+            async def _heartbeat_loop() -> None:
+                while True:
+                    await asyncio.sleep(hb_seconds)
+                    try:
+                        await asyncio.to_thread(agent_core.heartbeat_check, hb_seconds)
+                    except Exception as e:
+                        logger.warning("Serve heartbeat failed: %s", e)
+            asyncio.ensure_future(_heartbeat_loop())
         # Block until Ctrl+C
         stop_event = asyncio.Event()
         try:
@@ -796,9 +1158,9 @@ def chat(
 ) -> None:
     if ctx.invoked_subcommand is not None:
         return  # toolbox or another subcommand was invoked
-    from qd_evolve.agent.agent import Agent
     from qd_evolve.core.logger import setup_logging
     from qd_evolve.core.config import LOG_DIR as LOG_DIR_PATH
+    from qd_evolve.agent.loader import init_process, create_agent_core
 
     # 1. Config & logging
     setup_logging("WARNING", log_dir=LOG_DIR_PATH)
@@ -814,212 +1176,73 @@ def chat(
         console.print("[red]Error:[/red] No API key configured. Edit config.json")
         raise SystemExit(1)
 
-    # 2. Builtin tools
-    registry = get_registry()
+    # 2. Per-process init (skills, CLI tools, bridges, registry injection)
+    init_process(settings)
 
-    # 3. Skills
-    skill_registry = SkillRegistry()
-    skill_registry.discover_skills(SKILLS_DIR)
-
-    # 4. CLI tools
-    cli_registry = CLIRegistry()
-    cli_registry.discover(CLI_TOOLS_DIR)
-
-    # 5. Bridges (MCP + OAT + ...)
-    bridges = BridgeManager.connect_all(settings)
-
-    # 5b. Apply toolbox state from toolbox.json (per-agent if configured)
-    from qd_evolve.core.toolbox import (
-        apply_to_tools, apply_to_cli_registry, apply_to_skill_registry,
-        get_preloaded,
-    )
-    agent_name = settings.agents_config.chat_agent
-    loaded_tool_names: set[str] = get_preloaded("tools", agent_name=agent_name)
-    loaded_skill_names: set[str] = get_preloaded("skills", agent_name=agent_name)
-    loaded_cli_names: set[str] = get_preloaded("cli", agent_name=agent_name)
-    apply_to_tools(registry, loaded_tool_names, agent_name=agent_name)
-    apply_to_cli_registry(cli_registry, loaded_cli_names, agent_name=agent_name)
-    apply_to_skill_registry(skill_registry, loaded_skill_names, agent_name=agent_name)
-
-    # 6. Inject registries into loader tools
-    from qd_evolve.tools.skill_loader import set_skill_registry
-    set_skill_registry(skill_registry)
-    from qd_evolve.tools.tool_loader import set_preload_tools
-    set_preload_tools(loaded_tool_names)
-    from qd_evolve.tools.cli_loader import set_cli_registry
-    set_cli_registry(cli_registry)
-    from qd_evolve.tools.install_skill import set_skill_registry as set_install_skill_registry
-    set_install_skill_registry(skill_registry)
-    from qd_evolve.tools.install_mcp import set_staged_bridges
-    staged_bridges: list[Any] = []
-    set_staged_bridges(staged_bridges)
-
-    # 7. System prompt via Jinja2 template
-    python_cmd = _detect_python_cmd()
-    template_mgr = PromptTemplateManager()
-
-    # Build loaded content for preload skills/CLI/tools
-    import json as _json
-    # Merge toolbox preloads into registry state
-    skill_registry._preload_skills |= loaded_skill_names
-    for s in skill_registry._skills.values():
-        if s.name in loaded_skill_names:
-            s.active = True
-
-    active_skills_parts = []
-    for s in skill_registry.get_all_skills():
-        if s.active and s.content:
-            active_skills_parts.append(s.content)
-            loaded_skill_names.add(s.name)
-    active_skills_content = "\n".join(active_skills_parts)
-
-    active_cli_parts = []
-    for t in cli_registry.list_tools():
-        if t.name in loaded_cli_names:
-            detail = cli_registry.get_detail(t.name)
-            if detail:
-                active_cli_parts.append(_json.dumps(detail, ensure_ascii=False))
-                loaded_cli_names.add(t.name)
-    active_cli_content = "\n".join(active_cli_parts)
-
-    # Unloaded summaries exclude already-loaded items
-    unloaded_skills = skill_registry.format_for_prompt(loaded=loaded_skill_names)
-    unloaded_cli = cli_registry.format_for_prompt(loaded=loaded_cli_names)
-    unloaded_tools = registry.format_tools_summary(loaded=loaded_tool_names)
-
-    # Summarise system prompt composition
-    total_tools = len(registry.list_tools())
-    unloaded_count = sum(1 for l in (unloaded_tools or "").splitlines() if l.startswith("- "))
-    unloaded_skill_count = sum(1 for l in (unloaded_skills or "").splitlines() if l.startswith("- "))
-    unloaded_cli_count = sum(1 for l in (unloaded_cli or "").splitlines() if l.startswith("- "))
-    logger.debug(
-        "Prompt: %d tools total (%d preload, %d unloaded), %d unloaded skills, %d unloaded cli",
-        total_tools, len(loaded_tool_names), unloaded_count,
-        unloaded_skill_count, unloaded_cli_count,
+    # 3. Determine transport for chat agent
+    chat_agent_name = settings.agents_config.chat_agent
+    topology_transports = settings.agents_config.topology.transports
+    is_http = any(
+        key.endswith(f"→{chat_agent_name}") and mode == "http"
+        for key, mode in topology_transports.items()
     )
 
-    # 8. Find agent entry (used by memory, system prompt, A2A setup)
-    agent_entry = None
-    for a in settings.agents_config.agents:
-        if a.name == settings.agents_config.chat_agent:
-            agent_entry = a
-            break
-
-    # 9. System prompt via Jinja2 template
-    system_prompt = template_mgr.render(
-        "default",
-        unpreloaded_skills=unloaded_skills,
-        unpreloaded_cli=unloaded_cli,
-        unloaded_tools=unloaded_tools,
-        preloaded_skills=active_skills_content,
-        preloaded_cli=active_cli_content,
-        os_name=platform.system(),
-        python_cmd=python_cmd,
-        cwd=str(Path.cwd()),
-        skills_dir=SKILLS_DIR,
-        agent_name=settings.agents_config.chat_agent,
-        a2a_enabled=len(settings.agents_config.agents) > 1,
-        available_agents=", ".join(a.name for a in settings.agents_config.agents),
-        agent_relations=", ".join(f"{r['from']}→{r['to']} ({r.get('mode', 'peer')})" for r in settings.agents_config.topology.relations) if settings.agents_config.topology.relations else "",
-    )
-    logger.debug("Agent: system prompt (%d chars)\n%s", len(system_prompt), system_prompt)
-
-    # 10. Provider
-    providers = ProviderRegistry(settings)
-
-    # 11. Memory — use per-agent db from config; empty/None disables memory
-    memory_db = agent_entry.memory_db if agent_entry else DEFAULT_MEMORY_DB
-
-    if memory_db:
-        backend_name = settings.memory_search.embeddings_backend
-        backend = settings.embeddings_backends.get(backend_name) if backend_name else None
-        if backend is None:
-            if not backend_name:
-                console.print("[red]Error:[/red] No embeddings backend configured. Set memory_search.default_embeddings_backend and embeddings_backends in config.json")
-            else:
-                console.print(f"[red]Error:[/red] Embeddings backend '{backend_name}' not found in config.json")
-            raise SystemExit(1)
-        memory = MemoryStore(memory_db, backend,
-                             list_all_limit=settings.memory_search.list_all_limit)
-
-        # 12. Inject memory store and defaults into recall_memory tool
-        from qd_evolve.tools.recall_memory import set_memory_store, set_default_limit
-        set_memory_store(memory)
-        set_default_limit(settings.memory_search.recall_memory_limit)
-    else:
-        memory = None
-        logger.info("Memory: disabled (memory_db is empty/null in config)")
-        # Disable recall_memory tool so LLM won't attempt to call it
-        recall_td = registry.get("recall_memory")
-        if recall_td:
-            recall_td.enabled = False
-
-    # Disable A2A tools when only 1 agent configured
-    if len(settings.agents_config.agents) <= 1:
-        for name in ("delegate_to", "send_task", "get_task", "cancel_task"):
-            td = registry.get(name)
-            if td:
-                td.enabled = False
-        logger.info("A2A: disabled (only 1 agent configured)")
-
-    agent_core = Agent(settings=settings, registry=registry, providers=providers, memory=memory,
-                       default_system_prompt=system_prompt,
-                       preload_tools=loaded_tool_names,
-                       preload_skills=loaded_skill_names,
-                       preload_cli=loaded_cli_names,
-                       template_mgr=template_mgr)
-
-    # 13. Multi-agent setup — always initialize registry, topology, transport, A2A server
-    from qd_evolve.agent.server import A2AServer, TaskStore
+    # 4. A2A setup
+    from qd_evolve.agent.server import A2AServer
     from qd_evolve.agent.registry import AgentRegistry, Topology, set_agent_registry
-    from qd_evolve.agent.a2a import AgentCard, AgentCapabilities
+    from qd_evolve.agent.transport import InprocTransport, HttpTransport, TransportRouter
 
-    # Build AgentCard from config
-    card = AgentCard(
-        name=settings.agents_config.chat_agent,
-        description=agent_entry.description if agent_entry else "",
-        url=f"http://localhost:{agent_entry.server.port}" if agent_entry else f"http://localhost:{DEFAULT_SERVER_PORT}",
-        capabilities=AgentCapabilities(streaming=True),
-    )
-
-    # Attach card + task_store to agent_core for registry
-    task_store = TaskStore()
-    agent_core.card = card
-    agent_core.task_store = task_store
-
-    # Load topology and register current agent
     topology = Topology(settings)
-    agent_reg = AgentRegistry(topology, current_agent=card.name)
-    agent_reg.register(agent_core)
+    router = TransportRouter(InprocTransport(), HttpTransport())
+
+    agent_core = None
+    a2a_server = None
+    a2a_server_cfg = None
+    inproc_agents: dict[str, Any] = {}  # name → AgentCore for inproc agents
+
+    # Create all non-chat inproc agents via create_agent_core
+    for a in settings.agents_config.agents:
+        if a.name == chat_agent_name:
+            continue
+        try:
+            inproc_core = create_agent_core(a.name, settings=settings)
+            inproc_agents[a.name] = inproc_core
+            logger.info("A2A: inproc agent '%s' — created in CLI process", a.name)
+        except Exception as e:
+            logger.warning("A2A: failed to create inproc agent '%s': %s", a.name, e)
+
+    if not is_http:
+        # Chat agent is inproc: create via create_agent_core
+        agent_core = create_agent_core(chat_agent_name, settings=settings)
+        inproc_agents[chat_agent_name] = agent_core
+
+        a2a_server = A2AServer(agent_core=agent_core, card=agent_core.card, task_store=agent_core.task_store)
+        a2a_server_cfg = next((a.server for a in settings.agents_config.agents if a.name == chat_agent_name), None)
+        logger.info("A2A: inproc agent '%s' — server on %s:%d", chat_agent_name,
+                     a2a_server_cfg.host, a2a_server_cfg.port)
+    else:
+        logger.info("A2A: HTTP agent '%s' — CLI is pure client", chat_agent_name)
+
+    # Register all inproc agents in AgentRegistry
+    agent_reg = AgentRegistry(topology, current_agent=chat_agent_name if not is_http else "")
+    for name, core in inproc_agents.items():
+        agent_reg.register(core)
     set_agent_registry(agent_reg)
 
-    # Set up transport router (always, so delegate_to works if called)
     from qd_evolve.tools.a2a import set_transport
-    from qd_evolve.agent.transport import InprocTransport, HttpTransport, TransportRouter
-    router = TransportRouter(InprocTransport(), HttpTransport())
     set_transport(router)
-    logger.info("A2A: registry + transport initialized for agent '%s'", card.name)
 
-    # Always start A2A HTTP server
-    a2a_server = None
-    if agent_entry and agent_entry.server:
-        a2a_server = A2AServer(
-            agent_core=agent_core,
-            card=card,
-            task_store=task_store,
-        )
-        a2a_host = agent_entry.server.host
-        a2a_port = agent_entry.server.port
-        logger.info("A2A: server configured on %s:%d", a2a_host, a2a_port)
-
-    agent = agent_core  # CLI uses AgentCore directly for chat
-    agent._provider_name = agent_entry.effective_provider(settings) if agent_entry else settings.default_provider
-    agent._model = agent_entry.effective_model(settings) if agent_entry else settings.default_model
-
-    model_info = escape(f"[{agent_entry.effective_provider(settings)}/{agent_entry.effective_model(settings)}]")
-
-    # Build startup panel — different layout for single vs multi-agent
+    # Build startup panel
     agents = settings.agents_config.agents
+    chat_agent_entry = next((a for a in agents if a.name == chat_agent_name), None)
+    # Determine transport label per agent
+    def _transport_label(name: str) -> str:
+        for key, mode in topology_transports.items():
+            if key.endswith(f"→{name}") and mode == "http":
+                port = next((a.server.port for a in agents if a.name == name), DEFAULT_SERVER_PORT)
+                return f"HTTP :{port}"
+        return "inproc"
+
     if len(agents) > 1:
         max_name_len = max(len(a.name) for a in agents)
         agent_lines = []
@@ -1027,17 +1250,21 @@ def chat(
             prov = a.effective_provider(settings)
             mdl = a.effective_model(settings)
             name_col = f"{a.name:<{max_name_len}}"
-            if a.name == settings.agents_config.chat_agent:
-                agent_lines.append(f"  [bold]► {name_col}[/bold]  {prov}/{mdl}")
+            transport = _transport_label(a.name)
+            if a.name == chat_agent_name:
+                agent_lines.append(f"  [bold]► {name_col}[/bold]  {prov}/{mdl}  [{transport}]")
             else:
-                agent_lines.append(f"    {name_col}  {prov}/{mdl}")
+                agent_lines.append(f"    {name_col}  {prov}/{mdl}  [{transport}]")
+        chat_transport = "HTTP" if is_http else "inproc"
         panel_text = (
             f"qd-evolve v{__version__}\n\n"
             + "\n".join(agent_lines)
-            + f"\n\n/help for commands, /quit to leave"
+            + f"\n\nChat: {chat_agent_name} (via {chat_transport})"
+            + f"\n/help for commands, /quit to leave"
         )
     else:
-        agent_label = f" ({settings.agents_config.chat_agent})" if agents else ""
+        agent_label = f" ({chat_agent_name})" if agents else ""
+        model_info = escape(f"[{chat_agent_entry.effective_provider(settings)}/{chat_agent_entry.effective_model(settings)}]") if chat_agent_entry else ""
         panel_text = f"qd-evolve v{__version__}{agent_label} {model_info} - /help for commands, /quit to leave"
 
     console.print(Panel(
@@ -1061,12 +1288,12 @@ def chat(
     else:
         input_session = _make_prompt_session()
 
-    _a2a_server_cfg = agent_entry.server
     asyncio.run(_async_chat_loop(
-        input_session, agent, settings, skill_registry, cli_registry,
-        memory, template_mgr, bridges, staged_bridges, providers, output_file,
-        a2a_server=a2a_server, agent_config_server=_a2a_server_cfg,
-        agent_entry=agent_entry,
+        input_session, settings, output_file,
+        router=router, chat_agent_name=chat_agent_name,
+        agent_core=agent_core, a2a_server=a2a_server,
+        agent_config_server=a2a_server_cfg, agent_entry=chat_agent_entry,
+        inproc_agents=inproc_agents,
     ))
 
 
