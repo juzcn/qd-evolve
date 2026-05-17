@@ -163,16 +163,19 @@ Each agent has its own section in `toolbox.json` under `agents.<name>`:
 
 ### A2A Protocol
 
-Full A2A v1.0 spec implementation:
+Full A2A v1.0 spec implementation with standard methods:
 
 | Method | Description | Blocking? |
 |--------|-------------|-----------|
-| `tasks/send` | Create task, wait for completion | Yes |
-| `tasks/sendSubscribe` | Create task, SSE stream status updates | No |
+| `message/send` | Create task, wait for completion | Yes |
+| `message/stream` | Create task, SSE stream `StreamResponse` events (intermediate events in `metadata`) | No |
 | `tasks/get` | Query task status | No |
 | `tasks/cancel` | Cancel a task | No |
-| `chat/subscribe` | SSE stream of agent events (iteration, status, tokens, heartbeat) | No |
+| `tasks/resubscribe` | Subscribe to agent events for an existing task via SSE | No |
+| `agent/getExtendedAgentCard` | Get extended AgentCard with runtime status (provider, model, loaded tools/skills/CLI) | No |
 | AgentCard | `/.well-known/agent.json` — discover agent capabilities | — |
+
+SSE events follow A2A v1.0 `StreamResponse` format: each `data:` line is a JSON-RPC response with `result` containing a `StreamResponse` (one of: `task`, `statusUpdate`, `artifactUpdate`). Custom events (iteration, status, print, tokens, heartbeat) are carried in `TaskStatusUpdateEvent.metadata`.
 
 ### Dual Transport
 
