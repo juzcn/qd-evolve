@@ -194,6 +194,7 @@ def create_agent_core(
         ) if settings.agents_config.topology.relations else "",
     )
     logger.debug("Loader [%s]: system prompt (%d chars)", name, len(system_prompt))
+    logger.debug("Loader [%s]: === System Prompt ===\n%s", name, system_prompt)
 
     # ── Provider ──────────────────────────────────────────────────
     providers = ProviderRegistry(settings)

@@ -15,10 +15,8 @@ from rich.table import Table
 from rich.text import Text
 
 from qd_evolve.core.config import CONFIG_PATH, SKILLS_DIR, CLI_TOOLS_DIR, DEFAULT_SERVER_PORT, Settings, load_settings, save_json
-from qd_evolve.cli_tools import CLIRegistry
 from qd_evolve.core.memory import MemoryStore
 from qd_evolve.core.providers import ProviderRegistry
-from qd_evolve.skills import SkillRegistry
 from qd_evolve.core.registry import get_registry
 from qd_evolve.core.toolbox import state_mark
 from tools.bridge import BridgeManager
@@ -204,7 +202,6 @@ def _toolbox_list(args: list[str], agent_name: str | None = None) -> None:
     from qd_evolve.skills import SkillRegistry
     from qd_evolve.cli_tools import CLIRegistry
     from qd_evolve.core.config import SKILLS_DIR, CLI_TOOLS_DIR, load_settings
-    from tools.bridge import BridgeManager
 
     settings = load_settings()
     PAGE_SIZE = settings.ui.page_size
