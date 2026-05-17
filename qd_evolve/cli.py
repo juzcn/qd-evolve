@@ -599,7 +599,7 @@ async def _async_chat_loop(
         etype = event.get("type", "")
         if etype == "heartbeat":
             hb_counts[agent_name] = 0
-            console.print(f"[bold]Assistant ({agent_name}):[/bold] {event.get('content', '')}")
+            console.print(f"[bold]{agent_name}:[/bold] {event.get('content', '')}")
         elif etype == "heartbeat_silent":
             hb_counts[agent_name] += 1
 
