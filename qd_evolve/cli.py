@@ -574,7 +574,6 @@ async def _async_chat_loop(
             console.print(f"[dim]A2A server on {host}:{port} skipped (port in use)[/dim]")
 
     # Start A2A servers and heartbeat loops for non-chat inproc agents
-    inproc_hb_tasks: list[asyncio.Task] = []
     if inproc_agents:
         from qd_evolve.agent.server import A2AServer
         for name, core in inproc_agents.items():
@@ -589,16 +588,7 @@ async def _async_chat_loop(
                     console.print(f"[dim]A2A server for '{name}' on {entry.server.host}:{entry.server.port} skipped[/dim]")
             # Start heartbeat loop for inproc non-chat agents
             if name != chat_agent_name:
-                hb_seconds = settings.heartbeat_idle_seconds
-                if hb_seconds > 0:
-                    async def _hb_loop(agent_core: Any, seconds: int) -> None:
-                        while True:
-                            await asyncio.sleep(seconds)
-                            try:
-                                await asyncio.to_thread(agent_core.heartbeat_check, seconds)
-                            except Exception as e:
-                                logger.debug("Inproc heartbeat for '%s' failed: %s", agent_core.card.name, e)
-                    inproc_hb_tasks.append(asyncio.ensure_future(_hb_loop(core, hb_seconds)))
+                core.start_heartbeat_loop()
 
     hb_idle = settings.heartbeat_idle_seconds
     all_agent_names = [a.name for a in settings.agents_config.agents]
@@ -641,14 +631,11 @@ async def _async_chat_loop(
         event_workers: list[asyncio.Task] = []
 
         async def _inproc_event_worker(name: str, core: Any) -> None:
-            """Subscribe to inproc agent events directly (zero latency).
-            Heartbeat events are handled by hb_task for chat_agent, so skip them here."""
+            """Subscribe to inproc agent events directly (zero latency)."""
             queue = core.subscribe_events()
             try:
                 while True:
                     event = await queue.get()
-                    if name == chat_agent_name and event.get("type", "") in ("heartbeat", "heartbeat_silent"):
-                        continue
                     await event_queue.put((name, event))
             except asyncio.CancelledError:
                 pass
@@ -680,16 +667,17 @@ async def _async_chat_loop(
             for name in all_agent_names:
                 if name not in inproc_agents:
                     event_workers.append(asyncio.ensure_future(_remote_event_worker(name)))
+            # Start chat agent heartbeat loop
+            agent_core.start_heartbeat_loop()
 
-        input_task = hb_task = None
+        input_task = None
 
         try:
           while True:
             input_task = asyncio.ensure_future(_read_input_async(input_session, hb_counts))
 
             while True:
-                hb_coro = agent_core.create_heartbeat_coro()
-                if hb_coro is None:
+                if hb_idle <= 0:
                     for k in hb_counts:
                         hb_counts[k] = 0
                     try:
@@ -699,11 +687,10 @@ async def _async_chat_loop(
                         return
                     break
 
-                hb_task = asyncio.ensure_future(hb_coro)
                 event_wait = asyncio.ensure_future(event_queue.get())
                 try:
                     done, pending = await asyncio.wait(
-                        [input_task, hb_task, event_wait], return_when=asyncio.FIRST_COMPLETED,
+                        [input_task, event_wait], return_when=asyncio.FIRST_COMPLETED,
                     )
                 except (EOFError, KeyboardInterrupt):
                     console.print("\n[dim]Goodbye![/dim]")
@@ -720,57 +707,23 @@ async def _async_chat_loop(
                     try:
                         agent_name, event = event_wait.result()
                     except Exception:
-                        pass
-                    else:
-                        _handle_event(agent_name, event)
-                    # hb_task / input_task not done yet — re-wait
-                    continue
-
-                if hb_task in done:
-                    try:
-                        response = hb_task.result()
-                    except Exception as e:
-                        logger.debug("Heartbeat failed: %s", e)
-                        await asyncio.sleep(5)
-                        event_wait.cancel()
-                        try:
-                            await event_wait
-                        except (CancelledError, Exception):
-                            pass
                         continue
-                    # Speaking heartbeat — cancel input, display response
-                    if response is not None:
-                        hb_counts[chat_agent_name] = 0
+                    _handle_event(agent_name, event)
+                    etype = event.get("type", "")
+                    # Speaking heartbeat from chat agent — cancel input, display response
+                    if etype == "heartbeat" and agent_name == chat_agent_name:
                         input_task.cancel()
                         try:
                             await input_task
                         except (CancelledError, EOFError, KeyboardInterrupt):
                             pass
-                        event_wait.cancel()
-                        try:
-                            await event_wait
-                        except (CancelledError, Exception):
-                            pass
-                        console.print(f"[bold]Assistant:[/bold] {response}")
                         user_input = None
                         break
-                    # Silent heartbeat — increment counter
-                    hb_counts[chat_agent_name] += 1
-                    event_wait.cancel()
-                    try:
-                        await event_wait
-                    except (CancelledError, Exception):
-                        pass
                     continue
 
                 # User input arrived
                 for k in hb_counts:
                     hb_counts[k] = 0
-                hb_task.cancel()
-                try:
-                    await hb_task
-                except (CancelledError, Exception):
-                    pass
                 event_wait.cancel()
                 try:
                     await event_wait
@@ -834,8 +787,7 @@ async def _async_chat_loop(
                     input_task.result()
                 except BaseException:
                     pass
-            if hb_task and not hb_task.done():
-                hb_task.cancel()
+            agent_core.stop_heartbeat_loop()
             for t in event_workers:
                 if not t.done():
                     t.cancel()
@@ -1121,17 +1073,7 @@ def serve(
 
     async def _run() -> None:
         await server.start(host=host, port=port)
-        # Start heartbeat loop in background
-        hb_seconds = settings.heartbeat_idle_seconds
-        if hb_seconds > 0:
-            async def _heartbeat_loop() -> None:
-                while True:
-                    await asyncio.sleep(hb_seconds)
-                    try:
-                        await asyncio.to_thread(agent_core.heartbeat_check, hb_seconds)
-                    except Exception as e:
-                        logger.warning("Serve heartbeat failed: %s", e)
-            asyncio.ensure_future(_heartbeat_loop())
+        agent_core.start_heartbeat_loop()
         # Block until Ctrl+C
         stop_event = asyncio.Event()
         try:

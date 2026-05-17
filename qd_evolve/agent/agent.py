@@ -47,6 +47,7 @@ class Agent:
         self._preload_skills: set[str] = preload_skills or set()
         self._preload_cli: set[str] = preload_cli or set()
         self._event_subscribers: list[asyncio.Queue] = []
+        self._hb_task: asyncio.Task | None = None
 
     def subscribe_events(self) -> asyncio.Queue:
         q: asyncio.Queue = asyncio.Queue()
@@ -117,26 +118,25 @@ class Agent:
             self._push_event({"type": "heartbeat", "content": response})
         return response
 
-    def create_heartbeat_coro(self) -> Any:
-        """Return a coroutine that sleeps then runs heartbeat internally.
-
-        Returns None if heartbeat is disabled.
-        The coroutine handles the full heartbeat lifecycle (sleep → LLM call)
-        and resolves to the response text, or None if LLM stayed silent.
-        Chat only needs to await it and display the result.
-        """
+    def start_heartbeat_loop(self) -> None:
+        """Start internal heartbeat loop. Called after event subscribers are ready."""
         seconds = self.settings.heartbeat_idle_seconds
         if seconds <= 0:
-            return None
+            return
 
-        async def _heartbeat() -> str | None:
-            await asyncio.sleep(seconds)
-            response = await asyncio.to_thread(self.heartbeat_check, seconds)
-            if response is None or response.strip() == ".":
-                return None
-            return response
+        async def _loop() -> None:
+            while True:
+                await asyncio.sleep(seconds)
+                try:
+                    await asyncio.to_thread(self.heartbeat_check, seconds)
+                except Exception as e:
+                    logger.debug("Heartbeat loop error: %s", e)
 
-        return _heartbeat()
+        self._hb_task = asyncio.ensure_future(_loop())
+
+    def stop_heartbeat_loop(self) -> None:
+        if self._hb_task and not self._hb_task.done():
+            self._hb_task.cancel()
 
     def run(
         self,
