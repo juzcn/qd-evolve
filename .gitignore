@@ -21,3 +21,6 @@ config.json
 *.db
 logs/
 .qd_evolve/
+
+# Test artifacts
+.coverage
