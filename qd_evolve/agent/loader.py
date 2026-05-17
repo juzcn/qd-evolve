@@ -55,6 +55,14 @@ def create_agent_core(
         if recall_td:
             recall_td.enabled = False
 
+    # Disable A2A tools when only 1 agent configured
+    if len(settings.agents_config.agents) <= 1:
+        for tname in ("delegate_to", "send_task", "get_task", "cancel_task"):
+            td = get_registry().get(tname)
+            if td:
+                td.enabled = False
+        logger.info("Loader: A2A disabled for agent '%s' (only 1 agent configured)", name)
+
     # System prompt via template
     from qd_evolve.core.prompts import PromptTemplateManager
     import platform
@@ -73,7 +81,7 @@ def create_agent_core(
         cwd=str(Path.cwd()),
         skills_dir="tools/skills",
         agent_name=name,
-        a2a_tools=", ".join(entry.a2a_tools) if entry.a2a_tools else "",
+        a2a_enabled=len(settings.agents_config.agents) > 1,
         available_agents=", ".join(a.name for a in settings.agents_config.agents),
         agent_relations=", ".join(
             f"{r['from']}→{r['to']} ({r.get('mode', 'peer')})"

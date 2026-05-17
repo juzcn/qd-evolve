@@ -842,7 +842,7 @@ def chat(
         cwd=str(Path.cwd()),
         skills_dir=SKILLS_DIR,
         agent_name=settings.agents_config.chat_agent,
-        a2a_tools=", ".join(agent_entry.a2a_tools) if agent_entry and agent_entry.a2a_tools else "",
+        a2a_enabled=len(settings.agents_config.agents) > 1,
         available_agents=", ".join(a.name for a in settings.agents_config.agents),
         agent_relations=", ".join(f"{r['from']}→{r['to']} ({r.get('mode', 'peer')})" for r in settings.agents_config.topology.relations) if settings.agents_config.topology.relations else "",
     )
@@ -877,6 +877,14 @@ def chat(
         recall_td = registry.get("recall_memory")
         if recall_td:
             recall_td.enabled = False
+
+    # Disable A2A tools when only 1 agent configured
+    if len(settings.agents_config.agents) <= 1:
+        for name in ("delegate_to", "send_task", "get_task", "cancel_task"):
+            td = registry.get(name)
+            if td:
+                td.enabled = False
+        logger.info("A2A: disabled (only 1 agent configured)")
 
     agent_core = Agent(settings=settings, registry=registry, providers=providers, memory=memory,
                        default_system_prompt=system_prompt,

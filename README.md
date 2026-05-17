@@ -106,7 +106,6 @@ All agent config is in `config.json` under `agents_config`:
         "provider": "baiduqianfancodingplan",
         "model": "qianfan-code-latest",
         "memory_db": "test_memory.db",
-        "a2a_tools": ["delegate_to", "send_task", "get_task", "cancel_task"],
         "server": {"host": "0.0.0.0", "port": 8002}
       }
     ],
@@ -121,7 +120,7 @@ All agent config is in `config.json` under `agents_config`:
 ```
 
 - `provider`/`model`: empty = use global defaults from `config.json`
-- `a2a_tools`: which A2A interaction tools this agent needs (delegate_to, etc.)
+- `a2a_tools`: auto-derived — enabled when >1 agent, disabled when only 1
 - `memory_db`: independent db file per agent (default: `"memory.db"`); `""` or `null` disables memory entirely
 - `server.host/port`: HTTP server for cross-machine A2A communication
 
