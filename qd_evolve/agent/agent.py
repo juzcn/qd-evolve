@@ -103,7 +103,7 @@ class Agent:
         async def _heartbeat() -> str | None:
             await asyncio.sleep(seconds)
             response = await asyncio.to_thread(self.heartbeat_check, seconds)
-            if response.strip() == ".":
+            if response is None or response.strip() == ".":
                 return None
             return response
 
