@@ -4,7 +4,7 @@
 from pathlib import Path
 from typing import Any
 
-from qd_evolve.logger import logger
+from qd_evolve.core.logger import logger
 from pydantic import BaseModel
 import yaml
 

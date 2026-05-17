@@ -1,20 +1,26 @@
-﻿
+
+from __future__ import annotations
+
 import json
 from pathlib import Path
+from typing import Any
 
-from qd_evolve.logger import logger
+from qd_evolve.core.logger import logger
 from pydantic import BaseModel
 
-CONFIG_PATH = Path("qd-evolve.json")
+CONFIG_PATH = Path("config.json")
 
 # Project directory constants — not user-configurable
 SKILLS_DIR = "tools/skills"
 CLI_TOOLS_DIR = "tools/cli"
-FUNC_TOOLS_DIR = "qd_evolve/tools"
+FUNC_TOOLS_DIR = "tools/func"
 MCP_DIR = "tools/mcp"
 BRIDGE_DIR = "tools/bridge"
-STAGING_DIR = ".qd-evolve/staging"
-MEMORY_DB = "memory.db"
+STAGING_DIR = ".qd_evolve/staging"
+DEFAULT_MEMORY_DB = "memory.db"
+LOG_DIR = "logs"
+DEFAULT_SERVER_HOST = "0.0.0.0"
+DEFAULT_SERVER_PORT = 8001
 
 
 class ModelCost(BaseModel):
@@ -63,7 +69,7 @@ class EmbeddingsBackend(BaseModel):
 
 
 class MemorySearchConfig(BaseModel):
-    default_embeddings_backend: str = ""
+    embeddings_backend: str = ""
     auto_recall: bool = True
     auto_recall_top_k: int = 1
     recall_memory_limit: int = 5
@@ -81,6 +87,38 @@ class LogConfig(BaseModel):
     truncation: int = 500
 
 
+class ServerConfig(BaseModel):
+    host: str = DEFAULT_SERVER_HOST
+    port: int = DEFAULT_SERVER_PORT
+
+
+class AgentEntry(BaseModel):
+    name: str
+    description: str = ""
+    provider: str = ""
+    model: str = ""
+    system_prompt_template: str = "default"
+    memory_db: str | None = DEFAULT_MEMORY_DB
+    server: ServerConfig = ServerConfig()
+    transport: str = "inproc"
+
+    def effective_provider(self, settings: Settings) -> str:
+        return self.provider or settings.default_provider
+
+    def effective_model(self, settings: Settings) -> str:
+        return self.model or settings.default_model
+
+
+class TopologyConfig(BaseModel):
+    relations: list[dict[str, str]] = []
+
+
+class AgentsConfig(BaseModel):
+    chat_agent: str = "default"
+    agents: list[AgentEntry] = []
+    topology: TopologyConfig = TopologyConfig()
+
+
 class Settings(BaseModel):
     log: LogConfig = LogConfig()
     ui: UIConfig = UIConfig()
@@ -88,6 +126,7 @@ class Settings(BaseModel):
     providers: list[ProviderConfig] = []
     default_provider: str = ""
     default_model: str = ""
+    agents_config: AgentsConfig = AgentsConfig()
     embeddings_backends: dict[str, EmbeddingsBackend] = {}
     memory_search: MemorySearchConfig = MemorySearchConfig()
     compress_threshold: float = 0.7
@@ -97,17 +136,21 @@ class Settings(BaseModel):
     stream: bool = False
     heartbeat_idle_seconds: int = 0
 
-    def get_provider(self, name: str | None = None) -> ProviderConfig | None:
-        target = name or self.default_provider
+    def get_provider(self, name: str) -> ProviderConfig | None:
         for p in self.providers:
-            if p.name == target:
+            if p.name == name:
                 return p
         return None
 
     @property
     def is_configured(self) -> bool:
-        p = self.get_provider()
-        return bool(p and p.api_key)
+        current = self.agents_config.chat_agent
+        for a in self.agents_config.agents:
+            if a.name == current:
+                prov = a.effective_provider(self)
+                p = self.get_provider(prov)
+                return bool(p and p.api_key)
+        return False
 
 
 def load_json(path: Path) -> dict:

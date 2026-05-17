@@ -1,4 +1,4 @@
-﻿"""Dynamic tool detail loader 鈥?loads full tool schema on demand."""
+"""Dynamic tool detail loader 鈥?loads full tool schema on demand."""
 
 
 import json
@@ -10,7 +10,7 @@ _preload_tools: set[str] = set()
 
 def set_preload_tools(names: set[str]) -> None:
     global _preload_tools
-    _preload_tools = names
+    _preload_tools |= names
 
 
 def _load_tool_detail(name: str) -> str:

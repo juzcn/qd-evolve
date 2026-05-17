@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any
 
 from jinja2 import BaseLoader, Environment, TemplateNotFound
-from qd_evolve.logger import logger
+from qd_evolve.core.logger import logger
 
 TEMPLATES_DIR = Path("templates")
 
@@ -36,7 +36,7 @@ class PromptTemplateManager:
 
     def __init__(self, templates_dir: str | Path | None = None) -> None:
         self._dir = Path(templates_dir) if templates_dir else TEMPLATES_DIR
-        builtin_dir = Path(__file__).parent / "_templates"
+        builtin_dir = Path(__file__).resolve().parent.parent / "_templates"
         loader = _CombinedLoader(self._dir, builtin_dir) if self._dir.is_dir() else _CombinedLoader(builtin_dir)
         self._env = Environment(
             loader=loader,

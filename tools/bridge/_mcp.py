@@ -14,8 +14,8 @@ from typing import Any
 import os as _os
 import re
 
-from qd_evolve.config import MCP_DIR, MCPServerConfig
-from qd_evolve.logger import logger
+from qd_evolve.core.config import MCP_DIR, MCPServerConfig
+from qd_evolve.core.logger import logger
 from qd_evolve.tools import ToolRegistry, get_registry
 from tools.bridge import BridgeManager
 

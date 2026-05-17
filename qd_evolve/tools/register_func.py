@@ -3,7 +3,7 @@
 import shutil
 from pathlib import Path
 
-from qd_evolve.config import FUNC_TOOLS_DIR
+from qd_evolve.core.config import FUNC_TOOLS_DIR
 from qd_evolve.tools import get_registry
 from qd_evolve.tools.staging import staging_func_dir
 
@@ -77,7 +77,7 @@ def _register_func(name: str) -> str:
 registry = get_registry()
 registry.register(
     name="register_func",
-    description="Move a staged func tool from .qd-evolve/staging/ to the permanent tools directory. The tool persists across sessions.",
+    description="Move a staged func tool from .qd_evolve/staging/ to the permanent tools/func/ directory. The tool persists across sessions.",
     handler=_register_func,
     input_schema={
         "type": "object",

@@ -1,0 +1,70 @@
+{
+  "_note": "See README.md for full setup instructions.",
+  "log": {"level": "INFO", "truncation": 500},
+  "ui": {"page_size": 20, "refresh_per_second": 10, "prompt_refresh_interval": 0.5},
+  "env_vars": {
+    "TQDM_DISABLE": "1",
+    "PYTHONIOENCODING": "utf-8",
+    "PYTHONUTF8": "1"
+  },
+  "providers": [
+    {
+      "name": "deepseek",
+      "api_key": "YOUR_DEEPSEEK_API_KEY",
+      "base_url": "https://api.deepseek.com",
+      "api": "openai-completions",
+      "models": [
+        {
+          "name": "deepseek-v4-pro",
+          "reasoning": true,
+          "input": ["text"],
+          "cost": {"input": 0.28, "output": 1.1, "cache_read": 0.07, "cache_write": 0.56},
+          "context_window": 1000000,
+          "max_tokens": 131072
+        }
+      ]
+    }
+  ],
+  "default_provider": "deepseek",
+  "default_model": "deepseek-v4-pro",
+  "agents_config": {
+    "chat_agent": "default",
+    "agents": [
+      {
+        "name": "default",
+        "description": "Default qd-evolve agent",
+        "provider": "",
+        "model": "",
+        "system_prompt_template": "default",
+        "memory_db": "memory.db",  // "" or null to disable memory
+        "server": {"host": "0.0.0.0", "port": 8001},
+        "transport": "inproc"  // "inproc" | "http"
+      }
+    ],
+    "topology": {
+      "relations": []
+    }
+  },
+  "embeddings_backends": {
+    "bge-m3-local": {
+      "model_path": "BAAI/bge-m3",
+      "dim": 1024,
+      "backend": "sentence-transformers",
+      "llama_n_ctx": 8192,
+      "llama_n_batch": 512
+    }
+  },
+  "memory_search": {
+    "embeddings_backend": "bge-m3-local",
+    "auto_recall": false,
+    "auto_recall_top_k": 1,
+    "recall_memory_limit": 5,
+    "list_all_limit": 50
+  },
+  "compress_threshold": 0.7,
+  "target_threshold": 0.5,
+  "max_iterations": 20,
+  "tool_output_limit": 50000,
+  "stream": true,
+  "heartbeat_idle_seconds": 60
+}

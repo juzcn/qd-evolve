@@ -11,8 +11,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from qd_evolve.config import BRIDGE_DIR
-from qd_evolve.logger import logger
+from qd_evolve.core.config import BRIDGE_DIR
+from qd_evolve.core.logger import logger
 from qd_evolve.tools import ToolRegistry, get_registry
 from qd_evolve.utils.adk_output import make_handler
 from qd_evolve.utils.adk_schema import google_adk_to_openai_schema

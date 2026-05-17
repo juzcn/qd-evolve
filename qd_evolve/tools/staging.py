@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from qd_evolve.config import STAGING_DIR
+from qd_evolve.core.config import STAGING_DIR
 
 
 def _staging_base() -> Path:

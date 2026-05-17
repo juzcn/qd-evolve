@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 
 import yaml
-from qd_evolve.logger import logger
+from qd_evolve.core.logger import logger
 from pydantic import BaseModel
 
 

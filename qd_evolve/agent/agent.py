@@ -3,12 +3,12 @@ import json
 from datetime import datetime
 from typing import Any, Callable
 
-from qd_evolve.logger import logger
+from qd_evolve.core.logger import logger
 
-from qd_evolve.config import Settings
-from qd_evolve.memory import MemoryStore, RecalledMemoryRegistry
-from qd_evolve.providers import ProviderRegistry
-from qd_evolve.tools import ToolRegistry
+from qd_evolve.core.config import Settings
+from qd_evolve.core.memory import MemoryStore, RecalledMemoryRegistry
+from qd_evolve.core.providers import ProviderRegistry
+from qd_evolve.core.registry import ToolRegistry
 
 
 class Agent:
@@ -17,7 +17,9 @@ class Agent:
                  preload_tools: set[str] | None = None,
                  preload_skills: set[str] | None = None,
                  preload_cli: set[str] | None = None,
-                 template_mgr: Any = None) -> None:
+                 template_mgr: Any = None,
+                 card: Any = None,
+                 task_store: Any = None) -> None:
         self.settings = settings
         self.registry = registry
         self.default_system_prompt = default_system_prompt
@@ -26,6 +28,8 @@ class Agent:
         self._always_active: set[str] = preload_tools or set()
         self.providers = providers
         self.memory = memory
+        self.card = card
+        self.task_store = task_store
         self.messages: list[dict[str, Any]] = []
         self._provider_name: str | None = None
         self._model: str | None = None
@@ -42,6 +46,32 @@ class Agent:
         self._loaded_cli_names: set[str] = set()
         self._preload_skills: set[str] = preload_skills or set()
         self._preload_cli: set[str] = preload_cli or set()
+        self._event_subscribers: list[asyncio.Queue] = []
+        self._hb_task: asyncio.Task | None = None
+        self._hb_task: asyncio.Task | None = None
+
+    def subscribe_events(self) -> asyncio.Queue:
+        q: asyncio.Queue = asyncio.Queue()
+        self._event_subscribers.append(q)
+        return q
+
+    def unsubscribe_events(self, q: asyncio.Queue) -> None:
+        if q in self._event_subscribers:
+            self._event_subscribers.remove(q)
+
+    # Backward compat aliases
+    def subscribe_heartbeat(self) -> asyncio.Queue:
+        return self.subscribe_events()
+
+    def unsubscribe_heartbeat(self, q: asyncio.Queue) -> None:
+        self.unsubscribe_events(q)
+
+    def _push_event(self, event: dict) -> None:
+        for q in self._event_subscribers:
+            try:
+                q.put_nowait(event)
+            except Exception:
+                pass
 
     def set_status_callback(self, cb: Callable[[str], None]) -> None:
         self._on_status = cb
@@ -50,12 +80,15 @@ class Agent:
         self._on_print = cb
 
     def _update_status(self, text: str) -> None:
+        msg = f"[#{self.iteration}] {text}"
         if self._on_status:
-            self._on_status(f"[#{self.iteration}] {text}")
+            self._on_status(msg)
+        self._push_event({"type": "status", "text": msg})
 
     def _print(self, text: str) -> None:
         if self._on_print:
             self._on_print(text)
+        self._push_event({"type": "print", "text": text})
 
     @property
     def total_tokens(self) -> int:
@@ -73,33 +106,38 @@ class Agent:
         else:
             msg = f"[System heartbeat: idle {idle_seconds}s. Chat if you want, '.' to stay silent.]"
         logger.debug("Heartbeat: idle %ss, sending heartbeat message", idle_seconds)
-        response = self.run(msg)
+        try:
+            response = self.run(msg)
+        except Exception as e:
+            logger.warning("Heartbeat: LLM call failed: %s", e)
+            return None
         if response.strip() == ".":
             logger.debug("Heartbeat: LLM sent '.' — staying silent")
+            self._push_event({"type": "heartbeat_silent"})
         else:
             logger.info("Heartbeat: LLM responded (%s chars)", len(response))
+            self._push_event({"type": "heartbeat", "content": response})
         return response
 
-    def create_heartbeat_coro(self) -> Any:
-        """Return a coroutine that sleeps then runs heartbeat internally.
-
-        Returns None if heartbeat is disabled.
-        The coroutine handles the full heartbeat lifecycle (sleep → LLM call)
-        and resolves to the response text, or None if LLM stayed silent.
-        Chat only needs to await it and display the result.
-        """
+    def start_heartbeat_loop(self) -> None:
+        """Start internal heartbeat loop. Called after event subscribers are ready."""
         seconds = self.settings.heartbeat_idle_seconds
         if seconds <= 0:
-            return None
+            return
 
-        async def _heartbeat() -> str | None:
-            await asyncio.sleep(seconds)
-            response = await asyncio.to_thread(self.heartbeat_check, seconds)
-            if response.strip() == ".":
-                return None
-            return response
+        async def _loop() -> None:
+            while True:
+                await asyncio.sleep(seconds)
+                try:
+                    await asyncio.to_thread(self.heartbeat_check, seconds)
+                except Exception as e:
+                    logger.debug("Heartbeat loop error: %s", e)
 
-        return _heartbeat()
+        self._hb_task = asyncio.ensure_future(_loop())
+
+    def stop_heartbeat_loop(self) -> None:
+        if self._hb_task and not self._hb_task.done():
+            self._hb_task.cancel()
 
     def run(
         self,
@@ -108,8 +146,15 @@ class Agent:
         provider: str | None = None,
         model: str | None = None,
     ) -> str:
-        self._provider_name = provider or self.settings.default_provider
-        self._model = model or self.settings.default_model
+        if provider is not None:
+            self._provider_name = provider
+        if model is not None:
+            self._model = model
+        # Fallback to config defaults if not set
+        if not self._provider_name:
+            self._provider_name = self.settings.default_provider
+        if not self._model:
+            self._model = self.settings.default_model
         system_prompt = system or self.default_system_prompt
         self.messages.append({"role": "user", "content": user_input})
         self.iteration = 0
@@ -125,6 +170,8 @@ class Agent:
 
         while True:
             self.iteration += 1
+            self._push_event({"type": "iteration", "num": self.iteration,
+                              "provider": self._provider_name, "model": self._model})
             client = prov.create_client()
             active = self._active_tools | self._always_active
             msg = self._format_messages_log()
@@ -133,18 +180,28 @@ class Agent:
                         self.iteration, self._provider_name, self._model, self._api_type, active,
                         self._trunc(msg, tail=True))
 
-            if self._api_type == "anthropic":
-                result = self._run_anthropic(client, system_prompt, max_tokens)
-            elif self._api_type == "openai_completion":
-                result = self._run_openai_completion(client, system_prompt, max_tokens)
-            elif self._api_type == "openai_response":
-                result = self._run_openai_response(client, system_prompt, max_tokens)
-            else:
-                raise ValueError(f"Unsupported api_type: {self._api_type}")
+            try:
+                if self._api_type == "anthropic":
+                    result = self._run_anthropic(client, system_prompt, max_tokens)
+                elif self._api_type == "openai_completion":
+                    result = self._run_openai_completion(client, system_prompt, max_tokens)
+                elif self._api_type == "openai_response":
+                    result = self._run_openai_response(client, system_prompt, max_tokens)
+                else:
+                    raise ValueError(f"Unsupported api_type: {self._api_type}")
+            except Exception as e:
+                logger.error("Agent: API call failed: %s", e)
+                self._push_event({"type": "error", "content": f"API error: {type(e).__name__}: {e}"})
+                self.messages.pop()  # remove the user message we just appended
+                return f"API error: {type(e).__name__}: {e}"
 
             if self.memory:
                 self._compress_messages()
-                self.memory.save(user_input, result)
+                try:
+                    self.memory.save(user_input, result)
+                except Exception as e:
+                    logger.warning("Agent: memory.save failed: %s", e)
+            self._push_event({"type": "completed", "content": result})
             return result
 
     def _compress_messages(self) -> None:
@@ -265,7 +322,11 @@ class Agent:
         if not self.memory or not self.settings.memory_search.auto_recall:
             return system_prompt
 
-        entries = self.memory.recall(query=user_input, limit=self.settings.memory_search.auto_recall_top_k)
+        try:
+            entries = self.memory.recall(query=user_input, limit=self.settings.memory_search.auto_recall_top_k)
+        except Exception as e:
+            logger.warning("Agent: auto_recall failed: %s", e)
+            return system_prompt
         new_entries = self._recalled.add(entries)
         if not new_entries:
             return system_prompt
@@ -435,34 +496,38 @@ class Agent:
         tool_call_chunks: dict[int, dict[str, Any]] = {}
         usage: Any = None
 
-        for chunk in response:
-            if not chunk.choices:
-                continue
-            delta = chunk.choices[0].delta
+        try:
+            for chunk in response:
+                if not chunk.choices:
+                    continue
+                delta = chunk.choices[0].delta
 
-            if getattr(delta, "content", None):
-                content_parts.append(delta.content)
+                if getattr(delta, "content", None):
+                    content_parts.append(delta.content)
 
-            if reasoning_model:
-                rc = getattr(delta, "reasoning_content", None)
-                if rc:
-                    reasoning_parts.append(rc)
+                if reasoning_model:
+                    rc = getattr(delta, "reasoning_content", None)
+                    if rc:
+                        reasoning_parts.append(rc)
 
-            if getattr(delta, "tool_calls", None):
-                for tc in delta.tool_calls:
-                    idx = tc.index
-                    if idx not in tool_call_chunks:
-                        tool_call_chunks[idx] = {"id": tc.id or "", "function": {"name": "", "arguments": ""}}
-                    if tc.id:
-                        tool_call_chunks[idx]["id"] = tc.id
-                    if tc.function:
-                        if tc.function.name:
-                            tool_call_chunks[idx]["function"]["name"] += tc.function.name
-                        if tc.function.arguments:
-                            tool_call_chunks[idx]["function"]["arguments"] += tc.function.arguments
+                if getattr(delta, "tool_calls", None):
+                    for tc in delta.tool_calls:
+                        idx = tc.index
+                        if idx not in tool_call_chunks:
+                            tool_call_chunks[idx] = {"id": tc.id or "", "function": {"name": "", "arguments": ""}}
+                        if tc.id:
+                            tool_call_chunks[idx]["id"] = tc.id
+                        if tc.function:
+                            if tc.function.name:
+                                tool_call_chunks[idx]["function"]["name"] += tc.function.name
+                            if tc.function.arguments:
+                                tool_call_chunks[idx]["function"]["arguments"] += tc.function.arguments
 
             if chunk.usage:
                 usage = chunk.usage
+        except Exception as e:
+            logger.error("Agent: stream processing failed: %s", e)
+            return f"Stream error: {type(e).__name__}: {e}"
 
         content = "".join(content_parts)
         reasoning = "".join(reasoning_parts)
@@ -593,6 +658,8 @@ class Agent:
         self.total_input_tokens += usage.input_tokens
         self.total_output_tokens += usage.output_tokens
         logger.debug("Agent: token usage: input=%s, output=%s, total=%s", usage.input_tokens, usage.output_tokens, self.total_tokens)
+        self._push_event({"type": "tokens", "input": self.last_input_tokens, "output": self.last_output_tokens,
+                          "total_in": self.total_input_tokens, "total_out": self.total_output_tokens})
 
     def _track_tokens_openai_completion(self, usage: Any) -> None:
         self.last_input_tokens = usage.prompt_tokens
@@ -600,6 +667,8 @@ class Agent:
         self.total_input_tokens += usage.prompt_tokens
         self.total_output_tokens += usage.completion_tokens
         logger.debug("Agent: token usage: input=%s, output=%s, total=%s", usage.prompt_tokens, usage.completion_tokens, self.total_tokens)
+        self._push_event({"type": "tokens", "input": self.last_input_tokens, "output": self.last_output_tokens,
+                          "total_in": self.total_input_tokens, "total_out": self.total_output_tokens})
 
     def _track_tokens_openai_response(self, usage: Any) -> None:
         self.last_input_tokens = usage.input_tokens
@@ -607,6 +676,8 @@ class Agent:
         self.total_input_tokens += usage.input_tokens
         self.total_output_tokens += usage.output_tokens
         logger.debug("Agent: token usage: input=%s, output=%s, total=%s", usage.input_tokens, usage.output_tokens, self.total_tokens)
+        self._push_event({"type": "tokens", "input": self.last_input_tokens, "output": self.last_output_tokens,
+                          "total_in": self.total_input_tokens, "total_out": self.total_output_tokens})
 
     def _activate_tool(self, tool_name: str, tool_args: dict, result: str = "") -> None:
         """After a tool call, activate tools and track loaded skill/CLI names."""

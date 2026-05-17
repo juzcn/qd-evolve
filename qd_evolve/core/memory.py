@@ -9,8 +9,8 @@ from typing import Any, Protocol
 
 import numpy as np
 import sqlite_vec
-from qd_evolve.config import EmbeddingsBackend
-from qd_evolve.logger import logger
+from qd_evolve.core.config import EmbeddingsBackend
+from qd_evolve.core.logger import logger
 from pydantic import BaseModel
 
 
@@ -378,13 +378,16 @@ class MemoryStore:
                     results[entry.id] = entry
 
         # Update access stats
-        now = datetime.now().isoformat(timespec="seconds")
-        for mid in results:
-            self._db.execute(
-                "UPDATE memories SET accessed_at = ?, access_count = access_count + 1 WHERE id = ?",
-                (now, mid),
-            )
-        self._db.commit()
+        try:
+            now = datetime.now().isoformat(timespec="seconds")
+            for mid in results:
+                self._db.execute(
+                    "UPDATE memories SET accessed_at = ?, access_count = access_count + 1 WHERE id = ?",
+                    (now, mid),
+                )
+            self._db.commit()
+        except Exception as e:
+            logger.warning("Memory: failed to update access stats: %s", e)
 
         return sorted(results.values(), key=lambda e: e.distance if e.distance is not None else 999)
 

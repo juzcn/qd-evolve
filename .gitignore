@@ -17,6 +17,7 @@ wheels/
 .claude/
 
 # Config and data (contain secrets)
-qd-evolve.json
-memory.db
+config.json
+*.db
 logs/
+.qd_evolve/
