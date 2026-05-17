@@ -475,12 +475,12 @@ class Agent:
                         if idx not in tool_call_chunks:
                             tool_call_chunks[idx] = {"id": tc.id or "", "function": {"name": "", "arguments": ""}}
                         if tc.id:
-                        tool_call_chunks[idx]["id"] = tc.id
-                    if tc.function:
-                        if tc.function.name:
-                            tool_call_chunks[idx]["function"]["name"] += tc.function.name
-                        if tc.function.arguments:
-                            tool_call_chunks[idx]["function"]["arguments"] += tc.function.arguments
+                            tool_call_chunks[idx]["id"] = tc.id
+                        if tc.function:
+                            if tc.function.name:
+                                tool_call_chunks[idx]["function"]["name"] += tc.function.name
+                            if tc.function.arguments:
+                                tool_call_chunks[idx]["function"]["arguments"] += tc.function.arguments
 
             if chunk.usage:
                 usage = chunk.usage
