@@ -560,8 +560,12 @@ async def _async_chat_loop(
     if a2a_server and agent_config_server:
         host = agent_config_server.host
         port = agent_config_server.port
-        await a2a_server.start(host=host, port=port)
-        console.print(f"[dim]A2A server running on {host}:{port}[/dim]")
+        try:
+            await a2a_server.start(host=host, port=port)
+            console.print(f"[dim]A2A server running on {host}:{port}[/dim]")
+        except OSError as e:
+            logger.warning("A2A: failed to start server on %s:%s: %s (may already be running)", host, port, e)
+            console.print(f"[dim]A2A server on {host}:{port} skipped (port in use)[/dim]")
 
     dot_counter = [0]  # mutable counter for silent heartbeats → toolbar dots
     input_task = hb_task = None
