@@ -942,8 +942,21 @@ def chat(
 
     model_info = escape(f"[{agent_entry.effective_provider(settings)}/{agent_entry.effective_model(settings)}]")
     agent_label = f" ({settings.agents_config.chat_agent})" if settings.agents_config.agents else ""
+    panel_text = f"qd-evolve v{__version__}{agent_label} {model_info} - /help for commands, /quit to leave"
+
+    # Show multi-agent info when >1 agent configured
+    agents = settings.agents_config.agents
+    if len(agents) > 1:
+        agent_lines = []
+        for a in agents:
+            prov = a.effective_provider(settings)
+            mdl = a.effective_model(settings)
+            marker = " *" if a.name == settings.agents_config.chat_agent else ""
+            agent_lines.append(f"  {a.name}{marker}: {prov}/{mdl}")
+        panel_text += "\n\nAgents:\n" + "\n".join(agent_lines)
+
     console.print(Panel(
-        f"qd-evolve v{__version__}{agent_label} {model_info} - /help for commands, /quit to leave",
+        panel_text,
         style="bold green",
     ))
 
