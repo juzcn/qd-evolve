@@ -341,22 +341,20 @@ async def _read_input_async(session: "PromptSession | ReplayInput", hb_counts: d
         result = await asyncio.to_thread(session.prompt)
         return result.strip()
     if hb_counts is not None:
-        _agent_colors = ["cyan", "magenta", "yellow", "green", "blue", "red"]
-        def _rprompt() -> "FormattedText":
+        _agent_colors = ["#ff6b6b", "#51cf66", "#74c0fc", "#ffd43b", "#da77f2", "#63e6be"]
+        def _bottom_toolbar() -> "FormattedText":
             from prompt_toolkit.formatted_text import FormattedText
             fragments: list[tuple[str, str]] = []
             for i, (name, n) in enumerate(hb_counts.items()):
                 color = _agent_colors[i % len(_agent_colors)]
-                if fragments:
-                    fragments.append(("", "  "))
                 if n > 0:
-                    fragments.append((f"fg:{color} bold", f"♡ {name}:{n}"))
+                    fragments.append((f"fg:{color} bold", f" ♡ {name}:{n} "))
                 else:
-                    fragments.append((f"fg:{color}", f"♡ {name}"))
+                    fragments.append((f"fg:{color}", f" ♡ {name} "))
             return FormattedText(fragments) if fragments else FormattedText([("", "")])
         try:
             result = await session.prompt_async(
-                rprompt=_rprompt,
+                bottom_toolbar=_bottom_toolbar,
                 refresh_interval=1,
             )
         except KeyboardInterrupt:
