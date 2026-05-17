@@ -941,19 +941,26 @@ def chat(
     agent._model = agent_entry.effective_model(settings) if agent_entry else settings.default_model
 
     model_info = escape(f"[{agent_entry.effective_provider(settings)}/{agent_entry.effective_model(settings)}]")
-    agent_label = f" ({settings.agents_config.chat_agent})" if settings.agents_config.agents else ""
-    panel_text = f"qd-evolve v{__version__}{agent_label} {model_info} - /help for commands, /quit to leave"
 
-    # Show multi-agent info when >1 agent configured
+    # Build startup panel — different layout for single vs multi-agent
     agents = settings.agents_config.agents
     if len(agents) > 1:
         agent_lines = []
         for a in agents:
             prov = a.effective_provider(settings)
             mdl = a.effective_model(settings)
-            marker = " *" if a.name == settings.agents_config.chat_agent else ""
-            agent_lines.append(f"  {a.name}{marker}: {prov}/{mdl}")
-        panel_text += "\n\nAgents:\n" + "\n".join(agent_lines)
+            if a.name == settings.agents_config.chat_agent:
+                agent_lines.append(f"  [bold]► {a.name}[/bold]  {prov}/{mdl}")
+            else:
+                agent_lines.append(f"    {a.name}  {prov}/{mdl}")
+        panel_text = (
+            f"qd-evolve v{__version__}\n\n"
+            + "\n".join(agent_lines)
+            + f"\n\n/help for commands, /quit to leave"
+        )
+    else:
+        agent_label = f" ({settings.agents_config.chat_agent})" if agents else ""
+        panel_text = f"qd-evolve v{__version__}{agent_label} {model_info} - /help for commands, /quit to leave"
 
     console.print(Panel(
         panel_text,
