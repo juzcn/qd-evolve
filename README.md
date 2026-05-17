@@ -8,10 +8,11 @@ Multi-agent AI system with A2A protocol, dual transport, tool use, skills, MCP i
 - **Fully isolated agents** — Each agent has independent messages, memory db, system prompt, and toolbox config
 - **Per-agent model config** — Each agent has its own `provider`/`model` in `config.json`; `/models` switches the current agent's model and persists; empty strings fall back to global `default_provider`/`default_model`
 - **Agent config in config.json** — `agents_config` section with `chat_agent` (currently active agent), `agents` list, and `topology` sub-section
+- **AgentEntry.transport** — Each agent has a `transport` field (`"inproc"` | `"http"`, default `"inproc"`); determines whether agent runs in CLI process or remotely
 - **ServerConfig** — Structured `host`/`port` per agent (pydantic model, no hardcoded defaults)
 - **API error handling** — LLM API errors caught and returned as error messages instead of crashing the session
 - **A2A interaction tools** — `delegate_to` (blocking), `send_task` (non-blocking), `get_task`, `cancel_task`
-- **Topology config** — `agents_config.topology` defines agent relationships (peer/master-worker) and transport mode per agent pair
+- **Topology config** — `agents_config.topology` defines agent relationships (peer/master-worker) via `relations` list; transport derived from `AgentEntry.transport`
 - **Multi-provider, multi-model** — OpenAI Chat Completions, OpenAI Responses API, Anthropic Messages API
 - **Tool system** — Builtin tools + MCP (external processes) + OAT bridge (in-process boat + coat)
 - **Bridge protocol** — qd-evolve's own protocol for tool source integration; new bridge types never touch `cli.py`
@@ -28,7 +29,7 @@ Multi-agent AI system with A2A protocol, dual transport, tool use, skills, MCP i
 - **Context compression** — Auto Q/A removal when tokens exceed threshold; set `context_window` to 0 or omit it to disable
 - **Auto recall** — Relevant past conversations auto-injected into system prompt
 - **Per-turn token stats** — Input/output tracking with context window usage
-- **Heartbeat** — Idle detection with LLM-driven heartbeat messages; per-agent counters displayed as colored `♡ name:N` in prompt; configurable via `heartbeat_idle_seconds`
+- **Heartbeat** — Agent-owned heartbeat loop (`start_heartbeat_loop`/`stop_heartbeat_loop`); idle detection with LLM-driven heartbeat messages; per-agent counters displayed as agent name; configurable via `heartbeat_idle_seconds`
 - **Hot-loading** — `install_func/install_mcp/install_skill` hot-load new tools into current session without restart; `register_func/register_mcp/register_skill` persist to permanent directories; staging area `.qd_evolve/staging/` for user confirmation before permanent registration
 - **Streaming** — Global `stream` setting for token-by-token output to terminal (OpenAI-compatible providers)
 - **Reasoning/thinking mode** — Per-model `reasoning` flag for DeepSeek-style reasoning_content passthrough with terminal display
@@ -98,7 +99,8 @@ All agent config is in `config.json` under `agents_config`:
         "description": "Default qd-evolve agent",
         "provider": "",
         "model": "",
-        "server": {"host": "0.0.0.0", "port": 8001}
+        "server": {"host": "0.0.0.0", "port": 8001},
+        "transport": "inproc"
       },
       {
         "name": "test",
@@ -106,13 +108,11 @@ All agent config is in `config.json` under `agents_config`:
         "provider": "baiduqianfancodingplan",
         "model": "qianfan-code-latest",
         "memory_db": "test_memory.db",
-        "server": {"host": "0.0.0.0", "port": 8002}
+        "server": {"host": "0.0.0.0", "port": 8002},
+        "transport": "http"
       }
     ],
     "topology": {
-      "default_mode": "peer",
-      "default_transport": "inproc",
-      "transports": {"default→test": "http", "test→default": "http"},
       "relations": [{"from": "default", "to": "test", "mode": "peer"}]
     }
   }
@@ -123,6 +123,7 @@ All agent config is in `config.json` under `agents_config`:
 - `a2a_tools`: auto-derived — enabled when >1 agent, disabled when only 1
 - `memory_db`: independent db file per agent (default: `"memory.db"`); `""` or `null` disables memory entirely
 - `server.host/port`: HTTP server for cross-machine A2A communication
+- `transport`: `"inproc"` = runs in CLI process; `"http"` = runs in remote process, CLI is pure HTTP client
 
 ### Per-Agent Toolbox
 
@@ -145,22 +146,10 @@ Each agent has its own section in `toolbox.json` under `agents.<name>`:
 
 ### Topology
 
-`agents_config.topology` in config.json defines agent relationships and transport:
+`agents_config.topology` in config.json defines agent relationships. Transport is derived from each agent's `transport` field — no manual transport mapping needed.
 
 ```json
 {
-  "default_mode": "peer",
-  "default_transport": "inproc",
-  "agents": {
-    "coordinator": {"url": "http://localhost:8001"},
-    "coder": {"url": "http://localhost:8002"},
-    "reviewer": {"url": "http://192.168.1.50:8001"}
-  },
-  "transports": {
-    "coordinator→coder": "inproc",
-    "coordinator→reviewer": "http",
-    "coder→reviewer": "http"
-  },
   "relations": [
     {"from": "coordinator", "to": "coder", "mode": "master-worker"},
     {"from": "coder", "to": "reviewer", "mode": "peer"}
@@ -168,10 +157,8 @@ Each agent has its own section in `toolbox.json` under `agents.<name>`:
 }
 ```
 
-- `default_transport: "inproc"` — same-machine agents use direct Python call (zero latency)
-- `transports`: configure per-agent-pair transport (`inproc` or `http`)
-- Cross-machine agents (different IP) auto-detected as `http`
-- `default_mode: "peer"` — agents can mutually delegate tasks
+- Transport is auto-derived: both agents `inproc` → `inproc`, either agent `http` → `http`
+- `mode: "peer"` (default) — agents can mutually delegate tasks
 - `mode: "master-worker"` — hierarchical delegation
 
 ### A2A Protocol
@@ -189,10 +176,10 @@ Full A2A v1.0 spec implementation:
 
 ### Dual Transport
 
-- **InprocTransport** — Direct `AgentCore.run()` call via `asyncio.to_thread`. Zero network latency for same-machine agents. Lazy-loads target agent from config on demand. CLI uses `set_status_callback`/`set_print_callback` for iteration display and `create_heartbeat_coro()` for heartbeat.
+- **InprocTransport** — Direct `AgentCore.run()` call via `asyncio.to_thread`. Zero network latency for same-machine agents. Lazy-loads target agent from config on demand. Agent owns heartbeat via `start_heartbeat_loop()`/`stop_heartbeat_loop()`.
 - **HttpTransport** — aiohttp JSON-RPC client for cross-machine agents. Standard A2A protocol. CLI uses SSE event stream from `chat/subscribe` for iteration/heartbeat/tool-call display.
-- **TransportRouter** — Auto-selects transport based on `agents_config.topology` config. `delegate_to` and other tools only depend on the transport interface.
-- **Unified event display** — Both paths share a `event_queue` for per-agent heartbeat counters (`♡ name:N` in rprompt). Inproc events bridge via `_inproc_event_worker`; HTTP events bridge via `_event_worker`. Same `Live(Group)` iteration display pattern for both modes.
+- **TransportRouter** — Auto-selects transport based on `AgentEntry.transport` fields. Both agents `inproc` → inproc transport; either agent `http` → HTTP transport. `delegate_to` and other tools only depend on the transport interface.
+- **Unified event display** — Both paths share a `event_queue` for per-agent heartbeat counters (`♡ name:N` in bottom toolbar). Inproc events bridge via `_inproc_event_worker`; HTTP events bridge via `_event_worker`. Same `Live(Group)` iteration display pattern for both modes.
 
 ### Event Stream
 
