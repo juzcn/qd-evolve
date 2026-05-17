@@ -157,7 +157,10 @@ class Agent:
 
             if self.memory:
                 self._compress_messages()
-                self.memory.save(user_input, result)
+                try:
+                    self.memory.save(user_input, result)
+                except Exception as e:
+                    logger.warning("Agent: memory.save failed: %s", e)
             return result
 
     def _compress_messages(self) -> None:
@@ -278,7 +281,11 @@ class Agent:
         if not self.memory or not self.settings.memory_search.auto_recall:
             return system_prompt
 
-        entries = self.memory.recall(query=user_input, limit=self.settings.memory_search.auto_recall_top_k)
+        try:
+            entries = self.memory.recall(query=user_input, limit=self.settings.memory_search.auto_recall_top_k)
+        except Exception as e:
+            logger.warning("Agent: auto_recall failed: %s", e)
+            return system_prompt
         new_entries = self._recalled.add(entries)
         if not new_entries:
             return system_prompt
@@ -448,25 +455,26 @@ class Agent:
         tool_call_chunks: dict[int, dict[str, Any]] = {}
         usage: Any = None
 
-        for chunk in response:
-            if not chunk.choices:
-                continue
-            delta = chunk.choices[0].delta
+        try:
+            for chunk in response:
+                if not chunk.choices:
+                    continue
+                delta = chunk.choices[0].delta
 
-            if getattr(delta, "content", None):
-                content_parts.append(delta.content)
+                if getattr(delta, "content", None):
+                    content_parts.append(delta.content)
 
-            if reasoning_model:
-                rc = getattr(delta, "reasoning_content", None)
-                if rc:
-                    reasoning_parts.append(rc)
+                if reasoning_model:
+                    rc = getattr(delta, "reasoning_content", None)
+                    if rc:
+                        reasoning_parts.append(rc)
 
-            if getattr(delta, "tool_calls", None):
-                for tc in delta.tool_calls:
-                    idx = tc.index
-                    if idx not in tool_call_chunks:
-                        tool_call_chunks[idx] = {"id": tc.id or "", "function": {"name": "", "arguments": ""}}
-                    if tc.id:
+                if getattr(delta, "tool_calls", None):
+                    for tc in delta.tool_calls:
+                        idx = tc.index
+                        if idx not in tool_call_chunks:
+                            tool_call_chunks[idx] = {"id": tc.id or "", "function": {"name": "", "arguments": ""}}
+                        if tc.id:
                         tool_call_chunks[idx]["id"] = tc.id
                     if tc.function:
                         if tc.function.name:
@@ -476,6 +484,9 @@ class Agent:
 
             if chunk.usage:
                 usage = chunk.usage
+        except Exception as e:
+            logger.error("Agent: stream processing failed: %s", e)
+            return f"Stream error: {type(e).__name__}: {e}"
 
         content = "".join(content_parts)
         reasoning = "".join(reasoning_parts)

@@ -158,7 +158,7 @@ class InprocTransport:
             registry.register(agent_core)
             logger.info("InprocTransport: lazy-loaded agent '%s'", target)
             return agent_core
-        except (ValueError, ImportError) as e:
+        except Exception as e:
             logger.warning("InprocTransport: failed to lazy-load agent '%s': %s", target, e)
             return None
 
@@ -196,56 +196,86 @@ class HttpTransport:
         """Blocking: HTTP POST tasks/send."""
         import aiohttp
 
-        url = self._get_registry().get_url(target)
-        payload = self._rpc("tasks/send", {"message": message.model_dump()})
-        async with aiohttp.ClientSession() as session:
-            resp = await session.post(url, json=payload)
-            data = await resp.json()
-        return Task.model_validate(data.get("result", {}))
+        try:
+            url = self._get_registry().get_url(target)
+            payload = self._rpc("tasks/send", {"message": message.model_dump()})
+            async with aiohttp.ClientSession() as session:
+                resp = await session.post(url, json=payload)
+                data = await resp.json()
+            return Task.model_validate(data.get("result", {}))
+        except Exception as e:
+            logger.error("HttpTransport: send_task to '%s' failed: %s", target, e)
+            return self._error_task(target, f"{type(e).__name__}: {e}")
 
     async def send_subscribe(self, target: str, message: Message) -> AsyncIterator[Task]:
         """Non-blocking: HTTP POST tasks/sendSubscribe, SSE stream."""
         import aiohttp
 
-        url = self._get_registry().get_url(target)
-        payload = self._rpc("tasks/sendSubscribe", {"message": message.model_dump()})
-        async with aiohttp.ClientSession() as session:
-            resp = await session.post(url, json=payload)
-            async for line in resp.content:
-                if line.startswith(b"data:"):
-                    yield Task.model_validate(json.loads(line[5:].strip()))
+        try:
+            url = self._get_registry().get_url(target)
+            payload = self._rpc("tasks/sendSubscribe", {"message": message.model_dump()})
+            async with aiohttp.ClientSession() as session:
+                resp = await session.post(url, json=payload)
+                async for line in resp.content:
+                    if line.startswith(b"data:"):
+                        yield Task.model_validate(json.loads(line[5:].strip()))
+        except Exception as e:
+            logger.error("HttpTransport: send_subscribe to '%s' failed: %s", target, e)
+            yield self._error_task(target, f"{type(e).__name__}: {e}")
 
     async def get_task(self, target: str, task_id: str) -> Task:
         """Query task status via HTTP."""
         import aiohttp
 
-        url = self._get_registry().get_url(target)
-        payload = self._rpc("tasks/get", {"id": task_id})
-        async with aiohttp.ClientSession() as session:
-            resp = await session.post(url, json=payload)
-            data = await resp.json()
-        return Task.model_validate(data.get("result", {}))
+        try:
+            url = self._get_registry().get_url(target)
+            payload = self._rpc("tasks/get", {"id": task_id})
+            async with aiohttp.ClientSession() as session:
+                resp = await session.post(url, json=payload)
+                data = await resp.json()
+            return Task.model_validate(data.get("result", {}))
+        except Exception as e:
+            logger.error("HttpTransport: get_task from '%s' failed: %s", target, e)
+            return self._error_task(target, f"{type(e).__name__}: {e}")
 
     async def cancel_task(self, target: str, task_id: str) -> Task:
         """Cancel task via HTTP."""
         import aiohttp
 
-        url = self._get_registry().get_url(target)
-        payload = self._rpc("tasks/cancel", {"id": task_id})
-        async with aiohttp.ClientSession() as session:
-            resp = await session.post(url, json=payload)
-            data = await resp.json()
-        return Task.model_validate(data.get("result", {}))
+        try:
+            url = self._get_registry().get_url(target)
+            payload = self._rpc("tasks/cancel", {"id": task_id})
+            async with aiohttp.ClientSession() as session:
+                resp = await session.post(url, json=payload)
+                data = await resp.json()
+            return Task.model_validate(data.get("result", {}))
+        except Exception as e:
+            logger.error("HttpTransport: cancel_task on '%s' failed: %s", target, e)
+            return self._error_task(target, f"{type(e).__name__}: {e}")
 
     async def get_agent_card(self, target: str) -> AgentCard:
         """Discover remote Agent's capabilities."""
         import aiohttp
 
-        url = self._get_registry().get_url(target)
-        async with aiohttp.ClientSession() as session:
-            resp = await session.get(f"{url}/.well-known/agent.json")
-            data = await resp.json()
-        return AgentCard.model_validate(data)
+        try:
+            url = self._get_registry().get_url(target)
+            async with aiohttp.ClientSession() as session:
+                resp = await session.get(f"{url}/.well-known/agent.json")
+                data = await resp.json()
+            return AgentCard.model_validate(data)
+        except Exception as e:
+            logger.error("HttpTransport: get_agent_card for '%s' failed: %s", target, e)
+            return AgentCard(name=target, description=f"Error: {type(e).__name__}: {e}")
+
+    @staticmethod
+    def _error_task(target: str, error: str) -> Task:
+        return Task(
+            status=TaskStatus(
+                state=TaskState.failed,
+                message=make_text_message("agent", error),
+            ),
+            metadata={"target": target},
+        )
 
     @staticmethod
     def _rpc(method: str, params: dict) -> dict:

@@ -107,11 +107,18 @@ class A2AServer:
         task.status.state = TaskState.working
         self.task_store.put(task)
 
-        result = await asyncio.to_thread(self.agent_core.run, task_text)
-        task.status = TaskStatus(
-            state=TaskState.completed,
-            message=make_text_message("agent", result),
-        )
+        try:
+            result = await asyncio.to_thread(self.agent_core.run, task_text)
+            task.status = TaskStatus(
+                state=TaskState.completed,
+                message=make_text_message("agent", result),
+            )
+        except Exception as e:
+            logger.exception("A2A server: agent run failed: %s", e)
+            task.status = TaskStatus(
+                state=TaskState.failed,
+                message=make_text_message("agent", f"{type(e).__name__}: {e}"),
+            )
         self.task_store.put(task)
         return task
 
@@ -134,7 +141,11 @@ class A2AServer:
         await resp.write(f"data: {event.model_dump_json()}\n\n".encode())
 
         # Background execution
-        result = await asyncio.to_thread(self.agent_core.run, task_text)
+        try:
+            result = await asyncio.to_thread(self.agent_core.run, task_text)
+        except Exception as e:
+            logger.exception("A2A server: agent run failed: %s", e)
+            result = f"{type(e).__name__}: {e}"
 
         # Completed state
         completed = TaskStatusUpdateEvent(

@@ -676,16 +676,19 @@ async def _async_chat_loop(
                 console.print(f"[red]Error:[/red] {e}")
                 continue
         console.print(f"[bold]Assistant:[/bold] {response}")
-        prov = providers.get(agent._provider_name)
-        model_name = agent._model or (agent_entry.effective_model(settings) if agent_entry else settings.default_model)
-        ctx = prov.get_context_window(model_name)
-        max_tok = prov.get_max_tokens(model_name)
-        last_in = agent.last_input_tokens
-        last_out = agent.last_output_tokens
-        pct_ctx = f" ({last_in / ctx * 100:.1f}% of {ctx} context)" if ctx > 0 else ""
-        pct_max = f" ({last_out / max_tok * 100:.1f}% of {max_tok} max)" if max_tok > 0 else ""
-        console.print(f"[dim]This turn: {last_in} in{pct_ctx} + {last_out} out{pct_max}[/dim]")
-        console.print(f"[dim]Cumulative: {agent.total_input_tokens + agent.total_output_tokens} tokens used[/dim]")
+        try:
+            prov = providers.get(agent._provider_name)
+            model_name = agent._model or (agent_entry.effective_model(settings) if agent_entry else settings.default_model)
+            ctx = prov.get_context_window(model_name)
+            max_tok = prov.get_max_tokens(model_name)
+            last_in = agent.last_input_tokens
+            last_out = agent.last_output_tokens
+            pct_ctx = f" ({last_in / ctx * 100:.1f}% of {ctx} context)" if ctx > 0 else ""
+            pct_max = f" ({last_out / max_tok * 100:.1f}% of {max_tok} max)" if max_tok > 0 else ""
+            console.print(f"[dim]This turn: {last_in} in{pct_ctx} + {last_out} out{pct_max}[/dim]")
+            console.print(f"[dim]Cumulative: {agent.total_input_tokens + agent.total_output_tokens} tokens used[/dim]")
+        except (KeyError, ZeroDivisionError) as e:
+            logger.debug("CLI: token stats display skipped: %s", e)
 
     except KeyboardInterrupt:
         for t in (input_task, hb_task):
