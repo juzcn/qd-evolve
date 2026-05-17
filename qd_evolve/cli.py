@@ -577,6 +577,8 @@ async def _async_chat_loop(
     if inproc_agents:
         from qd_evolve.agent.server import A2AServer
         for name, core in inproc_agents.items():
+            if name == chat_agent_name:
+                continue
             entry = next((a for a in settings.agents_config.agents if a.name == name), None)
             if entry:
                 server = A2AServer(core, core.card, core.task_store)
@@ -759,7 +761,7 @@ async def _async_chat_loop(
                 except Exception as e:
                     response = f"[red]Error:[/red] {e}"
 
-            console.print(f"[bold]Assistant:[/bold] {response}")
+            console.print(f"[bold]{chat_agent_name}:[/bold] {response}")
 
             # Token stats — read directly from agent_core
             try:
@@ -960,7 +962,7 @@ async def _async_chat_loop(
                 except Exception as e:
                     response = f"[red]Error:[/red] {e}"
 
-            console.print(f"[bold]Assistant:[/bold] {response}")
+            console.print(f"[bold]{chat_agent_name}:[/bold] {response}")
 
             # Token stats — from SSE event
             if last_tokens_event:
@@ -1118,11 +1120,8 @@ def chat(
 
     # 3. Determine transport for chat agent
     chat_agent_name = settings.agents_config.chat_agent
-    topology_transports = settings.agents_config.topology.transports
-    is_http = any(
-        key.endswith(f"→{chat_agent_name}") and mode == "http"
-        for key, mode in topology_transports.items()
-    )
+    chat_agent_entry = next((a for a in settings.agents_config.agents if a.name == chat_agent_name), None)
+    is_http = chat_agent_entry.transport == "http" if chat_agent_entry else False
 
     # 4. A2A setup
     from qd_evolve.agent.server import A2AServer
@@ -1140,6 +1139,8 @@ def chat(
     # Create all non-chat inproc agents via create_agent_core
     for a in settings.agents_config.agents:
         if a.name == chat_agent_name:
+            continue
+        if a.transport != "inproc":
             continue
         try:
             inproc_core = create_agent_core(a.name, settings=settings)
@@ -1173,11 +1174,9 @@ def chat(
     agents = settings.agents_config.agents
     chat_agent_entry = next((a for a in agents if a.name == chat_agent_name), None)
     # Determine transport label per agent
-    def _transport_label(name: str) -> str:
-        for key, mode in topology_transports.items():
-            if key.endswith(f"→{name}") and mode == "http":
-                port = next((a.server.port for a in agents if a.name == name), DEFAULT_SERVER_PORT)
-                return f"HTTP :{port}"
+    def _transport_label(a: Any) -> str:
+        if a.transport == "http":
+            return f"HTTP :{a.server.port}"
         return "inproc"
 
     if len(agents) > 1:
@@ -1187,12 +1186,12 @@ def chat(
             prov = a.effective_provider(settings)
             mdl = a.effective_model(settings)
             name_col = f"{a.name:<{max_name_len}}"
-            transport = _transport_label(a.name)
+            transport = _transport_label(a)
             if a.name == chat_agent_name:
                 agent_lines.append(f"  [bold]► {name_col}[/bold]  {prov}/{mdl}  [{transport}]")
             else:
                 agent_lines.append(f"    {name_col}  {prov}/{mdl}  [{transport}]")
-        chat_transport = "HTTP" if is_http else "inproc"
+        chat_transport = _transport_label(chat_agent_entry)
         panel_text = (
             f"qd-evolve v{__version__}\n\n"
             + "\n".join(agent_lines)

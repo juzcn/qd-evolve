@@ -10,43 +10,36 @@ from qd_evolve.core.logger import logger
 
 
 class Topology:
-    """Agent topology — relationships and transport config from config.json."""
+    """Agent topology — relationships and transport derived from AgentEntry.transport."""
 
     def __init__(self, settings: Settings | None = None) -> None:
         settings = settings or load_settings()
-        a = settings.agents_config
-        t = a.topology
-        self.default_mode: str = t.default_mode
-        self.default_transport: str = t.default_transport
-        self.transports: dict[str, str] = t.transports
-        self.relations: list[dict[str, str]] = t.relations
-        # Build agents map from settings.agents_config.agents (url derived from server config)
+        self.relations: list[dict[str, str]] = settings.agents_config.topology.relations
+        # Build agents map: name → {url, transport}
         self.agents: dict[str, dict[str, Any]] = {}
-        for entry in a.agents:
-            port = entry.server.port
-            self.agents[entry.name] = {"url": f"http://localhost:{port}"}
+        for entry in settings.agents_config.agents:
+            self.agents[entry.name] = {
+                "url": f"http://localhost:{entry.server.port}",
+                "transport": entry.transport,
+            }
 
     def get_transport(self, from_agent: str, to_agent: str) -> str:
-        """Get transport mode between two agents."""
-        key = f"{from_agent}→{to_agent}"
-        if key in self.transports:
-            return self.transports[key]
-        # Auto-detect: different hosts → http
-        from_url = self.agents.get(from_agent, {}).get("url", "")
-        to_url = self.agents.get(to_agent, {}).get("url", "")
-        if from_url and to_url:
-            from_host = from_url.split("//", 1)[-1].split("/")[0].split(":")[0]
-            to_host = to_url.split("//", 1)[-1].split("/")[0].split(":")[0]
-            if from_host != to_host:
-                return "http"
-        return self.default_transport
+        """Get transport mode between two agents.
+
+        Derived from AgentEntry.transport: both inproc → inproc, either http → http.
+        """
+        from_t = self.agents.get(from_agent, {}).get("transport", "inproc")
+        to_t = self.agents.get(to_agent, {}).get("transport", "inproc")
+        if from_t == "http" or to_t == "http":
+            return "http"
+        return "inproc"
 
     def get_relation(self, from_agent: str, to_agent: str) -> str:
-        """Get relationship mode between two agents."""
+        """Get relationship mode between two agents. Default: peer."""
         for r in self.relations:
             if r["from"] == from_agent and r["to"] == to_agent:
-                return r.get("mode", self.default_mode)
-        return self.default_mode
+                return r.get("mode", "peer")
+        return "peer"
 
 
 class AgentRegistry:
@@ -77,15 +70,7 @@ class AgentRegistry:
     def get_transport(self, target: str) -> str:
         """Get transport mode for reaching a target agent."""
         from_agent = self.current_agent or next(iter(self._agents), "")
-        if from_agent:
-            result = self.topology.get_transport(from_agent, target)
-            if result != self.topology.default_transport:
-                return result
-        # Fallback: check if any agent→target is "http" in topology
-        for key, mode in self.topology.transports.items():
-            if key.endswith(f"→{target}") and mode == "http":
-                return "http"
-        return self.topology.default_transport
+        return self.topology.get_transport(from_agent, target)
 
     def get_card(self, name: str) -> AgentCard | None:
         """Get AgentCard for a named agent."""

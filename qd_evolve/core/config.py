@@ -100,6 +100,7 @@ class AgentEntry(BaseModel):
     system_prompt_template: str = "default"
     memory_db: str | None = DEFAULT_MEMORY_DB
     server: ServerConfig = ServerConfig()
+    transport: str = "inproc"
 
     def effective_provider(self, settings: Settings) -> str:
         return self.provider or settings.default_provider
@@ -109,9 +110,6 @@ class AgentEntry(BaseModel):
 
 
 class TopologyConfig(BaseModel):
-    default_mode: str = "peer"
-    default_transport: str = "inproc"
-    transports: dict[str, str] = {}
     relations: list[dict[str, str]] = []
 
 

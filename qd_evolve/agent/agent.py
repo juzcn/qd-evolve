@@ -48,6 +48,7 @@ class Agent:
         self._preload_cli: set[str] = preload_cli or set()
         self._event_subscribers: list[asyncio.Queue] = []
         self._hb_task: asyncio.Task | None = None
+        self._hb_task: asyncio.Task | None = None
 
     def subscribe_events(self) -> asyncio.Queue:
         q: asyncio.Queue = asyncio.Queue()

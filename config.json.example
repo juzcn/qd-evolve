@@ -37,13 +37,11 @@
         "model": "",
         "system_prompt_template": "default",
         "memory_db": "memory.db",  // "" or null to disable memory
-        "server": {"host": "0.0.0.0", "port": 8001}
+        "server": {"host": "0.0.0.0", "port": 8001},
+        "transport": "inproc"  // "inproc" | "http"
       }
     ],
     "topology": {
-      "default_mode": "peer",
-      "default_transport": "inproc",
-      "transports": {},
       "relations": []
     }
   },
