@@ -24,12 +24,24 @@ dependencies = [
     "basic-open-agent-tools[xml]>=1.3.2",
     "markdown-pdf",
     "coding-open-agent-tools>=0.14.1",
-    "defusedxml>=0.7.1",  # implicit dependency of coding-open-agent-tools
+    "defusedxml>=0.7.1", # implicit dependency of coding-open-agent-tools
     "tomlkit>=0.15.0",
+    "aiohttp>=3.13.5",
 ]
 
 [project.optional-dependencies]
 boat = ["basic-open-agent-tools[all]>=1.3"]
+test = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.25",
+    "pytest-cov>=6.0",
+    "pytest-mock>=3.14",
+    "aioresponses>=0.7",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
 
 [project.scripts]
 qd-evolve = "qd_evolve.cli:app"
@@ -42,3 +54,12 @@ extra-index-url = [
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[dependency-groups]
+test = [
+    "aioresponses>=0.7.8",
+    "pytest>=9.0.3",
+    "pytest-asyncio>=1.3.0",
+    "pytest-cov>=7.1.0",
+    "pytest-mock>=3.15.1",
+]

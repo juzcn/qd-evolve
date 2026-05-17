@@ -1,0 +1,82 @@
+"""Tests for qd_evolve.tools.a2a — delegate_to, send_task, get_task, cancel_task."""
+
+import json
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from qd_evolve.agent.a2a import Task, TaskState, TaskStatus, make_text_message
+
+
+class TestGetTask:
+    def test_existing_task(self):
+        from qd_evolve.tools.a2a import _get_task
+        from qd_evolve.tools import a2a as a2a_module
+        a2a_module._task_store["t1"] = {"target": "helper", "state": "completed", "result": "done"}
+
+        result = _get_task("t1")
+        data = json.loads(result)
+        assert data["task_id"] == "t1"
+        assert data["state"] == "completed"
+
+        # Cleanup
+        a2a_module._task_store.clear()
+
+    def test_not_found(self):
+        from qd_evolve.tools.a2a import _get_task
+        result = _get_task("nonexistent")
+        data = json.loads(result)
+        assert "error" in data
+
+
+class TestCancelTask:
+    def test_cancel_existing(self):
+        from qd_evolve.tools.a2a import _cancel_task
+        from qd_evolve.tools import a2a as a2a_module
+        a2a_module._task_store["t1"] = {"target": "helper", "state": "submitted", "result": None}
+
+        result = _cancel_task("t1")
+        data = json.loads(result)
+        assert data["state"] == "canceled"
+
+        # Cleanup
+        a2a_module._task_store.clear()
+
+    def test_cancel_not_found(self):
+        from qd_evolve.tools.a2a import _cancel_task
+        result = _cancel_task("nonexistent")
+        data = json.loads(result)
+        assert "error" in data
+
+
+class TestExtractResultText:
+    def test_with_text(self):
+        from qd_evolve.tools.a2a import _extract_result_text
+        task = Task(
+            status=TaskStatus(
+                state=TaskState.completed,
+                message=make_text_message("agent", "result text"),
+            ),
+        )
+        assert _extract_result_text(task) == "result text"
+
+    def test_empty_message(self):
+        from qd_evolve.tools.a2a import _extract_result_text
+        task = Task(status=TaskStatus(state=TaskState.completed))
+        assert _extract_result_text(task) == ""
+
+
+class TestSetTransport:
+    def test_set_and_get(self):
+        from qd_evolve.tools.a2a import set_transport, _get_transport
+        mock_transport = MagicMock()
+        set_transport(mock_transport)
+        assert _get_transport() == mock_transport
+
+    def test_not_initialized_raises(self):
+        from qd_evolve.tools.a2a import _get_transport
+        # Reset transport to None
+        from qd_evolve.tools import a2a as a2a_module
+        a2a_module._transport = None
+        with pytest.raises(RuntimeError, match="transport not initialized"):
+            _get_transport()
