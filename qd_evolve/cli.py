@@ -715,6 +715,75 @@ async def _async_chat_loop(
         output_file.close()
 
 
+@app.command()
+def serve(
+    agent: str = typer.Option("", "--agent", help="Agent name from config.json to serve"),
+) -> None:
+    """Start an agent as a standalone A2A HTTP server (for cross-process communication)."""
+    from qd_evolve.core.logger import setup_logging
+    from qd_evolve.core.config import LOG_DIR as LOG_DIR_PATH, load_settings
+    from qd_evolve.agent.loader import create_agent_core, get_agent_entry
+    from qd_evolve.agent.server import A2AServer, TaskStore
+    from qd_evolve.agent.a2a import AgentCard, AgentCapabilities
+
+    # 1. Config & logging
+    setup_logging("WARNING", log_dir=LOG_DIR_PATH)
+    settings = load_settings()
+    setup_logging(settings.log.level, log_dir=LOG_DIR_PATH)
+
+    # Inject env_vars
+    import os
+    for key, value in settings.env_vars.items():
+        os.environ[key] = value
+
+    if not agent:
+        console.print("[red]Error:[/red] --agent is required. E.g. qd-evolve serve --agent test")
+        raise SystemExit(1)
+
+    # 2. Find agent entry
+    entry = get_agent_entry(settings, agent)
+    if entry is None:
+        console.print(f"[red]Error:[/red] Agent '{agent}' not found in config.json")
+        raise SystemExit(1)
+
+    # 3. Create AgentCore via loader
+    agent_core = create_agent_core(agent)
+
+    # 4. Build card + task_store
+    card = AgentCard(
+        name=entry.name,
+        description=entry.description,
+        url=f"http://localhost:{entry.server.port}",
+        capabilities=AgentCapabilities(streaming=True),
+    )
+    task_store = TaskStore()
+    agent_core.card = card
+    agent_core.task_store = task_store
+
+    # 5. Start A2A server
+    server = A2AServer(agent_core, card, task_store)
+    host = entry.server.host
+    port = entry.server.port
+    console.print(Panel(
+        f"Serving agent [bold]{agent}[/bold] on {host}:{port}\nA2A v1.0 JSON-RPC + SSE",
+        style="bold green",
+    ))
+
+    async def _run() -> None:
+        await server.start(host=host, port=port)
+        # Block until Ctrl+C
+        stop_event = asyncio.Event()
+        try:
+            await stop_event.wait()
+        except KeyboardInterrupt:
+            pass
+
+    try:
+        asyncio.run(_run())
+    except KeyboardInterrupt:
+        console.print("\n[dim]Server stopped.[/dim]")
+
+
 @app.callback(invoke_without_command=True)
 def chat(
     ctx: typer.Context,
