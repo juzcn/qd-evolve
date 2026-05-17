@@ -98,7 +98,7 @@ class AgentEntry(BaseModel):
     provider: str = ""
     model: str = ""
     system_prompt_template: str = "default"
-    server: ServerConfig = ServerConfig()
+    memory_db: str | None = DEFAULT_MEMORY_DB
     server: ServerConfig = ServerConfig()
 
     def effective_provider(self, settings: Settings) -> str:
