@@ -139,12 +139,12 @@ class TestA2AServerRPC:
         assert data["error"]["code"] == -32601
 
     @pytest.mark.asyncio
-    async def test_tasks_send(self, server_app, aiohttp_client):
+    async def test_message_send(self, server_app, aiohttp_client):
         app, server = server_app
         client = await aiohttp_client(app)
         payload = {
             "jsonrpc": "2.0",
-            "method": "tasks/send",
+            "method": "message/send",
             "params": {"message": {"role": "user", "parts": [{"type": "text", "text": "hello"}]}},
             "id": 2,
         }

@@ -10,6 +10,7 @@ from qd_evolve.agent.a2a import (
     AgentCard,
     Message,
     Part,
+    StreamResponse,
     Task,
     TaskState,
     TaskStatus,
@@ -24,12 +25,12 @@ class A2ATransport(Protocol):
     """A2A transport interface — implementations: InprocTransport, HttpTransport."""
 
     async def send_task(self, target: str, message: Message) -> Task: ...
-    async def send_subscribe(self, target: str, message: Message) -> AsyncIterator[Task]: ...
+    async def send_stream(self, target: str, message: Message) -> AsyncIterator[StreamResponse]: ...
     async def get_task(self, target: str, task_id: str) -> Task: ...
     async def cancel_task(self, target: str, task_id: str) -> Task: ...
     async def get_agent_card(self, target: str) -> AgentCard: ...
     async def get_extended_agent_card(self, target: str) -> AgentCard: ...
-    async def chat_subscribe(self, target: str) -> AsyncIterator[dict]: ...
+    async def resubscribe(self, target: str, task_id: str = "") -> AsyncIterator[StreamResponse]: ...
 
 
 class InprocTransport:
@@ -72,52 +73,67 @@ class InprocTransport:
             )
         return task
 
-    async def send_subscribe(self, target: str, message: Message) -> AsyncIterator[Task]:
-        """Non-blocking: run in background, yield status updates via queue."""
+    async def send_stream(self, target: str, message: Message) -> AsyncIterator[StreamResponse]:
+        """SSE stream: run agent, yield StreamResponse events with intermediate updates in metadata."""
         registry = self._get_registry()
         agent_node = registry.get(target)
         if agent_node is None:
             agent_node = self._lazy_load(target, registry)
             if agent_node is None:
-                yield self._error_task(target, f"Agent '{target}' not found in registry")
+                yield StreamResponse(task=self._error_task(target, f"Agent '{target}' not found in registry"))
                 return
 
         task_text = self._extract_text(message)
-        task_id = _new_id()
-        queue: asyncio.Queue[Task] = asyncio.Queue()
+        task = make_task_with_text(task_text)
+        task.status.state = TaskState.working
 
-        # Submit initial state
-        task = make_task_with_text(task_text, existing_task_id=task_id)
-        await queue.put(task)
+        # First event: Task
+        yield StreamResponse(task=task)
+
+        # Subscribe to agent events
+        event_queue = agent_node.subscribe_events()
 
         # Background execution
-        async def _run() -> None:
-            try:
-                result = await asyncio.to_thread(agent_node.run, task_text)
-                await queue.put(Task(
-                    id=task_id,
-                    status=TaskStatus(
-                        state=TaskState.completed,
-                        message=make_text_message("agent", result),
-                    ),
-                ))
-            except Exception as e:
-                await queue.put(Task(
-                    id=task_id,
-                    status=TaskStatus(
-                        state=TaskState.failed,
-                        message=make_text_message("agent", f"{type(e).__name__}: {e}"),
-                    ),
-                ))
+        run_task = asyncio.ensure_future(asyncio.to_thread(agent_node.run, task_text))
 
-        asyncio.ensure_future(_run())
+        try:
+            while not run_task.done():
+                try:
+                    event = await asyncio.wait_for(event_queue.get(), timeout=30)
+                    from qd_evolve.agent.a2a import TaskStatusUpdateEvent
+                    yield StreamResponse(statusUpdate=TaskStatusUpdateEvent(
+                        task_id=task.id,
+                        context_id=task.session_id,
+                        status=TaskStatus(state=TaskState.working),
+                        metadata=event,
+                    ))
+                except asyncio.TimeoutError:
+                    yield StreamResponse(statusUpdate=TaskStatusUpdateEvent(
+                        task_id=task.id,
+                        context_id=task.session_id,
+                        status=TaskStatus(state=TaskState.working),
+                        metadata={"type": "ping"},
+                    ))
+        except (asyncio.CancelledError, GeneratorExit):
+            pass
+        finally:
+            agent_node.unsubscribe_events(event_queue)
 
-        # Stream status updates
-        while True:
-            update = await queue.get()
-            yield update
-            if update.status.state in (TaskState.completed, TaskState.failed, TaskState.canceled):
-                break
+        # Final event
+        try:
+            result = run_task.result()
+            final_state = TaskState.completed
+        except Exception as e:
+            result = f"{type(e).__name__}: {e}"
+            final_state = TaskState.failed
+
+        from qd_evolve.agent.a2a import TaskStatusUpdateEvent
+        yield StreamResponse(statusUpdate=TaskStatusUpdateEvent(
+            task_id=task.id,
+            context_id=task.session_id,
+            status=TaskStatus(state=final_state, message=make_text_message("agent", result)),
+            final=True,
+        ))
 
     async def get_task(self, target: str, task_id: str) -> Task:
         """Query task status from in-process task store."""
@@ -164,7 +180,7 @@ class InprocTransport:
         server = A2AServer(agent_node, agent_node.card, agent_node.task_store)
         return server._get_extended_agent_card()
 
-    async def chat_subscribe(self, target: str) -> AsyncIterator[dict]:
+    async def resubscribe(self, target: str, task_id: str = "") -> AsyncIterator[StreamResponse]:
         """Subscribe to agent events from a local agent via asyncio.Queue."""
         registry = self._get_registry()
         agent_node = registry.get(target)
@@ -178,9 +194,18 @@ class InprocTransport:
             while True:
                 try:
                     event = await asyncio.wait_for(queue.get(), timeout=30)
-                    yield event
+                    from qd_evolve.agent.a2a import TaskStatusUpdateEvent
+                    yield StreamResponse(statusUpdate=TaskStatusUpdateEvent(
+                        task_id=task_id,
+                        status=TaskStatus(state=TaskState.working),
+                        metadata=event,
+                    ))
                 except asyncio.TimeoutError:
-                    yield {"type": "ping"}
+                    yield StreamResponse(statusUpdate=TaskStatusUpdateEvent(
+                        task_id=task_id,
+                        status=TaskStatus(state=TaskState.working),
+                        metadata={"type": "ping"},
+                    ))
         except (asyncio.CancelledError, GeneratorExit):
             pass
         finally:
@@ -229,12 +254,12 @@ class HttpTransport:
         return self._registry
 
     async def send_task(self, target: str, message: Message) -> Task:
-        """Blocking: HTTP POST tasks/send."""
+        """Blocking: HTTP POST message/send."""
         import aiohttp
 
         try:
             url = self._get_registry().get_url(target)
-            payload = self._rpc("tasks/send", {"message": message.model_dump()})
+            payload = self._rpc("message/send", {"message": message.model_dump()})
             async with aiohttp.ClientSession() as session:
                 resp = await session.post(url, json=payload)
                 data = await resp.json()
@@ -243,21 +268,26 @@ class HttpTransport:
             logger.error("HttpTransport: send_task to '%s' failed: %s", target, e)
             return self._error_task(target, f"{type(e).__name__}: {e}")
 
-    async def send_subscribe(self, target: str, message: Message) -> AsyncIterator[Task]:
-        """Non-blocking: HTTP POST tasks/sendSubscribe, SSE stream."""
+    async def send_stream(self, target: str, message: Message) -> AsyncIterator[StreamResponse]:
+        """SSE stream: HTTP POST message/stream, parse StreamResponse."""
         import aiohttp
 
         try:
             url = self._get_registry().get_url(target)
-            payload = self._rpc("tasks/sendSubscribe", {"message": message.model_dump()})
+            payload = self._rpc("message/stream", {"message": message.model_dump()})
             async with aiohttp.ClientSession() as session:
-                resp = await session.post(url, json=payload)
-                async for line in resp.content:
-                    if line.startswith(b"data:"):
-                        yield Task.model_validate(json.loads(line[5:].strip()))
+                async with session.post(url, json=payload) as resp:
+                    async for line in resp.content:
+                        if line.startswith(b"data:"):
+                            try:
+                                rpc_data = json.loads(line[5:].strip())
+                                result = rpc_data.get("result", {})
+                                yield StreamResponse.model_validate(result)
+                            except (json.JSONDecodeError, Exception):
+                                pass
         except Exception as e:
-            logger.error("HttpTransport: send_subscribe to '%s' failed: %s", target, e)
-            yield self._error_task(target, f"{type(e).__name__}: {e}")
+            logger.error("HttpTransport: send_stream to '%s' failed: %s", target, e)
+            yield StreamResponse(task=self._error_task(target, f"{type(e).__name__}: {e}"))
 
     async def get_task(self, target: str, task_id: str) -> Task:
         """Query task status via HTTP."""
@@ -318,23 +348,25 @@ class HttpTransport:
             logger.error("HttpTransport: get_extended_agent_card for '%s' failed: %s", target, e)
             return AgentCard(name=target, description=f"Error: {type(e).__name__}: {e}")
 
-    async def chat_subscribe(self, target: str) -> AsyncIterator[dict]:
-        """SSE stream for heartbeat events from a remote agent."""
+    async def resubscribe(self, target: str, task_id: str = "") -> AsyncIterator[StreamResponse]:
+        """SSE stream: HTTP POST tasks/resubscribe, parse StreamResponse."""
         import aiohttp
 
         try:
             url = self._get_registry().get_url(target)
-            payload = self._rpc("chat/subscribe", {})
+            payload = self._rpc("tasks/resubscribe", {"taskId": task_id})
             async with aiohttp.ClientSession() as session:
                 async with session.post(url, json=payload) as resp:
                     async for line in resp.content:
                         if line.startswith(b"data:"):
                             try:
-                                yield json.loads(line[5:].strip())
-                            except json.JSONDecodeError:
+                                rpc_data = json.loads(line[5:].strip())
+                                result = rpc_data.get("result", {})
+                                yield StreamResponse.model_validate(result)
+                            except (json.JSONDecodeError, Exception):
                                 pass
         except Exception as e:
-            logger.debug("HttpTransport: chat_subscribe for '%s' failed: %s", target, e)
+            logger.debug("HttpTransport: resubscribe for '%s' failed: %s", target, e)
 
     @staticmethod
     def _error_task(target: str, error: str) -> Task:
@@ -379,11 +411,10 @@ class TransportRouter:
     async def send_task(self, target: str, message: Message) -> Task:
         return await self._pick(target).send_task(target, message)
 
-    async def send_subscribe(self, target: str, message: Message) -> AsyncIterator[Task]:
-        # Can't directly return from async generator — delegate
+    async def send_stream(self, target: str, message: Message) -> AsyncIterator[StreamResponse]:
         transport = self._pick(target)
-        async for update in transport.send_subscribe(target, message):
-            yield update
+        async for sr in transport.send_stream(target, message):
+            yield sr
 
     async def get_task(self, target: str, task_id: str) -> Task:
         return await self._pick(target).get_task(target, task_id)
@@ -397,10 +428,10 @@ class TransportRouter:
     async def get_extended_agent_card(self, target: str) -> AgentCard:
         return await self._pick(target).get_extended_agent_card(target)
 
-    async def chat_subscribe(self, target: str) -> AsyncIterator[dict]:
+    async def resubscribe(self, target: str, task_id: str = "") -> AsyncIterator[StreamResponse]:
         transport = self._pick(target)
-        async for event in transport.chat_subscribe(target):
-            yield event
+        async for sr in transport.resubscribe(target, task_id):
+            yield sr
 
 
 def _new_id() -> str:

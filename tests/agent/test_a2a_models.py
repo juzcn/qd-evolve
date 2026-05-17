@@ -13,6 +13,7 @@ from qd_evolve.agent.a2a import (
     FileContent,
     Message,
     Part,
+    StreamResponse,
     Task,
     TaskState,
     TaskStatus,
@@ -211,13 +212,55 @@ class TestTask:
 
 class TestTaskStatusUpdateEvent:
     def test_defaults(self):
-        event = TaskStatusUpdateEvent(id="t1", status=TaskStatus(state=TaskState.working))
-        assert event.id == "t1"
+        event = TaskStatusUpdateEvent(task_id="t1", status=TaskStatus(state=TaskState.working))
+        assert event.task_id == "t1"
         assert event.final is False
+        assert event.metadata == {}
 
     def test_final_event(self):
-        event = TaskStatusUpdateEvent(id="t1", status=TaskStatus(state=TaskState.completed), final=True)
+        event = TaskStatusUpdateEvent(task_id="t1", status=TaskStatus(state=TaskState.completed), final=True)
         assert event.final is True
+
+    def test_with_metadata(self):
+        event = TaskStatusUpdateEvent(
+            task_id="t1", context_id="ctx1",
+            status=TaskStatus(state=TaskState.working),
+            metadata={"type": "iteration", "num": 1},
+        )
+        assert event.metadata["type"] == "iteration"
+        assert event.context_id == "ctx1"
+
+
+class TestStreamResponse:
+    def test_with_task(self):
+        task = Task(id="t1")
+        sr = StreamResponse(task=task)
+        assert sr.task is not None
+        assert sr.task.id == "t1"
+        assert sr.statusUpdate is None
+
+    def test_with_status_update(self):
+        event = TaskStatusUpdateEvent(task_id="t1", status=TaskStatus(state=TaskState.working))
+        sr = StreamResponse(statusUpdate=event)
+        assert sr.statusUpdate is not None
+        assert sr.task is None
+
+    def test_serialization(self):
+        event = TaskStatusUpdateEvent(
+            task_id="t1", context_id="ctx1",
+            status=TaskStatus(state=TaskState.working),
+            metadata={"type": "status", "text": "Tool: echo(hi)"},
+        )
+        sr = StreamResponse(statusUpdate=event)
+        data = sr.model_dump()
+        assert data["statusUpdate"]["metadata"]["type"] == "status"
+
+    def test_empty(self):
+        sr = StreamResponse()
+        assert sr.task is None
+        assert sr.message is None
+        assert sr.statusUpdate is None
+        assert sr.artifactUpdate is None
 
 
 class TestArtifact:

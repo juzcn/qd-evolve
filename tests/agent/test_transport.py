@@ -45,9 +45,9 @@ class TestHttpTransportPureFunctions:
         assert task.metadata["target"] == "target"
 
     def test_rpc_format(self):
-        payload = HttpTransport._rpc("tasks/send", {"message": {"role": "user"}})
+        payload = HttpTransport._rpc("message/send", {"message": {"role": "user"}})
         assert payload["jsonrpc"] == "2.0"
-        assert payload["method"] == "tasks/send"
+        assert payload["method"] == "message/send"
         assert payload["params"]["message"]["role"] == "user"
         assert payload["id"] == 1
 

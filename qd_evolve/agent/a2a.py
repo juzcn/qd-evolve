@@ -111,14 +111,26 @@ class Task(BaseModel):
 
 
 class TaskStatusUpdateEvent(BaseModel):
-    id: str
+    task_id: str = ""
+    context_id: str = ""
     status: TaskStatus
     final: bool = False
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class TaskArtifactUpdateEvent(BaseModel):
-    id: str
+    task_id: str = ""
+    context_id: str = ""
     artifact: Artifact
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class StreamResponse(BaseModel):
+    """A2A v1.0 StreamResponse — each SSE event wraps exactly one of these fields."""
+    task: Task | None = None
+    message: Message | None = None
+    statusUpdate: TaskStatusUpdateEvent | None = None
+    artifactUpdate: TaskArtifactUpdateEvent | None = None
 
 
 def make_text_message(role: str, text: str) -> Message:

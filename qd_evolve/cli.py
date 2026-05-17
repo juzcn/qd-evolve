@@ -581,7 +581,7 @@ async def _async_chat_loop(
     """Async main chat loop — pure A2A client via transport.
 
     CLI never calls agent.run() directly. All communication goes through
-    the transport router: tasks/send for chat, chat_subscribe for heartbeat.
+    the transport router: message/send for chat, tasks/resubscribe for heartbeat.
     For inproc agents, InprocTransport wraps the local AgentCore.
     For HTTP agents, HttpTransport talks to the remote serve process.
     """
@@ -690,12 +690,12 @@ async def _async_chat_loop(
                 core.unsubscribe_events(queue)
 
         async def _remote_event_worker(name: str) -> None:
-            """Subscribe to a remote agent's events via chat/subscribe SSE."""
+            """Subscribe to a remote agent's events via tasks/resubscribe SSE."""
             retry_delay = 5
             while True:
                 try:
                     async for agent_name, event in _event_collector(
-                        router.chat_subscribe(name), agent_name=name,
+                        router.resubscribe(name), agent_name=name,
                     ):
                         await event_queue.put((agent_name, event))
                         retry_delay = 5
@@ -862,12 +862,12 @@ async def _async_chat_loop(
                 core.unsubscribe_events(queue)
 
         async def _remote_event_worker(name: str) -> None:
-            """Subscribe to a remote agent's events via chat/subscribe SSE."""
+            """Subscribe to a remote agent's events via tasks/resubscribe SSE."""
             retry_delay = 5
             while True:
                 try:
                     async for agent_name, event in _event_collector(
-                        router.chat_subscribe(name), agent_name=name,
+                        router.resubscribe(name), agent_name=name,
                     ):
                         await event_queue.put((agent_name, event))
                         retry_delay = 5
@@ -1062,12 +1062,16 @@ async def _async_chat_loop(
 
 
 async def _event_collector(event_iter: Any, agent_name: str = "") -> AsyncIterator[tuple[str, dict]]:
-    """Yield (agent_name, event_dict) from a chat_subscribe stream.
+    """Yield (agent_name, event_dict) from a tasks/resubscribe StreamResponse stream.
 
-    Passes all events through — heartbeat, iteration, status, print, tokens, etc.
+    Extracts custom events from StreamResponse.statusUpdate.metadata.
     """
-    async for event in event_iter:
-        yield (agent_name, event)
+    from qd_evolve.agent.a2a import StreamResponse
+    async for sr in event_iter:
+        if isinstance(sr, StreamResponse) and sr.statusUpdate and sr.statusUpdate.metadata:
+            yield (agent_name, sr.statusUpdate.metadata)
+        elif isinstance(sr, dict):
+            yield (agent_name, sr)
 
 
 @app.command()

@@ -14,6 +14,7 @@ from qd_evolve.agent.a2a import (
     AgentExtension,
     Message,
     Part,
+    StreamResponse,
     Task,
     TaskState,
     TaskStatus,
@@ -49,7 +50,7 @@ class A2AServer:
     """A2A JSON-RPC server — one per Agent process.
 
     Handles:
-      - POST /              → JSON-RPC (tasks/send, tasks/sendSubscribe, tasks/get, tasks/cancel)
+      - POST /              → JSON-RPC (message/send, message/stream, tasks/get, tasks/cancel, tasks/resubscribe)
       - GET  /.well-known/agent.json → AgentCard discovery
     """
 
@@ -84,16 +85,16 @@ class A2AServer:
         req_id = body.get("id")
 
         try:
-            if method == "tasks/send":
-                result = await self._tasks_send(params)
-            elif method == "tasks/sendSubscribe":
-                return await self._tasks_send_subscribe(params, request)
+            if method == "message/send":
+                result = await self._message_send(params)
+            elif method == "message/stream":
+                return await self._message_stream(params, request, req_id)
             elif method == "tasks/get":
                 result = await self._tasks_get(params)
             elif method == "tasks/cancel":
                 result = await self._tasks_cancel(params)
-            elif method == "chat/subscribe":
-                return await self._chat_subscribe(params, request)
+            elif method == "tasks/resubscribe":
+                return await self._tasks_resubscribe(params, request, req_id)
             elif method == "agent/getExtendedAgentCard":
                 result = self._get_extended_agent_card()
             else:
@@ -105,7 +106,7 @@ class A2AServer:
 
         return web.json_response({"jsonrpc": "2.0", "result": result.model_dump(), "id": req_id})
 
-    async def _tasks_send(self, params: dict) -> Task:
+    async def _message_send(self, params: dict) -> Task:
         """Blocking: create task, run agent, return completed task."""
         message_data = params.get("message", {})
         message = Message.model_validate(message_data) if message_data else make_text_message("user", "")
@@ -130,8 +131,8 @@ class A2AServer:
         self.task_store.put(task)
         return task
 
-    async def _tasks_send_subscribe(self, params: dict, request: web.Request) -> web.StreamResponse:
-        """Non-blocking: SSE stream of task status updates."""
+    async def _message_stream(self, params: dict, request: web.Request, req_id: Any) -> web.StreamResponse:
+        """SSE stream: send message, stream TaskStatusUpdateEvent with intermediate events in metadata."""
         message_data = params.get("message", {})
         message = Message.model_validate(message_data) if message_data else make_text_message("user", "")
         task_text = self._extract_text(message)
@@ -144,27 +145,54 @@ class A2AServer:
         resp.charset = "utf-8"
         await resp.prepare(request)
 
-        # Submit working state
-        event = TaskStatusUpdateEvent(id=task.id, status=TaskStatus(state=TaskState.working))
-        await resp.write(f"data: {event.model_dump_json()}\n\n".encode())
+        # First event: Task object
+        sr = StreamResponse(task=task)
+        await resp.write(f"data: {json.dumps({'jsonrpc': '2.0', 'result': sr.model_dump(), 'id': req_id}, ensure_ascii=False)}\n\n".encode())
+
+        # Subscribe to agent events for intermediate updates
+        event_queue = self.agent_core.subscribe_events()
 
         # Background execution
+        run_task = asyncio.ensure_future(asyncio.to_thread(self.agent_core.run, task_text))
+
         try:
-            result = await asyncio.to_thread(self.agent_core.run, task_text)
+            while not run_task.done():
+                try:
+                    event = await asyncio.wait_for(event_queue.get(), timeout=30)
+                    # Push intermediate events as TaskStatusUpdateEvent with metadata
+                    sr = StreamResponse(statusUpdate=TaskStatusUpdateEvent(
+                        task_id=task.id,
+                        context_id=task.session_id,
+                        status=TaskStatus(state=TaskState.working),
+                        metadata=event,
+                    ))
+                    await resp.write(f"data: {json.dumps({'jsonrpc': '2.0', 'result': sr.model_dump(), 'id': req_id}, ensure_ascii=False)}\n\n".encode())
+                except asyncio.TimeoutError:
+                    await resp.write(b": ping\n\n")
+        except (ConnectionError, asyncio.CancelledError):
+            pass
+
+        # Get result
+        try:
+            result = run_task.result()
         except Exception as e:
             logger.exception("A2A server: agent run failed: %s", e)
             result = f"{type(e).__name__}: {e}"
 
-        # Completed state
-        completed = TaskStatusUpdateEvent(
-            id=task.id,
-            status=TaskStatus(state=TaskState.completed, message=make_text_message("agent", result)),
+        # Final event: completed TaskStatusUpdateEvent
+        final_state = TaskState.completed if not run_task.exception() else TaskState.failed
+        sr = StreamResponse(statusUpdate=TaskStatusUpdateEvent(
+            task_id=task.id,
+            context_id=task.session_id,
+            status=TaskStatus(state=final_state, message=make_text_message("agent", result)),
             final=True,
-        )
-        await resp.write(f"data: {completed.model_dump_json()}\n\n".encode())
+        ))
+        await resp.write(f"data: {json.dumps({'jsonrpc': '2.0', 'result': sr.model_dump(), 'id': req_id}, ensure_ascii=False)}\n\n".encode())
 
-        task.status = TaskStatus(state=TaskState.completed, message=make_text_message("agent", result))
+        task.status = TaskStatus(state=final_state, message=make_text_message("agent", result))
         self.task_store.put(task)
+
+        self.agent_core.unsubscribe_events(event_queue)
         await resp.write_eof()
         return resp
 
@@ -189,19 +217,34 @@ class A2AServer:
                 return part.text
         return ""
 
-    async def _chat_subscribe(self, params: dict, request: web.Request) -> web.StreamResponse:
-        """SSE stream for agent events — CLI subscribes to receive iteration, tool, reasoning, heartbeat events."""
+    async def _tasks_resubscribe(self, params: dict, request: web.Request, req_id: Any) -> web.StreamResponse:
+        """SSE stream: subscribe to agent events for an existing or new task."""
+        task_id = params.get("taskId", params.get("id", ""))
+        task = self.task_store.get(task_id) if task_id else None
+
         resp = web.StreamResponse()
         resp.content_type = "text/event-stream"
         resp.charset = "utf-8"
         await resp.prepare(request)
 
+        # If task exists, send it first
+        if task:
+            sr = StreamResponse(task=task)
+            await resp.write(f"data: {json.dumps({'jsonrpc': '2.0', 'result': sr.model_dump(), 'id': req_id}, ensure_ascii=False)}\n\n".encode())
+
+        # Subscribe to agent events
         queue = self.agent_core.subscribe_events()
         try:
             while True:
                 try:
                     event = await asyncio.wait_for(queue.get(), timeout=30)
-                    await resp.write(f"data: {json.dumps(event, ensure_ascii=False)}\n\n".encode())
+                    sr = StreamResponse(statusUpdate=TaskStatusUpdateEvent(
+                        task_id=task_id or "",
+                        context_id=(task.session_id if task else ""),
+                        status=TaskStatus(state=TaskState.working),
+                        metadata=event,
+                    ))
+                    await resp.write(f"data: {json.dumps({'jsonrpc': '2.0', 'result': sr.model_dump(), 'id': req_id}, ensure_ascii=False)}\n\n".encode())
                 except asyncio.TimeoutError:
                     await resp.write(b": ping\n\n")
         except (ConnectionError, asyncio.CancelledError):
