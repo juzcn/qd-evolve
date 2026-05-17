@@ -370,6 +370,7 @@ async def _handle_slash_command(
     settings: Settings,
     memory: MemoryStore | None = None,
     agent_entry: Any = None,
+    transport_router: Any = None,
 ) -> str | None:
     from qd_evolve.agent.loader import get_skill_registry, get_cli_registry
     skill_registry = get_skill_registry()
@@ -467,7 +468,41 @@ async def _handle_slash_command(
             if loaded_cli:
                 lines.append(f"  [bold]CLI (loaded):[/bold] {', '.join(loaded_cli)}")
         else:
-            lines.append("  [dim](remote agent — local status not available)[/dim]")
+            # Remote agent — query via A2A GetExtendedAgentCard
+            if transport_router is not None and agent_entry is not None:
+                try:
+                    from qd_evolve.agent.a2a import AgentExtension
+                    ext_card = await transport_router.get_extended_agent_card(agent_entry.name)
+                    status_ext = next((e for e in ext_card.extensions if e.uri == "x-qd-evolve-status"), None)
+                    if status_ext:
+                        p = status_ext.params
+                        if p.get("provider") or p.get("model"):
+                            lines = [f"  [bold]Provider:[/bold] {p.get('provider', '')}/{p.get('model', '')}"]
+                        preload_tools = p.get("preload_tools", [])
+                        loaded_tools = p.get("loaded_tools", [])
+                        if preload_tools:
+                            lines.append(f"  [bold]Tool (preload):[/bold] {', '.join(preload_tools)}")
+                        if loaded_tools:
+                            lines.append(f"  [bold]Tool (loaded):[/bold] {', '.join(loaded_tools)}")
+                        preload_skills = p.get("preload_skills", [])
+                        loaded_skills = p.get("loaded_skills", [])
+                        if preload_skills:
+                            lines.append(f"  [bold]Skill (preload):[/bold] {', '.join(preload_skills)}")
+                        if loaded_skills:
+                            lines.append(f"  [bold]Skill (loaded):[/bold] {', '.join(loaded_skills)}")
+                        preload_cli = p.get("preload_cli", [])
+                        loaded_cli = p.get("loaded_cli", [])
+                        if preload_cli:
+                            lines.append(f"  [bold]CLI (preload):[/bold] {', '.join(preload_cli)}")
+                        if loaded_cli:
+                            lines.append(f"  [bold]CLI (loaded):[/bold] {', '.join(loaded_cli)}")
+                    else:
+                        lines.append("  [dim](remote agent — status extension not available)[/dim]")
+                except Exception as e:
+                    logger.debug("CLI: /status remote query failed: %s", e)
+                    lines.append("  [dim](remote agent — status unavailable)[/dim]")
+            else:
+                lines.append("  [dim](remote agent — local status not available)[/dim]")
 
         return "\n".join(lines)
     if name == "/memory":
@@ -753,7 +788,7 @@ async def _async_chat_loop(
             if not user_input:
                 continue
             if user_input.startswith("/"):
-                result = await _handle_slash_command(user_input, [_current_agent_core()], settings, _current_agent_core().memory if _current_agent_core() else None, agent_entry=_current_agent_entry())
+                result = await _handle_slash_command(user_input, [_current_agent_core()], settings, _current_agent_core().memory if _current_agent_core() else None, agent_entry=_current_agent_entry(), transport_router=router)
                 if result is None:
                     console.print("[dim]Goodbye![/dim]")
                     break
@@ -921,7 +956,7 @@ async def _async_chat_loop(
             if not user_input:
                 continue
             if user_input.startswith("/"):
-                result = await _handle_slash_command(user_input, [_current_agent_core()], settings, _current_agent_core().memory if _current_agent_core() else None, agent_entry=_current_agent_entry())
+                result = await _handle_slash_command(user_input, [_current_agent_core()], settings, _current_agent_core().memory if _current_agent_core() else None, agent_entry=_current_agent_entry(), transport_router=router)
                 if result is None:
                     console.print("[dim]Goodbye![/dim]")
                     break

@@ -1,11 +1,13 @@
 """Tests for qd_evolve.agent.server — TaskStore, A2AServer."""
 
-import json
+import asyncio
 
 import pytest
 
 from qd_evolve.agent.a2a import (
     AgentCard,
+    AgentCapabilities,
+    AgentExtension,
     Message,
     Part,
     Task,
@@ -92,6 +94,14 @@ class TestA2AServerRPC:
         mock_agent.run.return_value = "Hello from agent"
         mock_agent.subscribe_events.return_value = asyncio.Queue()
         mock_agent.task_store = TaskStore()
+        mock_agent._provider_name = "test"
+        mock_agent._model = "test-model"
+        mock_agent._always_active = {"echo"}
+        mock_agent._active_tools = {"echo", "search"}
+        mock_agent._preload_skills = set()
+        mock_agent._loaded_skill_names = set()
+        mock_agent._preload_cli = set()
+        mock_agent._loaded_cli_names = set()
 
         server = A2AServer(mock_agent, mock_agent.card)
         app = web.Application()
@@ -161,5 +171,59 @@ class TestA2AServerRPC:
         data = await resp.json()
         assert data["result"]["status"]["state"] == "canceled"
 
+    @pytest.mark.asyncio
+    async def test_get_extended_agent_card(self, server_app, aiohttp_client):
+        app, _ = server_app
+        client = await aiohttp_client(app)
+        payload = {"jsonrpc": "2.0", "method": "agent/getExtendedAgentCard", "params": {}, "id": 4}
+        resp = await client.post("/", json=payload)
+        assert resp.status == 200
+        data = await resp.json()
+        assert "result" in data
+        card = data["result"]
+        assert card["capabilities"]["extended_agent_card"] is True
+        exts = card.get("extensions", [])
+        status_exts = [e for e in exts if e["uri"] == "x-qd-evolve-status"]
+        assert len(status_exts) == 1
+        assert "provider" in status_exts[0]["params"]
 
-import asyncio
+    @pytest.mark.asyncio
+    async def test_agent_card_has_extended_flag(self, server_app, aiohttp_client):
+        app, _ = server_app
+        client = await aiohttp_client(app)
+        resp = await client.get("/.well-known/agent.json")
+        assert resp.status == 200
+        data = await resp.json()
+        assert data["capabilities"]["extended_agent_card"] is True
+
+
+class TestGetExtendedAgentCardUnit:
+    def test_builds_extended_card(self):
+        from unittest.mock import MagicMock
+
+        mock_agent = MagicMock()
+        mock_agent.card = AgentCard(name="helper", description="Helper agent")
+        mock_agent._provider_name = "openai"
+        mock_agent._model = "gpt-4"
+        mock_agent._always_active = {"echo", "fetch"}
+        mock_agent._active_tools = {"echo", "fetch", "search"}
+        mock_agent._preload_skills = {"coding"}
+        mock_agent._loaded_skill_names = {"coding", "debugging"}
+        mock_agent._preload_cli = {"git"}
+        mock_agent._loaded_cli_names = {"git", "docker"}
+
+        server = A2AServer(mock_agent, mock_agent.card)
+        card = server._get_extended_agent_card()
+
+        assert card.capabilities.extended_agent_card is True
+        assert len(card.extensions) == 1
+        ext = card.extensions[0]
+        assert ext.uri == "x-qd-evolve-status"
+        assert ext.params["provider"] == "openai"
+        assert ext.params["model"] == "gpt-4"
+        assert "echo" in ext.params["preload_tools"]
+        assert "search" in ext.params["loaded_tools"]
+        assert "coding" in ext.params["preload_skills"]
+        assert "debugging" in ext.params["loaded_skills"]
+        assert "git" in ext.params["preload_cli"]
+        assert "docker" in ext.params["loaded_cli"]

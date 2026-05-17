@@ -22,6 +22,7 @@ class TaskState(str, Enum):
 class AgentCapabilities(BaseModel):
     streaming: bool = False
     push_notifications: bool = False
+    extended_agent_card: bool = False
 
 
 class AgentSkill(BaseModel):
@@ -39,12 +40,26 @@ class AuthInfo(BaseModel):
     credential: str = ""
 
 
+class AgentProvider(BaseModel):
+    url: str = ""
+    name: str = ""
+    organization: str = ""
+
+
+class AgentExtension(BaseModel):
+    uri: str
+    description: str = ""
+    params: dict[str, Any] = Field(default_factory=dict)
+
+
 class AgentCard(BaseModel):
     name: str
     description: str
     url: str = ""
     version: str = "1.0"
     capabilities: AgentCapabilities = AgentCapabilities()
+    provider: AgentProvider = AgentProvider()
+    extensions: list[AgentExtension] = []
     skills: list[AgentSkill] = []
     default_input_modes: list[str] = Field(default_factory=lambda: ["text"])
     default_output_modes: list[str] = Field(default_factory=lambda: ["text"])

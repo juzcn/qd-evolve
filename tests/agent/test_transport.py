@@ -4,6 +4,8 @@ import pytest
 
 from qd_evolve.agent.a2a import (
     AgentCard,
+    AgentCapabilities,
+    AgentExtension,
     Message,
     Part,
     Task,
@@ -77,6 +79,40 @@ class TestTransportRouter:
 
         transport = router._pick("remote")
         assert transport is http
+
+    @pytest.mark.asyncio
+    async def test_get_extended_agent_card_inproc(self):
+        from unittest.mock import MagicMock
+        from qd_evolve.agent.server import A2AServer, TaskStore
+
+        mock_agent = MagicMock()
+        mock_agent.card = AgentCard(name="helper", description="Helper")
+        mock_agent._provider_name = "test"
+        mock_agent._model = "test-model"
+        mock_agent._always_active = {"echo"}
+        mock_agent._active_tools = {"echo", "search"}
+        mock_agent._preload_skills = set()
+        mock_agent._loaded_skill_names = set()
+        mock_agent._preload_cli = set()
+        mock_agent._loaded_cli_names = set()
+        mock_agent.task_store = TaskStore()
+
+        mock_reg = MagicMock()
+        mock_reg.get.return_value = mock_agent
+        mock_reg.get_transport.return_value = "inproc"
+
+        inproc = InprocTransport()
+        inproc._registry = mock_reg
+        http = HttpTransport()
+        http._registry = mock_reg
+        router = TransportRouter(inproc, http)
+        router._registry = mock_reg
+
+        card = await router.get_extended_agent_card("helper")
+        assert card.capabilities.extended_agent_card is True
+        assert len(card.extensions) == 1
+        assert card.extensions[0].uri == "x-qd-evolve-status"
+        assert card.extensions[0].params["provider"] == "test"
 
 
 class TestNewId:

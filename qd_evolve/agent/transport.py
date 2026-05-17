@@ -28,6 +28,7 @@ class A2ATransport(Protocol):
     async def get_task(self, target: str, task_id: str) -> Task: ...
     async def cancel_task(self, target: str, task_id: str) -> Task: ...
     async def get_agent_card(self, target: str) -> AgentCard: ...
+    async def get_extended_agent_card(self, target: str) -> AgentCard: ...
     async def chat_subscribe(self, target: str) -> AsyncIterator[dict]: ...
 
 
@@ -150,6 +151,18 @@ class InprocTransport:
             if agent_node is None:
                 return AgentCard(name=target, description=f"Agent '{target}' not found")
         return agent_node.card
+
+    async def get_extended_agent_card(self, target: str) -> AgentCard:
+        registry = self._get_registry()
+        agent_node = registry.get(target)
+        if agent_node is None:
+            agent_node = self._lazy_load(target, registry)
+            if agent_node is None:
+                return AgentCard(name=target, description=f"Agent '{target}' not found")
+        from qd_evolve.agent.a2a import AgentCapabilities, AgentExtension
+        from qd_evolve.agent.server import A2AServer
+        server = A2AServer(agent_node, agent_node.card, agent_node.task_store)
+        return server._get_extended_agent_card()
 
     async def chat_subscribe(self, target: str) -> AsyncIterator[dict]:
         """Subscribe to agent events from a local agent via asyncio.Queue."""
@@ -290,6 +303,21 @@ class HttpTransport:
             logger.error("HttpTransport: get_agent_card for '%s' failed: %s", target, e)
             return AgentCard(name=target, description=f"Error: {type(e).__name__}: {e}")
 
+    async def get_extended_agent_card(self, target: str) -> AgentCard:
+        """Get extended AgentCard with runtime status from remote agent."""
+        import aiohttp
+
+        try:
+            url = self._get_registry().get_url(target)
+            payload = self._rpc("agent/getExtendedAgentCard", {})
+            async with aiohttp.ClientSession() as session:
+                resp = await session.post(url, json=payload)
+                data = await resp.json()
+            return AgentCard.model_validate(data.get("result", {}))
+        except Exception as e:
+            logger.error("HttpTransport: get_extended_agent_card for '%s' failed: %s", target, e)
+            return AgentCard(name=target, description=f"Error: {type(e).__name__}: {e}")
+
     async def chat_subscribe(self, target: str) -> AsyncIterator[dict]:
         """SSE stream for heartbeat events from a remote agent."""
         import aiohttp
@@ -365,6 +393,9 @@ class TransportRouter:
 
     async def get_agent_card(self, target: str) -> AgentCard:
         return await self._pick(target).get_agent_card(target)
+
+    async def get_extended_agent_card(self, target: str) -> AgentCard:
+        return await self._pick(target).get_extended_agent_card(target)
 
     async def chat_subscribe(self, target: str) -> AsyncIterator[dict]:
         transport = self._pick(target)

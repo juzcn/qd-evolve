@@ -5,6 +5,8 @@ import pytest
 from qd_evolve.agent.a2a import (
     AgentCard,
     AgentCapabilities,
+    AgentExtension,
+    AgentProvider,
     AgentSkill,
     Artifact,
     AuthInfo,
@@ -33,6 +35,32 @@ class TestTaskState:
         assert isinstance(TaskState.completed, str)
 
 
+class TestAgentProvider:
+    def test_defaults(self):
+        p = AgentProvider()
+        assert p.url == ""
+        assert p.name == ""
+        assert p.organization == ""
+
+    def test_with_values(self):
+        p = AgentProvider(name="openai", url="https://api.openai.com", organization="OpenAI")
+        assert p.name == "openai"
+        assert p.organization == "OpenAI"
+
+
+class TestAgentExtension:
+    def test_minimal(self):
+        e = AgentExtension(uri="x-test")
+        assert e.uri == "x-test"
+        assert e.description == ""
+        assert e.params == {}
+
+    def test_with_params(self):
+        e = AgentExtension(uri="x-qd-evolve-status", description="Runtime status", params={"provider": "test", "model": "gpt-4"})
+        assert e.params["provider"] == "test"
+        assert e.params["model"] == "gpt-4"
+
+
 class TestAgentCard:
     def test_defaults(self):
         card = AgentCard(name="test", description="Test agent")
@@ -40,6 +68,8 @@ class TestAgentCard:
         assert card.version == "1.0"
         assert card.capabilities.streaming is False
         assert card.skills == []
+        assert card.provider.name == ""
+        assert card.extensions == []
 
     def test_with_skills(self):
         card = AgentCard(
@@ -49,6 +79,25 @@ class TestAgentCard:
         )
         assert len(card.skills) == 1
         assert card.skills[0].name == "skill1"
+
+    def test_with_provider(self):
+        card = AgentCard(
+            name="test",
+            description="Test",
+            provider=AgentProvider(name="openai", url="https://api.openai.com"),
+        )
+        assert card.provider.name == "openai"
+        assert card.provider.url == "https://api.openai.com"
+
+    def test_with_extensions(self):
+        card = AgentCard(
+            name="test",
+            description="Test",
+            extensions=[AgentExtension(uri="x-qd-evolve-status", params={"provider": "test"})],
+        )
+        assert len(card.extensions) == 1
+        assert card.extensions[0].uri == "x-qd-evolve-status"
+        assert card.extensions[0].params["provider"] == "test"
 
     def test_serialization(self):
         card = AgentCard(name="test", description="Test", url="http://localhost:8001")
@@ -67,10 +116,15 @@ class TestAgentCapabilities:
         cap = AgentCapabilities()
         assert cap.streaming is False
         assert cap.push_notifications is False
+        assert cap.extended_agent_card is False
 
     def test_streaming_enabled(self):
         cap = AgentCapabilities(streaming=True)
         assert cap.streaming is True
+
+    def test_extended_agent_card_enabled(self):
+        cap = AgentCapabilities(extended_agent_card=True)
+        assert cap.extended_agent_card is True
 
 
 class TestAgentSkill:

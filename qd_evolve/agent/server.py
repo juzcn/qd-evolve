@@ -10,6 +10,8 @@ from aiohttp import web
 
 from qd_evolve.agent.a2a import (
     AgentCard,
+    AgentCapabilities,
+    AgentExtension,
     Message,
     Part,
     Task,
@@ -67,7 +69,9 @@ class A2AServer:
         logger.info("A2A server: listening on %s:%d", host, port)
 
     async def _handle_agent_card(self, request: web.Request) -> web.Response:
-        return web.json_response(self.card.model_dump())
+        card = self.card.model_dump()
+        card["capabilities"]["extended_agent_card"] = True
+        return web.json_response(card)
 
     async def _handle_rpc(self, request: web.Request) -> web.Response:
         try:
@@ -90,6 +94,8 @@ class A2AServer:
                 result = await self._tasks_cancel(params)
             elif method == "chat/subscribe":
                 return await self._chat_subscribe(params, request)
+            elif method == "agent/getExtendedAgentCard":
+                result = self._get_extended_agent_card()
             else:
                 return web.json_response(self._error(-32601, "Method not found", req_id))
 
@@ -203,6 +209,33 @@ class A2AServer:
         finally:
             self.agent_core.unsubscribe_events(queue)
         return resp
+
+    def _get_extended_agent_card(self) -> AgentCard:
+        """Return extended AgentCard with runtime status in extensions."""
+        a = self.agent_core
+        status_ext = AgentExtension(
+            uri="x-qd-evolve-status",
+            description="Runtime status of the agent",
+            params={
+                "provider": a._provider_name or "",
+                "model": a._model or "",
+                "preload_tools": sorted(a._always_active),
+                "loaded_tools": sorted(a._active_tools - a._always_active),
+                "preload_skills": sorted(a._preload_skills),
+                "loaded_skills": sorted(s for s in a._loaded_skill_names if s not in a._preload_skills),
+                "preload_cli": sorted(a._preload_cli),
+                "loaded_cli": sorted(c for c in a._loaded_cli_names if c not in a._preload_cli),
+            },
+        )
+        card = self.card.model_copy(update={
+            "capabilities": AgentCapabilities(
+                streaming=self.card.capabilities.streaming,
+                push_notifications=self.card.capabilities.push_notifications,
+                extended_agent_card=True,
+            ),
+            "extensions": [status_ext],
+        })
+        return card
 
     @staticmethod
     def _error(code: int, message: str, req_id: Any = None) -> dict:
