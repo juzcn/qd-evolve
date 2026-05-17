@@ -366,7 +366,7 @@ async def _read_input_async(session: "PromptSession | ReplayInput", hb_counts: d
 
 async def _handle_slash_command(
     cmd: str,
-    agent: Any,
+    agent: list,  # mutable container [AgentCore] so /agents can swap it
     settings: Settings,
     memory: MemoryStore | None = None,
     agent_entry: Any = None,
@@ -378,8 +378,8 @@ async def _handle_slash_command(
     if name == "/quit":
         return None
     if name == "/reset":
-        if agent is not None:
-            agent.reset()
+        if agent and agent[0] is not None:
+            agent[0].reset()
             return "Conversation reset."
         return "  Reset not available for remote agents."
     if name == "/help":
@@ -429,9 +429,9 @@ async def _handle_slash_command(
             return "  Cancelled."
         if choice.isdigit() and 1 <= int(choice) <= len(all_models):
             prov_name, mname = all_models[int(choice) - 1]
-            if agent is not None:
-                agent._provider_name = prov_name
-                agent._model = mname
+            if agent and agent[0] is not None:
+                agent[0]._provider_name = prov_name
+                agent[0]._model = mname
             if agent_entry:
                 agent_entry.provider = prov_name
                 agent_entry.model = mname
@@ -440,27 +440,28 @@ async def _handle_slash_command(
             return f"  Switched to {prov_name}/{mname}"
         return "  Cancelled."
     if name == "/status":
-        prov_name = (agent._provider_name if agent else "") or (agent_entry.effective_provider(settings) if agent_entry else settings.default_provider)
-        model_name = (agent._model if agent else "") or (agent_entry.effective_model(settings) if agent_entry else settings.default_model)
+        a = agent[0] if agent and agent[0] else None
+        prov_name = (a._provider_name if a else "") or (agent_entry.effective_provider(settings) if agent_entry else settings.default_provider)
+        model_name = (a._model if a else "") or (agent_entry.effective_model(settings) if agent_entry else settings.default_model)
         lines = [f"  [bold]Provider:[/bold] {prov_name}/{model_name}"]
 
-        if agent is not None:
-            preload_tools = sorted(agent._always_active)
-            loaded_tools = sorted(agent._active_tools - agent._always_active)
+        if a is not None:
+            preload_tools = sorted(a._always_active)
+            loaded_tools = sorted(a._active_tools - a._always_active)
             if preload_tools:
                 lines.append(f"  [bold]Tool (preload):[/bold] {', '.join(preload_tools)}")
             if loaded_tools:
                 lines.append(f"  [bold]Tool (loaded):[/bold] {', '.join(loaded_tools)}")
 
-            preload_skills = sorted(agent._preload_skills)
-            loaded_skills = sorted(s for s in agent._loaded_skill_names if s not in agent._preload_skills)
+            preload_skills = sorted(a._preload_skills)
+            loaded_skills = sorted(s for s in a._loaded_skill_names if s not in a._preload_skills)
             if preload_skills:
                 lines.append(f"  [bold]Skill (preload):[/bold] {', '.join(preload_skills)}")
             if loaded_skills:
                 lines.append(f"  [bold]Skill (loaded):[/bold] {', '.join(loaded_skills)}")
 
-            preload_cli = sorted(agent._preload_cli)
-            loaded_cli = sorted(c for c in agent._loaded_cli_names if c not in agent._preload_cli)
+            preload_cli = sorted(a._preload_cli)
+            loaded_cli = sorted(c for c in a._loaded_cli_names if c not in a._preload_cli)
             if preload_cli:
                 lines.append(f"  [bold]CLI (preload):[/bold] {', '.join(preload_cli)}")
             if loaded_cli:
@@ -523,9 +524,6 @@ async def _handle_slash_command(
         if choice.isdigit() and 1 <= int(choice) <= len(agent_list):
             target = agent_list[int(choice) - 1]
             settings.agents_config.chat_agent = target.name
-            if agent is not None:
-                agent._provider_name = target.effective_provider(settings)
-                agent._model = target.effective_model(settings)
             save_json(settings.model_dump(), CONFIG_PATH)
             prov = target.effective_provider(settings)
             mdl = target.effective_model(settings)
@@ -540,11 +538,9 @@ async def _async_chat_loop(
     settings: Settings,
     output_file: Any,
     router: Any,
-    chat_agent_name: str,
     agent_core: Any = None,
     a2a_server: Any = None,
     agent_config_server: Any = None,
-    agent_entry: Any = None,
     inproc_agents: dict[str, Any] | None = None,
 ) -> None:
     """Async main chat loop — pure A2A client via transport.
@@ -556,11 +552,24 @@ async def _async_chat_loop(
     """
     from qd_evolve.agent.loader import get_skill_registry, get_cli_registry, get_bridges
 
+    # Read agent name dynamically so /agents switch takes effect
+    def _current_agent_name() -> str:
+        return settings.agents_config.chat_agent
+
+    def _current_agent_core() -> Any:
+        name = _current_agent_name()
+        if inproc_agents and name in inproc_agents:
+            return inproc_agents[name]
+        return agent_core
+
     skill_registry = get_skill_registry()
     cli_registry = get_cli_registry()
     bridges = get_bridges()
     providers = ProviderRegistry(settings)
-    memory = agent_core.memory if agent_core else None
+
+    def _current_agent_entry() -> Any:
+        name = _current_agent_name()
+        return next((a for a in settings.agents_config.agents if a.name == name), None)
 
     # Start A2A HTTP servers for all inproc agents
     if a2a_server and agent_config_server:
@@ -577,7 +586,7 @@ async def _async_chat_loop(
     if inproc_agents:
         from qd_evolve.agent.server import A2AServer
         for name, core in inproc_agents.items():
-            if name == chat_agent_name:
+            if name == _current_agent_name():
                 continue
             entry = next((a for a in settings.agents_config.agents if a.name == name), None)
             if entry:
@@ -589,7 +598,7 @@ async def _async_chat_loop(
                     logger.warning("A2A: failed to start server for '%s' on %s:%s: %s", name, entry.server.host, entry.server.port, e)
                     console.print(f"[dim]A2A server for '{name}' on {entry.server.host}:{entry.server.port} skipped[/dim]")
             # Start heartbeat loop for inproc non-chat agents
-            if name != chat_agent_name:
+            if name != _current_agent_name():
                 core.start_heartbeat_loop()
 
     hb_idle = settings.heartbeat_idle_seconds
@@ -625,6 +634,7 @@ async def _async_chat_loop(
                 items.append(Text.from_markup(line, style="dim cyan"))
             live.update(Group(*items))
 
+        # Set callbacks on initial agent core
         agent_core.set_status_callback(_on_status)
         agent_core.set_print_callback(_on_print)
 
@@ -713,7 +723,7 @@ async def _async_chat_loop(
                     _handle_event(agent_name, event)
                     etype = event.get("type", "")
                     # Speaking heartbeat from chat agent — cancel input, display response
-                    if etype == "heartbeat" and agent_name == chat_agent_name:
+                    if etype == "heartbeat" and agent_name == _current_agent_name():
                         input_task.cancel()
                         try:
                             await input_task
@@ -743,7 +753,7 @@ async def _async_chat_loop(
             if not user_input:
                 continue
             if user_input.startswith("/"):
-                result = await _handle_slash_command(user_input, agent_core, settings, memory, agent_entry=agent_entry)
+                result = await _handle_slash_command(user_input, [_current_agent_core()], settings, _current_agent_core().memory if _current_agent_core() else None, agent_entry=_current_agent_entry())
                 if result is None:
                     console.print("[dim]Goodbye![/dim]")
                     break
@@ -751,30 +761,34 @@ async def _async_chat_loop(
                     console.print(result)
                 continue
 
-            # Chat — direct agent.run() with Live display (old pattern)
+            # Chat — direct agent.run() with Live display
+            core = _current_agent_core()
+            # Reconnect callbacks in case /agents switched the core
+            core.set_status_callback(_on_status)
+            core.set_print_callback(_on_print)
             iteration_lines.clear()
             output_lines.clear()
             spinner = Spinner("dots", text=Text("Thinking...", style="bold green"))
             with Live(Group(spinner), console=console, refresh_per_second=10) as live:
                 try:
-                    response = await asyncio.to_thread(agent_core.run, user_input)
+                    response = await asyncio.to_thread(core.run, user_input)
                 except Exception as e:
                     response = f"[red]Error:[/red] {e}"
 
-            console.print(f"[bold]{chat_agent_name}:[/bold] {response}")
+            console.print(f"[bold]{_current_agent_name()}:[/bold] {response}")
 
-            # Token stats — read directly from agent_core
+            # Token stats — read directly from current agent core
             try:
-                prov = providers.get(agent_core._provider_name)
-                model_name = agent_core._model or settings.default_model
+                prov = providers.get(core._provider_name)
+                model_name = core._model or settings.default_model
                 ctx = prov.get_context_window(model_name)
                 max_tok = prov.get_max_tokens(model_name)
-                last_in = agent_core.last_input_tokens
-                last_out = agent_core.last_output_tokens
+                last_in = core.last_input_tokens
+                last_out = core.last_output_tokens
                 pct_ctx = f" ({last_in / ctx * 100:.1f}% of {ctx} context)" if ctx > 0 else ""
                 pct_max = f" ({last_out / max_tok * 100:.1f}% of {max_tok} max)" if max_tok > 0 else ""
                 console.print(f"[dim]This turn: {last_in} in{pct_ctx} + {last_out} out{pct_max}[/dim]")
-                console.print(f"[dim]Cumulative: {agent_core.total_input_tokens + agent_core.total_output_tokens} tokens used[/dim]")
+                console.print(f"[dim]Cumulative: {core.total_input_tokens + core.total_output_tokens} tokens used[/dim]")
             except (KeyError, ZeroDivisionError):
                 pass
 
@@ -789,7 +803,7 @@ async def _async_chat_loop(
                     input_task.result()
                 except BaseException:
                     pass
-            agent_core.stop_heartbeat_loop()
+            _current_agent_core().stop_heartbeat_loop()
             for t in event_workers:
                 if not t.done():
                     t.cancel()
@@ -879,7 +893,7 @@ async def _async_chat_loop(
                         continue
                     _handle_event(agent_name, event)
                     etype = event.get("type", "")
-                    if etype == "heartbeat" and agent_name == chat_agent_name:
+                    if etype == "heartbeat" and agent_name == _current_agent_name():
                         input_task.cancel()
                         try:
                             await input_task
@@ -907,7 +921,7 @@ async def _async_chat_loop(
             if not user_input:
                 continue
             if user_input.startswith("/"):
-                result = await _handle_slash_command(user_input, agent_core, settings, memory, agent_entry=agent_entry)
+                result = await _handle_slash_command(user_input, [_current_agent_core()], settings, _current_agent_core().memory if _current_agent_core() else None, agent_entry=_current_agent_entry())
                 if result is None:
                     console.print("[dim]Goodbye![/dim]")
                     break
@@ -932,7 +946,7 @@ async def _async_chat_loop(
             with Live(Group(spinner), console=console, refresh_per_second=10) as live:
                 try:
                     msg = Message(role="user", parts=[Part(type="text", text=user_input)])
-                    send_task = asyncio.ensure_future(router.send_task(chat_agent_name, msg))
+                    send_task = asyncio.ensure_future(router.send_task(_current_agent_name(), msg))
                     while not send_task.done():
                         try:
                             agent_name, event = await asyncio.wait_for(event_queue.get(), timeout=0.5)
@@ -962,7 +976,7 @@ async def _async_chat_loop(
                 except Exception as e:
                     response = f"[red]Error:[/red] {e}"
 
-            console.print(f"[bold]{chat_agent_name}:[/bold] {response}")
+            console.print(f"[bold]{_current_agent_name()}:[/bold] {response}")
 
             # Token stats — from SSE event
             if last_tokens_event:
@@ -1005,8 +1019,9 @@ async def _async_chat_loop(
             logger.debug("shutdown: bridge disconnect failed for %s", b, exc_info=True)
     from qd_evolve.tools.staging import cleanup_staging
     cleanup_staging()
-    if memory:
-        memory.close()
+    core = _current_agent_core()
+    if core and core.memory:
+        core.memory.close()
     if output_file:
         output_file.close()
 
@@ -1226,9 +1241,9 @@ def chat(
 
     asyncio.run(_async_chat_loop(
         input_session, settings, output_file,
-        router=router, chat_agent_name=chat_agent_name,
+        router=router,
         agent_core=agent_core, a2a_server=a2a_server,
-        agent_config_server=a2a_server_cfg, agent_entry=chat_agent_entry,
+        agent_config_server=a2a_server_cfg,
         inproc_agents=inproc_agents,
     ))
 
