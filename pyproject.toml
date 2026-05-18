@@ -37,7 +37,7 @@ testpaths = ["tests"]
 asyncio_mode = "auto"
 
 [project.scripts]
-qd-evolve = "qd_evolve.cli:app"
+qd-evolve = "qd_evolve.chat_cli:app"
 
 [tool.uv]
 extra-index-url = [

@@ -5,7 +5,28 @@ import asyncio
 import pytest
 
 from qd_evolve.agent.agent import Agent
+from qd_evolve.agent.a2a_agent import A2AAgent
+from qd_evolve.agent.a2a import AgentCard, AgentCapabilities
+from qd_evolve.agent.server import TaskStore
 from qd_evolve.core.config import Settings
+
+
+@pytest.fixture
+def a2a_agent(agent_core):
+    """A2AAgent wrapping agent_core — for event subscriber tests."""
+    card = AgentCard(name="test", description="Test agent", capabilities=AgentCapabilities(streaming=True))
+    return A2AAgent(
+        card=card,
+        task_store=TaskStore(),
+        settings=agent_core.settings,
+        registry=agent_core.registry,
+        providers=agent_core.providers,
+        default_system_prompt=agent_core.default_system_prompt,
+        preload_tools=agent_core._always_active,
+        preload_skills=agent_core._preload_skills,
+        preload_cli=agent_core._preload_cli,
+        template_mgr=agent_core._template_mgr,
+    )
 
 
 class TestAgentInit:
@@ -23,26 +44,26 @@ class TestAgentInit:
 
 
 class TestEventSubscribers:
-    def test_subscribe_and_push(self, agent_core):
-        q = agent_core.subscribe_events()
-        agent_core._push_event({"type": "test", "data": "hello"})
+    def test_subscribe_and_push(self, a2a_agent):
+        q = a2a_agent.subscribe_events()
+        a2a_agent._push_event({"type": "test", "data": "hello"})
         event = q.get_nowait()
         assert event["type"] == "test"
         assert event["data"] == "hello"
-        agent_core.unsubscribe_events(q)
+        a2a_agent.unsubscribe_events(q)
 
-    def test_unsubscribe(self, agent_core):
-        q = agent_core.subscribe_events()
-        agent_core.unsubscribe_events(q)
-        agent_core._push_event({"type": "test"})
+    def test_unsubscribe(self, a2a_agent):
+        q = a2a_agent.subscribe_events()
+        a2a_agent.unsubscribe_events(q)
+        a2a_agent._push_event({"type": "test"})
         assert q.empty()
 
-    def test_heartbeat_compat_aliases(self, agent_core):
-        q = agent_core.subscribe_heartbeat()
-        agent_core._push_event({"type": "heartbeat", "content": "ping"})
+    def test_heartbeat_compat_aliases(self, a2a_agent):
+        q = a2a_agent.subscribe_heartbeat()
+        a2a_agent._push_event({"type": "heartbeat", "content": "ping"})
         event = q.get_nowait()
         assert event["type"] == "heartbeat"
-        agent_core.unsubscribe_heartbeat(q)
+        a2a_agent.unsubscribe_heartbeat(q)
 
 
 class TestCallbacks:
@@ -61,21 +82,21 @@ class TestCallbacks:
         assert len(received) == 1
         assert received[0] == "reasoning text"
 
-    def test_status_pushes_event(self, agent_core):
-        q = agent_core.subscribe_events()
-        agent_core.iteration = 1
-        agent_core._update_status("working")
+    def test_status_pushes_event(self, a2a_agent):
+        q = a2a_agent.subscribe_events()
+        a2a_agent.iteration = 1
+        a2a_agent._update_status("working")
         event = q.get_nowait()
         assert event["type"] == "status"
-        agent_core.unsubscribe_events(q)
+        a2a_agent.unsubscribe_events(q)
 
-    def test_print_pushes_event(self, agent_core):
-        q = agent_core.subscribe_events()
-        agent_core._print("output text")
+    def test_print_pushes_event(self, a2a_agent):
+        q = a2a_agent.subscribe_events()
+        a2a_agent._print("output text")
         event = q.get_nowait()
         assert event["type"] == "print"
         assert event["text"] == "output text"
-        agent_core.unsubscribe_events(q)
+        a2a_agent.unsubscribe_events(q)
 
 
 class TestActivateTool:
@@ -273,40 +294,40 @@ class TestTrackTokens:
         assert agent_core.total_output_tokens == 50
         assert agent_core.total_tokens == 350
 
-    def test_track_tokens_pushes_event(self, agent_core):
+    def test_track_tokens_pushes_event(self, a2a_agent):
         class Usage:
             prompt_tokens = 100
             completion_tokens = 20
-        q = agent_core.subscribe_events()
-        agent_core._track_tokens_openai_completion(Usage())
+        q = a2a_agent.subscribe_events()
+        a2a_agent._track_tokens_openai_completion(Usage())
         event = q.get_nowait()
         assert event["type"] == "tokens"
         assert event["input"] == 100
         assert event["output"] == 20
         assert event["total_in"] == 100
         assert event["total_out"] == 20
-        agent_core.unsubscribe_events(q)
+        a2a_agent.unsubscribe_events(q)
 
-    def test_track_tokens_anthropic_pushes_event(self, agent_core):
+    def test_track_tokens_anthropic_pushes_event(self, a2a_agent):
         class Usage:
             input_tokens = 50
             output_tokens = 10
-        q = agent_core.subscribe_events()
-        agent_core._track_tokens_anthropic(Usage())
+        q = a2a_agent.subscribe_events()
+        a2a_agent._track_tokens_anthropic(Usage())
         event = q.get_nowait()
         assert event["type"] == "tokens"
         assert event["input"] == 50
         assert event["output"] == 10
-        agent_core.unsubscribe_events(q)
+        a2a_agent.unsubscribe_events(q)
 
-    def test_track_tokens_response_pushes_event(self, agent_core):
+    def test_track_tokens_response_pushes_event(self, a2a_agent):
         class Usage:
             input_tokens = 70
             output_tokens = 15
-        q = agent_core.subscribe_events()
-        agent_core._track_tokens_openai_response(Usage())
+        q = a2a_agent.subscribe_events()
+        a2a_agent._track_tokens_openai_response(Usage())
         event = q.get_nowait()
         assert event["type"] == "tokens"
         assert event["input"] == 70
         assert event["output"] == 15
-        agent_core.unsubscribe_events(q)
+        a2a_agent.unsubscribe_events(q)

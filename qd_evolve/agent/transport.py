@@ -348,6 +348,18 @@ class HttpTransport:
             logger.error("HttpTransport: get_extended_agent_card for '%s' failed: %s", target, e)
             return AgentCard(name=target, description=f"Error: {type(e).__name__}: {e}")
 
+    async def is_online(self, target: str) -> bool:
+        """Check if a remote agent server is reachable via /.well-known/agent.json."""
+        import aiohttp
+
+        try:
+            url = self._get_registry().get_url(target)
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=3)) as session:
+                async with session.get(f"{url}/.well-known/agent.json") as resp:
+                    return resp.status == 200
+        except Exception:
+            return False
+
     async def resubscribe(self, target: str, task_id: str = "") -> AsyncIterator[StreamResponse]:
         """SSE stream: HTTP POST tasks/resubscribe, parse StreamResponse."""
         import aiohttp
@@ -391,7 +403,7 @@ class HttpTransport:
 class TransportRouter:
     """Route A2A calls to inproc or http transport based on topology config."""
 
-    def __init__(self, inproc: InprocTransport, http: HttpTransport) -> None:
+    def __init__(self, inproc: InprocTransport | None, http: HttpTransport) -> None:
         self._inproc = inproc
         self._http = http
         self._registry: Any = None
@@ -403,6 +415,8 @@ class TransportRouter:
         return self._registry
 
     def _pick(self, target: str) -> InprocTransport | HttpTransport:
+        if self._inproc is None:
+            return self._http
         transport = self._get_registry().get_transport(target)
         if transport == "inproc":
             return self._inproc

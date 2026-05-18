@@ -1,13 +1,258 @@
-"""Textual TUI for toolbox — manage tool state interactively."""
+"""Toolbox — TUI and CLI for managing tool state interactively."""
 
+from __future__ import annotations
+
+from typing import Any
+
+import typer
+from rich.console import Console
+from rich.table import Table
+
+from qd_evolve.core.toolbox import get_state, set_state, state_mark
+
+console = Console()
+
+
+# ── CLI commands (shared by chat_cli and a2a_cli) ────────────────────────
+
+toolbox_app = typer.Typer(help="Toolbox — manage tool state")
+
+
+@toolbox_app.command()
+def toolbox(
+    toggle: str = typer.Option("", "--toggle", "-t", help="Quick toggle: --toggle <name>"),
+    tui: bool = typer.Option(True, "--tui/--no-tui", help="Use Textual TUI (default: on)"),
+    agent: str = typer.Option("", "--agent", help="Per-agent toolbox config (from config.json agents list)"),
+) -> None:
+    """Interactive tool manager — enable/disable/preload tools, MCP, CLI, skills.
+
+    Opens a Textual TUI by default. Use --no-tui for interactive shell.
+    --toggle <name> for quick non-interactive toggle.
+    --agent <name> to manage a specific agent's toolbox.
+    """
+    from qd_evolve.core.toolbox import toggle as tb_toggle
+    an = agent or None
+
+    # Quick toggle mode
+    if toggle:
+        section = _resolve_section(toggle)
+        name = _resolve_name(toggle)
+        new_state = tb_toggle(section, name, agent_name=an)
+        console.print(f"[bold]{toggle}[/bold] → [cyan]{new_state}[/cyan]")
+        return
+
+    if tui:
+        from qd_evolve.toolbox_tui import _build_data, ToolboxApp
+        console.print("Loading tools...", end="\r")
+        data, bridges, bridge_entries = _build_data(connect_bridges=True, agent_name=an)
+        console.print(f"Loaded {sum(len(v) for v in data.values())} items across {len(data)} categories")
+        ToolboxApp(data, bridges, bridge_entries, agent_name=an).run()
+    else:
+        _toolbox_interactive(an)
+
+
+def _toolbox_interactive(agent_name: str | None = None) -> None:
+    """Interactive toolbox shell."""
+    from qd_evolve.core.toolbox import (
+        get_state, set_state, toggle as tb_toggle,
+    )
+
+    label = f" (agent: {agent_name})" if agent_name else ""
+    console.print(f"[bold]Toolbox[/bold]{label} — manage tool state (enabled / preload / disabled)")
+    console.print("Type [cyan]help[/cyan] for commands, [cyan]quit[/cyan] to exit\n")
+
+    while True:
+        try:
+            cmd = console.input("[bold cyan]toolbox>[/bold cyan] ").strip()
+        except (EOFError, KeyboardInterrupt):
+            console.print()
+            break
+
+        if not cmd:
+            continue
+
+        parts = cmd.split()
+        action = parts[0].lower()
+        args = parts[1:] if len(parts) > 1 else []
+
+        if action in ("q", "quit", "exit"):
+            break
+        elif action == "help":
+            _toolbox_help()
+        elif action in ("ls", "list", "show"):
+            _toolbox_list(args, agent_name=agent_name)
+        elif action == "toggle":
+            if args:
+                section = _resolve_section(args[0])
+                name = _resolve_name(args[0])
+                new = tb_toggle(section, name, agent_name=agent_name)
+                console.print(f"  {args[0]} → [cyan]{new}[/cyan]")
+            else:
+                console.print("  Usage: toggle <name>")
+        elif action == "enable":
+            if args:
+                section = _resolve_section(args[0])
+                name = _resolve_name(args[0])
+                set_state(section, name, "enabled", agent_name=agent_name)
+                console.print(f"  {args[0]} → [green]enabled[/green]")
+            else:
+                console.print("  Usage: enable <name>")
+        elif action == "disable":
+            if args:
+                section = _resolve_section(args[0])
+                name = _resolve_name(args[0])
+                set_state(section, name, "disabled", agent_name=agent_name)
+                console.print(f"  {args[0]} → [red]disabled[/red]")
+            else:
+                console.print("  Usage: disable <name>")
+        elif action == "preload":
+            if args:
+                section = _resolve_section(args[0])
+                name = _resolve_name(args[0])
+                if section == "mcp_servers":
+                    console.print("  MCP servers don't support preload")
+                else:
+                    set_state(section, name, "preload", agent_name=agent_name)
+                    console.print(f"  {args[0]} → [yellow]preload[/yellow]")
+            else:
+                console.print("  Usage: preload <name>")
+        else:
+            console.print(f"  Unknown: {action}. Type [cyan]help[/cyan]")
+
+
+def _toolbox_help() -> None:
+    console.print("""
+  [bold]Commands:[/bold]
+    [cyan]ls[/cyan] [section]     List tools (tools, mcp, cli, skills, all)
+    [cyan]toggle[/cyan] <name>    Cycle state (enabled→preload→disabled→enabled)
+    [cyan]enable[/cyan] <name>    Set item to enabled (on-demand loading)
+    [cyan]disable[/cyan] <name>   Hide item from the LLM
+    [cyan]preload[/cyan] <name>   Load full definition into system prompt
+    [cyan]quit[/cyan]             Exit
+
+  [bold]Name prefixes:[/bold]
+    builtin/MCP tools: just the name (e.g. [cyan]fetch[/cyan], [cyan]boat__write_file[/cyan])
+    MCP servers:       [cyan]mcp:boat[/cyan]
+    CLI tools:          [cyan]pandoc[/cyan]
+    Skills:             [cyan]baidu-search[/cyan]
+
+  [bold]States:[/bold] [✓] enabled  [P] preload  [✗] disabled
+""")
+
+
+def _toolbox_list(args: list[str], agent_name: str | None = None) -> None:
+    from qd_evolve.core.toolbox import get_state, get_disabled_bridges
+    from qd_evolve.core.registry import get_registry
+    from qd_evolve.skills import SkillRegistry
+    from qd_evolve.cli_tools import CLIRegistry
+    from qd_evolve.core.config import SKILLS_DIR, CLI_TOOLS_DIR, load_settings
+    from tools.bridge import BridgeManager
+
+    settings = load_settings()
+    PAGE_SIZE = settings.ui.page_size
+    section_arg = args[0].lower() if args else "all"
+
+    # Build data
+    registry = get_registry()
+    builtin: list[tuple[str, str, str]] = []
+    bridge_tools: dict[str, list[tuple[str, str, str]]] = {}
+    for td in registry.list_tools():
+        state = get_state("tools", td.name, agent_name=agent_name)
+        desc = td.description or ""
+        if desc.startswith("[") and "]" in desc:
+            bracket_end = desc.index("]")
+            server = desc[1:bracket_end]
+            bridge_tools.setdefault(server, []).append((td.name, desc, state))
+        else:
+            builtin.append((td.name, desc, state))
+
+    # Skills
+    sr = SkillRegistry()
+    sr.discover_skills(SKILLS_DIR)
+    skills_data: list[tuple[str, str, str]] = []
+    for s in sr._skills.values():
+        skills_data.append((s.name, s.summary or "", get_state("skills", s.name, agent_name=agent_name)))
+
+    # CLI
+    cr = CLIRegistry()
+    cr.discover(CLI_TOOLS_DIR)
+    cli_data: list[tuple[str, str, str]] = []
+    for t in cr._tools.values():
+        cli_data.append((t.name, t.description or t.command, get_state("cli", t.name, agent_name=agent_name)))
+
+    # Bridge entries
+    bridge_entries = BridgeManager.list_all(settings)
+    disabled_bridges = get_disabled_bridges(agent_name=agent_name)
+
+    def _print_items(title: str, items: list[tuple[str, str, str]], page: int = 0) -> None:
+        if not items:
+            return
+        start = page * PAGE_SIZE
+        chunk = items[start:start + PAGE_SIZE]
+        total_pages = (len(items) - 1) // PAGE_SIZE + 1
+        active_n = sum(1 for _, _, s in items if s != "disabled")
+        console.print(f"\n[bold]{title}[/bold] ({active_n}/{len(items)} active{', page %s/%s' % (page + 1, total_pages) if total_pages > 1 else ''})")
+        for name, desc, state in chunk:
+            mark = state_mark(state)
+            style = "dim" if state == "disabled" else ""
+            console.print(f"  {mark} [cyan]{name}[/cyan] {style}—{desc[:70]}")
+        if total_pages > 1 and page < total_pages - 1:
+            console.print(f"  [dim]... ls {section_arg} page {page + 2} for more[/dim]")
+
+    def _print_bridge_entries() -> None:
+        if not bridge_entries:
+            return
+        console.print("\n[bold]Bridges[/bold]")
+        for be in bridge_entries:
+            tools = bridge_tools.get(be.name, [])
+            srv_state = "disabled" if f"{be.bridge_type}:{be.name}" in disabled_bridges else "enabled"
+            mark = state_mark(srv_state)
+            style = "dim" if srv_state == "disabled" else ""
+            total = len(tools)
+            active = sum(1 for _, _, s in tools if s != "disabled")
+            summary = f"{active}/{total} tools" if total else "tools visible during chat"
+            console.print(f"  {mark} [cyan]{be.bridge_type}:{be.name}[/cyan] {style}—{summary}")
+            if total > 0:
+                console.print(f"    [dim]ls {be.name} to expand[/dim]")
+
+    page = 0
+    if len(args) > 1 and args[1].isdigit():
+        page = int(args[1]) - 1
+
+    if section_arg in ("all", "tools"):
+        _print_items("Builtin Tools", builtin, page)
+    if section_arg in ("all", "cli"):
+        _print_items("CLI Tools", cli_data, page)
+    if section_arg in ("all", "skills"):
+        _print_items("Skills", skills_data, page)
+    if section_arg in ("all", "bridge"):
+        _print_bridge_entries()
+    # Expand a specific bridge's tools
+    for be in bridge_entries:
+        if section_arg == be.name and be.name in bridge_tools:
+            _print_items(f"Bridge: {be.name} ({be.bridge_type})", bridge_tools[be.name], page)
+            break
+
+
+def _resolve_section(name: str) -> str:
+    if name.startswith("mcp:") or name.startswith("oat:") or ":" in name:
+        return name.split(":")[0] + "_bridge" if not name.startswith("mcp:") and not name.startswith("oat:") else "bridge"
+    return "tools"
+
+
+def _resolve_name(name: str) -> str:
+    if name.startswith("mcp:"):
+        return name.split(":", 1)[1]
+    return name
+
+
+# ── TUI ──────────────────────────────────────────────────────────────────
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal
 from textual.screen import ModalScreen
 from textual.widgets import DataTable, Footer, Header, Input, Static
-
-from qd_evolve.core.toolbox import get_state, set_state
 
 
 def _build_data(connect_bridges: bool = True, agent_name: str | None = None) -> tuple[dict, list, list]:

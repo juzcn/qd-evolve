@@ -32,40 +32,6 @@ def _make_settings(agents: list[AgentEntry], relations: list[dict] | None = None
 
 
 class TestTopology:
-    def test_get_transport_both_inproc(self):
-        agents = [
-            AgentEntry(name="a", transport="inproc"),
-            AgentEntry(name="b", transport="inproc"),
-        ]
-        settings = _make_settings(agents)
-        topo = Topology(settings)
-        assert topo.get_transport("a", "b") == "inproc"
-
-    def test_get_transport_one_http(self):
-        agents = [
-            AgentEntry(name="a", transport="inproc"),
-            AgentEntry(name="b", transport="http"),
-        ]
-        settings = _make_settings(agents)
-        topo = Topology(settings)
-        assert topo.get_transport("a", "b") == "http"
-
-    def test_get_transport_both_http(self):
-        agents = [
-            AgentEntry(name="a", transport="http"),
-            AgentEntry(name="b", transport="http"),
-        ]
-        settings = _make_settings(agents)
-        topo = Topology(settings)
-        assert topo.get_transport("a", "b") == "http"
-
-    def test_get_transport_unknown_defaults_inproc(self):
-        agents = [AgentEntry(name="a", transport="inproc")]
-        settings = _make_settings(agents)
-        topo = Topology(settings)
-        # Unknown agent defaults to "inproc" per the code
-        assert topo.get_transport("a", "unknown") == "inproc"
-
     def test_get_relation_peer(self):
         agents = [
             AgentEntry(name="a"),
@@ -83,12 +49,11 @@ class TestTopology:
 
     def test_agents_map(self):
         agents = [
-            AgentEntry(name="a", server=ServerConfig(host="127.0.0.1", port=9000), transport="inproc"),
+            AgentEntry(name="a", server=ServerConfig(host="127.0.0.1", port=9000)),
         ]
         settings = _make_settings(agents)
         topo = Topology(settings)
         assert topo.agents["a"]["url"] == "http://localhost:9000"
-        assert topo.agents["a"]["transport"] == "inproc"
 
 
 class TestAgentRegistry:
@@ -126,26 +91,6 @@ class TestAgentRegistry:
         # Unknown agent gets default port
         url = reg.get_url("nonexistent")
         assert "localhost" in url
-
-    def test_get_transport_inproc(self):
-        agents = [
-            AgentEntry(name="a", transport="inproc"),
-            AgentEntry(name="b", transport="inproc"),
-        ]
-        settings = _make_settings(agents)
-        topo = Topology(settings)
-        reg = AgentRegistry(topology=topo, current_agent="a")
-        assert reg.get_transport("b") == "inproc"
-
-    def test_get_transport_http(self):
-        agents = [
-            AgentEntry(name="a", transport="inproc"),
-            AgentEntry(name="b", transport="http"),
-        ]
-        settings = _make_settings(agents)
-        topo = Topology(settings)
-        reg = AgentRegistry(topology=topo, current_agent="a")
-        assert reg.get_transport("b") == "http"
 
     def test_get_card(self):
         reg = AgentRegistry()

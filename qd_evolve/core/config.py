@@ -113,7 +113,6 @@ class AgentEntry(BaseModel):
     system_prompt_template: str = "default"
     memory_db: str | None = DEFAULT_MEMORY_DB
     server: ServerConfig = ServerConfig()
-    transport: str = "inproc"
     toolbox: ToolboxSection = ToolboxSection()
 
     def effective_provider(self, settings: Settings) -> str:

@@ -2,7 +2,7 @@
 
 import pytest
 
-from qd_evolve.cli import SLASH_COMMANDS
+from qd_evolve.chat_cli import SLASH_COMMANDS
 
 
 class TestSlashCommandsValidation:
