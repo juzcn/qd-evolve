@@ -60,6 +60,8 @@ class TeeWriter:
     def isatty(self) -> bool:
         return any(getattr(f, "isatty", lambda: False)() for f in self._files)
 
+AGENT_COLORS = ["#ff6b6b", "#51cf66", "#74c0fc", "#ffd43b", "#da77f2", "#63e6be"]
+
 SLASH_COMMANDS = {
     "/quit": "Quit the session",
     "/tools": "List available tools",
@@ -346,7 +348,7 @@ async def _read_input_async(session: "PromptSession | ReplayInput", hb_counts: d
             from prompt_toolkit.formatted_text import FormattedText
             fragments: list[tuple[str, str]] = []
             for i, (name, n) in enumerate(hb_counts.items()):
-                color = _agent_colors[i % len(_agent_colors)]
+                color = AGENT_COLORS[i % len(AGENT_COLORS)]
                 if n > 0:
                     fragments.append((f"fg:{color} bold", f" ♡ {name}:{n} "))
                 else:
@@ -642,11 +644,10 @@ async def _async_chat_loop(
     hb_idle = settings.heartbeat_idle_seconds
     all_agent_names = [a.name for a in settings.agents_config.agents]
     hb_counts: dict[str, int] = {name: 0 for name in all_agent_names}
-    _agent_colors = ["#ff6b6b", "#51cf66", "#74c0fc", "#ffd43b", "#da77f2", "#63e6be"]
 
     def _agent_color(name: str) -> str:
         idx = all_agent_names.index(name) if name in all_agent_names else 0
-        return _agent_colors[idx % len(_agent_colors)]
+        return AGENT_COLORS[idx % len(AGENT_COLORS)]
 
     def _handle_event(agent_name: str, event: dict) -> None:
         """Process an event from any agent — update hb_counts, display heartbeat."""
@@ -835,8 +836,8 @@ async def _async_chat_loop(
                 pct_max = f" ({last_out / max_tok * 100:.1f}% of {max_tok} max)" if max_tok > 0 else ""
                 console.print(f"[dim]This turn: {last_in} in{pct_ctx} + {last_out} out{pct_max}[/dim]")
                 console.print(f"[dim]Cumulative: {core.total_input_tokens + core.total_output_tokens} tokens used[/dim]")
-            except (KeyError, ZeroDivisionError):
-                pass
+            except Exception:
+                logger.debug("token stats display failed", exc_info=True)
 
             skill_registry.reload()
             cli_registry.reload()
@@ -884,6 +885,14 @@ async def _async_chat_loop(
             chat_name = _current_agent_name()
             if not online_status.get(chat_name, False):
                 console.print(f"[bold yellow]Warning:[/bold yellow] Agent '{chat_name}' is offline. Use [bold]/agents[/bold] to switch to an online agent.")
+
+        def _is_current_agent_online() -> bool:
+            """Check if the current chat agent is online."""
+            name = _current_agent_name()
+            entry = next((a for a in settings.agents_config.agents if a.name == name), None)
+            if entry and entry.transport == "inproc":
+                return True  # inproc agents are always online (CLI starts them)
+            return online_status.get(name, False)
 
         event_queue: asyncio.Queue[tuple[str, dict]] = asyncio.Queue()
         event_workers: list[asyncio.Task] = []
@@ -1004,8 +1013,24 @@ async def _async_chat_loop(
                     console.print(result)
                 continue
 
-            # Chat via transport with SSE iteration display
-            from qd_evolve.agent.a2a import Message, Part, TaskState
+            # Check if current agent is online before sending
+            cur_name = _current_agent_name()
+            cur_entry = next((a for a in settings.agents_config.agents if a.name == cur_name), None)
+            if cur_entry and cur_entry.transport == "inproc":
+                pass  # inproc agents are always online
+            elif cur_entry and cur_entry.transport == "http":
+                # Probe if not yet checked, or re-probe if previously offline
+                if cur_name not in online_status or not online_status[cur_name]:
+                    online_status[cur_name] = await _probe_http_agent(cur_entry)
+                    if not online_status[cur_name]:
+                        logger.warning("Agent '%s' (HTTP :%s) is offline", cur_name, cur_entry.server.port)
+                        console.print(f"  [dim]Agent '{cur_name}' HTTP :{cur_entry.server.port} — offline[/dim]")
+            if not _is_current_agent_online():
+                console.print(f"[bold red]Agent '{cur_name}' is offline.[/bold red] Use [bold]/agents[/bold] to switch to an online agent.")
+                continue
+
+            # Chat via message/stream SSE — gets all intermediate events (tokens, iteration, etc.)
+            from qd_evolve.agent.a2a import Message, Part, TaskState, StreamResponse
             import aiohttp
             iteration_lines: list[str] = []
             output_lines: list[str] = []
@@ -1022,36 +1047,37 @@ async def _async_chat_loop(
             with Live(Group(spinner), console=console, refresh_per_second=10) as live:
                 try:
                     msg = Message(role="user", parts=[Part(type="text", text=user_input)])
-                    send_task = asyncio.ensure_future(router.send_task(_current_agent_name(), msg))
-                    while not send_task.done():
-                        try:
-                            agent_name, event = await asyncio.wait_for(event_queue.get(), timeout=0.5)
-                        except asyncio.TimeoutError:
-                            continue
-                        etype = event.get("type", "")
-                        if etype == "status":
-                            iteration_lines.append(event["text"])
-                            _refresh()
-                        elif etype == "print":
-                            output_lines.append(event["text"])
-                            _refresh()
-                        elif etype == "iteration":
-                            spinner.update(text=Text("Thinking...", style="bold green"))
-                            _refresh()
-                        elif etype == "tokens":
-                            last_tokens_event = event
-                    task = send_task.result()
                     response = ""
-                    if task.status and task.status.message:
-                        for part in task.status.message.parts:
-                            if part.type == "text" and part.text:
-                                response = part.text
-                                break
-                    if not response and task.status and task.status.state:
-                        if task.status.state == TaskState.failed:
-                            response = "[bold red]Agent offline[/bold red] — use /agents to switch to an online agent"
-                        else:
-                            response = f"[Task state: {task.status.state}]"
+                    async for sr in router.send_stream(_current_agent_name(), msg):
+                        if sr.task:
+                            # Initial Task object — nothing to display yet
+                            pass
+                        elif sr.statusUpdate and sr.statusUpdate.metadata:
+                            event = sr.statusUpdate.metadata
+                            etype = event.get("type", "")
+                            if etype == "status":
+                                iteration_lines.append(event["text"])
+                                _refresh()
+                            elif etype == "print":
+                                output_lines.append(event["text"])
+                                _refresh()
+                            elif etype == "iteration":
+                                spinner.update(text=Text("Thinking...", style="bold green"))
+                                _refresh()
+                            elif etype == "tokens":
+                                last_tokens_event = event
+                        elif sr.statusUpdate and sr.statusUpdate.final:
+                            # Final event — extract response text
+                            if sr.statusUpdate.status and sr.statusUpdate.status.message:
+                                for part in sr.statusUpdate.status.message.parts:
+                                    if part.type == "text" and part.text:
+                                        response = part.text
+                                        break
+                            if not response and sr.statusUpdate.status:
+                                if sr.statusUpdate.status.state == TaskState.failed:
+                                    response = "[bold red]Agent offline[/bold red] — use /agents to switch to an online agent"
+                                else:
+                                    response = f"[Task state: {sr.statusUpdate.status.state}]"
                 except Exception as e:
                     if isinstance(e, (aiohttp.ClientError, OSError)):
                         response = "[bold red]Agent offline[/bold red] — use /agents to switch to an online agent"
@@ -1076,8 +1102,8 @@ async def _async_chat_loop(
                     pct_max = f" ({last_out / max_tok * 100:.1f}% of {max_tok} max)" if max_tok > 0 else ""
                     console.print(f"[dim]This turn: {last_in} in{pct_ctx} + {last_out} out{pct_max}[/dim]")
                     console.print(f"[dim]Cumulative: {total_in + total_out} tokens used[/dim]")
-                except (KeyError, ZeroDivisionError):
-                    pass
+                except Exception:
+                    logger.debug("token stats display failed", exc_info=True)
 
             skill_registry.reload()
             cli_registry.reload()

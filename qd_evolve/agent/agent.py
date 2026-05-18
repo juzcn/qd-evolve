@@ -537,12 +537,7 @@ class Agent:
             self._print(f"[bold bright_cyan]Reasoning:[/bold bright_cyan] {reasoning}")
 
         if usage:
-            self.last_input_tokens = usage.prompt_tokens or 0
-            self.last_output_tokens = usage.completion_tokens or 0
-            self.total_input_tokens += self.last_input_tokens
-            self.total_output_tokens += self.last_output_tokens
-            logger.debug("Agent: token usage: input=%s, output=%s, total=%s",
-                        self.last_input_tokens, self.last_output_tokens, self.total_tokens)
+            self._track_tokens_openai_completion(usage)
 
         if tool_call_chunks:
             tool_calls = sorted(tool_call_chunks.values(), key=lambda t: t.get("index", 0))

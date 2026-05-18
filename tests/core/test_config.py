@@ -103,7 +103,7 @@ class TestMCPServerConfig:
 class TestServerConfig:
     def test_defaults(self):
         sc = ServerConfig()
-        assert sc.host == "0.0.0.0"
+        assert sc.host == "127.0.0.1"
         assert sc.port == 8001
 
     def test_custom(self):
