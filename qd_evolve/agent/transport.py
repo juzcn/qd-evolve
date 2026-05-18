@@ -214,7 +214,9 @@ class InprocTransport:
     def _lazy_load(self, target: str, registry: Any) -> Any | None:
         """Try to create and register an AgentCore from config on demand."""
         try:
-            from qd_evolve.agent.loader import create_agent_core
+            from qd_evolve.agent.agent import A2AAgent
+            from qd_evolve.core.config import load_settings
+            agent_core = A2AAgent.from_settings(target, load_settings())
             agent_core = create_agent_core(target)
             registry.register(agent_core)
             logger.info("InprocTransport: lazy-loaded agent '%s'", target)

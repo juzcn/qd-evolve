@@ -12,7 +12,7 @@ from qd_evolve.core.logger import logger
 from qd_evolve.core.memory import MemoryStore, RecalledMemoryRegistry
 from qd_evolve.core.providers import ProviderRegistry
 from qd_evolve.core.prompts import PromptTemplateManager
-from qd_evolve.core.registry import ToolRegistry
+from qd_evolve.core.registry import ToolRegistry, get_registry
 
 
 class Agent:
@@ -50,23 +50,29 @@ class Agent:
         self._hb_task: asyncio.Task | None = None
 
     @classmethod
-    def from_config(
-        cls,
-        entry: AgentEntry,
-        settings: Settings,
-        registry: ToolRegistry,
-        providers: ProviderRegistry,
-        skill_registry: Any,
-        cli_registry: Any,
-    ) -> Self:
-        """Construct a fully initialized Agent from config entry.
+    def from_settings(cls, name: str, settings: Settings) -> Self:
+        """Construct a fully initialized Agent from name + settings.
 
+        Resolves entry, registries, and providers internally.
         Handles: memory creation, system prompt rendering, preload execution,
         provider/model resolution, A2A tool toggling.
         """
         import json as _json
 
-        name = entry.name
+        from qd_evolve.core.providers import ProviderRegistry
+
+        init_process(settings)
+
+        # Resolve entry
+        entry = next((a for a in settings.agents_config.agents if a.name == name), None)
+        if entry is None:
+            raise ValueError(f"Agent '{name}' not found in config.json agents list")
+
+        # Resolve process-level singletons
+        registry = get_registry()
+        providers = ProviderRegistry(settings)
+        skill_registry = get_skill_registry()
+        cli_registry = get_cli_registry()
 
         # ── Toolbox state (per-agent) ─────────────────────────────
         from qd_evolve.core.toolbox import (
@@ -122,6 +128,12 @@ class Agent:
         # ── System prompt via template ────────────────────────────
         template_mgr = PromptTemplateManager()
         template_name = entry.system_prompt_template or "default"
+        # Subclasses can override _template_prefix (e.g. A2AAgent → "a2a-")
+        prefix = cls._template_prefix()
+        if prefix:
+            prefixed = f"{prefix}{template_name}"
+            if template_mgr.find_template(prefixed):
+                template_name = prefixed
 
         a2a_enabled = cls._a2a_enabled(settings)
         system_prompt = template_mgr.render(
@@ -136,7 +148,6 @@ class Agent:
             cwd=str(Path.cwd()),
             skills_dir=SKILLS_DIR,
             agent_name=name,
-            a2a_enabled=a2a_enabled,
             available_agents=", ".join(a.name for a in settings.agents_config.agents),
             agent_relations=", ".join(
                 f"{r['from']}→{r['to']} ({r.get('mode', 'peer')})"
@@ -147,14 +158,6 @@ class Agent:
 
         # ── Memory ────────────────────────────────────────────────
         memory = cls._create_memory(entry, settings, registry)
-
-        # ── A2A tools ─────────────────────────────────────────────
-        if not a2a_enabled:
-            for tname in ("delegate_to", "send_task", "get_task", "cancel_task"):
-                td = registry.get(tname)
-                if td:
-                    td.enabled = False
-            logger.info("Agent [%s]: A2A disabled (single agent)", name)
 
         # ── Create instance ───────────────────────────────────────
         agent = cls(
@@ -176,8 +179,9 @@ class Agent:
         return agent
 
     @staticmethod
-    def _a2a_enabled(settings: Settings) -> bool:
-        return len(settings.agents_config.agents) > 1
+    def _template_prefix() -> str:
+        """Override in subclass to prefix template name (e.g. A2AAgent returns 'a2a-')."""
+        return ""
 
     @staticmethod
     def _create_memory(entry: AgentEntry, settings: Settings, registry: ToolRegistry) -> MemoryStore | None:

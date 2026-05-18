@@ -53,8 +53,9 @@ def _delegate_to(agent: str, task: str) -> str:
         if agent_node is None:
             # Try lazy load
             try:
-                from qd_evolve.agent.loader import create_agent_core
-                agent_node = create_agent_core(agent)
+                from qd_evolve.agent.a2a_agent import A2AAgent
+                from qd_evolve.core.config import load_settings
+                agent_node = A2AAgent.from_settings(agent, load_settings())
                 registry.register(agent_node)
                 logger.info("delegate_to: lazy-loaded agent '%s'", agent)
             except ValueError as e:
@@ -63,8 +64,7 @@ def _delegate_to(agent: str, task: str) -> str:
         try:
             from qd_evolve.core.config import load_settings
             settings = load_settings()
-            from qd_evolve.agent.loader import get_agent_entry
-            entry = get_agent_entry(settings, agent)
+            entry = next((a for a in settings.agents_config.agents if a.name == agent), None)
             prov = entry.effective_provider(settings) if entry else settings.default_provider
             mdl = entry.effective_model(settings) if entry else settings.default_model
             result = agent_node.run(task, provider=prov, model=mdl)

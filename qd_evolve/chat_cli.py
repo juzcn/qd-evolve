@@ -133,7 +133,7 @@ async def _handle_slash_command(
     memory: Any = None,
     agent_entry: Any = None,
 ) -> str | None:
-    from qd_evolve.agent.loader import get_skill_registry, get_cli_registry
+    from qd_evolve.agent.agent import Agent, init_process, get_skill_registry, get_cli_registry
     skill_registry = get_skill_registry()
     cli_registry = get_cli_registry()
     name = cmd.lower().strip()
@@ -296,7 +296,7 @@ async def _async_chat_loop(
     agent_name: str,
 ) -> None:
     """Async main chat loop — single in-process agent, no A2A."""
-    from qd_evolve.agent.loader import get_skill_registry, get_cli_registry, get_bridges
+    from qd_evolve.agent.agent import Agent, init_process, get_skill_registry, get_cli_registry, get_bridges
     from tools.bridge import BridgeManager
 
     skill_registry = get_skill_registry()
@@ -492,7 +492,7 @@ def chat(
     """Start an interactive chat session with a single in-process agent."""
     from qd_evolve.core.logger import setup_logging
     from qd_evolve.core.config import LOG_DIR as LOG_DIR_PATH
-    from qd_evolve.agent.loader import init_process, create_agent
+    from qd_evolve.agent.agent import Agent, init_process
 
     # 1. Config & logging
     setup_logging("WARNING", log_dir=LOG_DIR_PATH)

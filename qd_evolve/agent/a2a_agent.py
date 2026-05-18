@@ -30,6 +30,10 @@ class A2AAgent(Agent):
         # Hook our _push_event into the base Agent's event callback
         self._on_event = self._push_event
 
+    @staticmethod
+    def _template_prefix() -> str:
+        return "a2a-"
+
     # ── Event subscriber mechanism (A2A observability) ──────────────
 
     def subscribe_events(self) -> asyncio.Queue:

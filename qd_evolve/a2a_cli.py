@@ -144,7 +144,8 @@ async def _handle_slash_command(
     router: Any,
     agent_entry: Any = None,
 ) -> str | None:
-    from qd_evolve.agent.loader import get_skill_registry, get_cli_registry
+    from qd_evolve.agent.a2a_agent import A2AAgent
+from qd_evolve.agent.agent import init_process, get_skill_registry, get_cli_registry
     from qd_evolve.core.registry import get_registry
     skill_registry = get_skill_registry()
     cli_registry = get_cli_registry()
@@ -271,7 +272,8 @@ async def _async_chat_loop(
     CLI never creates agents. All communication goes through router:
     send_stream for chat, resubscribe for heartbeat events, is_online for probes.
     """
-    from qd_evolve.agent.loader import get_skill_registry, get_cli_registry, get_bridges
+    from qd_evolve.agent.a2a_agent import A2AAgent
+from qd_evolve.agent.agent import init_process, get_skill_registry, get_cli_registry, get_bridges
     from qd_evolve.core.providers import ProviderRegistry
     from qd_evolve.agent.a2a import Message, Part, TaskState
     from tools.bridge import BridgeManager
