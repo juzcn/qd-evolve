@@ -1,0 +1,208 @@
+{
+  "log": {
+    "level": "DEBUG",
+    "truncation": 500
+  },
+  "ui": {
+    "page_size": 20,
+    "refresh_per_second": 10,
+    "prompt_refresh_interval": 0.5
+  },
+  "env_vars": {
+    "TQDM_DISABLE": "1",
+    "SERPER_API_KEY": "5935b6343bfc7ac9c8f2cbf097fa94eb199de6c6",
+    "BAIDU_API_KEY": "bce-v3/ALTAKSP-6SXOFE7JXF6tPLjP1v58W/82a500a17d332c04d44bc850596715b54ff7934e",
+    "TAVILY_API_KEY": "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",
+    "PYTHONIOENCODING": "utf-8",
+    "PYTHONUTF8": "1"
+  },
+  "providers": [
+    {
+      "name": "baiduqianfancodingplan",
+      "api_key": "bce-v3/ALTAKSP-6SXOFE7JXF6tPLjP1v58W/82a500a17d332c04d44bc850596715b54ff7934e",
+      "base_url": "https://qianfan.baidubce.com/v2/coding",
+      "api": "openai-completions",
+      "models": [
+        {
+          "name": "qianfan-code-latest",
+          "reasoning": false,
+          "input": [
+            "text"
+          ],
+          "cost": {
+            "input": 0.0025,
+            "output": 0.01,
+            "cache_read": 0.0,
+            "cache_write": 0.0
+          },
+          "context_window": 98304,
+          "max_tokens": 65536
+        }
+      ]
+    },
+    {
+      "name": "deepseek",
+      "api_key": "sk-e11d4271cc904204b82c6e25402c5b65",
+      "base_url": "https://api.deepseek.com",
+      "api": "openai-completions",
+      "models": [
+        {
+          "name": "deepseek-v4-pro",
+          "reasoning": true,
+          "input": [
+            "text"
+          ],
+          "cost": {
+            "input": 0.28,
+            "output": 1.1,
+            "cache_read": 0.07,
+            "cache_write": 0.56
+          },
+          "context_window": 1000000,
+          "max_tokens": 131072
+        }
+      ]
+    },
+    {
+      "name": "astroncodingplan",
+      "api_key": "57bc96903925f99271978ff758bd2003:ODNhNjY0NWFmMjVkYTFiMmU2Zjc3MDkz",
+      "base_url": "https://maas-coding-api.cn-huabei-1.xf-yun.com/v2",
+      "api": "openai-completions",
+      "models": [
+        {
+          "name": "astron-code-latest",
+          "reasoning": false,
+          "input": [
+            "text"
+          ],
+          "cost": {
+            "input": 0.0,
+            "output": 0.0,
+            "cache_read": 0.0,
+            "cache_write": 0.0
+          },
+          "context_window": 92160,
+          "max_tokens": 32768
+        }
+      ]
+    }
+  ],
+  "default_provider": "astroncodingplan",
+  "default_model": "astron-code-latest",
+  "agents_config": {
+    "chat_agent": "default",
+    "agents": [
+      {
+        "name": "default",
+        "description": "Default qd-evolve agent",
+        "provider": "",
+        "model": "",
+        "system_prompt_template": "default",
+        "memory_db": "memory.db",
+        "server": {
+          "host": "0.0.0.0",
+          "port": 8001
+        },
+        "transport": "http",
+        "toolbox": {
+          "tools": {
+            "load_cli": "preload",
+            "recall_memory": "preload",
+            "load_skill": "preload",
+            "load_func": "preload",
+            "run_python": "preload",
+            "read_file": "disabled",
+            "write_file": "disabled",
+            "list_directory": "disabled",
+            "execute_shell_command": "disabled",
+            "run_shell": "preload",
+            "fetch": "disabled",
+            "install_func": "preload",
+            "register_func": "preload",
+            "install_skill": "preload",
+            "register_skill": "preload",
+            "install_mcp": "preload",
+            "register_mcp": "preload"
+          },
+          "mcp_servers": {},
+          "bridge": {},
+          "cli": {},
+          "skills": {}
+        }
+      },
+      {
+        "name": "test",
+        "description": "Test agent for cross-process A2A",
+        "provider": "astroncodingplan",
+        "model": "astron-code-latest",
+        "system_prompt_template": "default",
+        "memory_db": null,
+        "server": {
+          "host": "0.0.0.0",
+          "port": 8002
+        },
+        "transport": "http",
+        "toolbox": {
+          "tools": {
+            "load_cli": "preload",
+            "recall_memory": "preload",
+            "load_skill": "preload",
+            "load_func": "preload",
+            "run_python": "preload",
+            "read_file": "disabled",
+            "write_file": "disabled",
+            "list_directory": "disabled",
+            "execute_shell_command": "disabled",
+            "run_shell": "preload",
+            "fetch": "disabled"
+          },
+          "mcp_servers": {},
+          "bridge": {},
+          "cli": {},
+          "skills": {}
+        }
+      }
+    ],
+    "topology": {
+      "relations": [
+        {
+          "from": "default",
+          "to": "test",
+          "mode": "peer"
+        }
+      ]
+    }
+  },
+  "embeddings_backends": {
+    "bge-m3-local": {
+      "model_path": "C:/OneDrive/AI/HuggingFace/hub/models--BAAI--bge-m3/snapshots/5617a9f61b028005a4858fdac845db406aefb181",
+      "dim": 1024,
+      "backend": "sentence-transformers",
+      "llama_n_ctx": 8192,
+      "llama_n_batch": 512
+    },
+    "bge-m3-gguf": {
+      "model_path": "C:/OneDrive/AI/hf_KimChen_bge-m3-q4_k_m.gguf",
+      "dim": 1024,
+      "backend": "llama-cpp-python",
+      "llama_n_ctx": 8192,
+      "llama_n_batch": 512
+    }
+  },
+  "memory_search": {
+    "embeddings_backend": "bge-m3-local",
+    "auto_recall": false,
+    "auto_recall_top_k": 1,
+    "recall_memory_limit": 5,
+    "list_all_limit": 50
+  },
+  "compress_threshold": 0.7,
+  "target_threshold": 0.5,
+  "max_iterations": 20,
+  "tool_output_limit": 50000,
+  "stream": true,
+  "heartbeat_idle_seconds": 60,
+  "toolbox_defaults": {
+    "timeout": 60
+  }
+}

@@ -92,6 +92,18 @@ class ServerConfig(BaseModel):
     port: int = DEFAULT_SERVER_PORT
 
 
+class ToolboxSection(BaseModel):
+    tools: dict[str, str] = {}
+    mcp_servers: dict[str, str] = {}
+    bridge: dict[str, str] = {}
+    cli: dict[str, str] = {}
+    skills: dict[str, str] = {}
+
+
+class ToolboxDefaults(BaseModel):
+    timeout: int = 60
+
+
 class AgentEntry(BaseModel):
     name: str
     description: str = ""
@@ -101,6 +113,7 @@ class AgentEntry(BaseModel):
     memory_db: str | None = DEFAULT_MEMORY_DB
     server: ServerConfig = ServerConfig()
     transport: str = "inproc"
+    toolbox: ToolboxSection = ToolboxSection()
 
     def effective_provider(self, settings: Settings) -> str:
         return self.provider or settings.default_provider
@@ -135,6 +148,7 @@ class Settings(BaseModel):
     tool_output_limit: int
     stream: bool = False
     heartbeat_idle_seconds: int = 0
+    toolbox_defaults: ToolboxDefaults = ToolboxDefaults()
 
     def get_provider(self, name: str) -> ProviderConfig | None:
         for p in self.providers:
@@ -165,6 +179,9 @@ def save_json(data: dict, path: Path) -> None:
 
 
 def load_settings(path: Path | str | None = None) -> Settings:
+    from qd_evolve.core.toolbox import migrate_toolbox_to_config
+    migrate_toolbox_to_config()
+
     p = Path(path) if path else CONFIG_PATH
     if p.exists():
         data = load_json(p)

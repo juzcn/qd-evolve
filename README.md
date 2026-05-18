@@ -18,7 +18,7 @@ Multi-agent AI system with A2A protocol, dual transport, tool use, skills, MCP i
 - **Bridge protocol** — qd-evolve's own protocol for tool source integration; new bridge types never touch `cli.py`
 - **OAT bridge** — basic-open-agent-tools (boat) + coding-open-agent-tools (coat) loaded in-process, no subprocess latency
 - **Toolbox TUI** — `qd-evolve toolbox` (Textual) for interactive enable/disable/preload management across all tool types
-- **Toolbox config** — `toolbox.json` with per-agent sections (`agents.<name>`) manages which tools/skills/CLI/bridges/MCP are enabled, disabled, or preloaded
+- **Toolbox config** — Per-agent tool state in `config.json` under `agents[].toolbox` (tools, mcp_servers, bridge, cli, skills); global defaults in `toolbox_defaults`
 - **Two tool categories** — System tools (load/install/register/a2a, bundled in `qd_evolve/tools/`) and Func tools (run_shell, fetch, etc. in `tools/func/`). Add/delete .py files in `tools/func/` to add/remove tools
 - **On-demand loading** — Tools start with name+description only. Call `load_func` to activate a tool's schema, `load_skill` for SKILL.md instructions, or `load_cli` for CLI usage. Loaded content is delivered via tool message, keeping the system prompt lean.
 - **Skill system** — SKILL.md files from `tools/skills/`, injected into system prompt; `load_skill` for full content
@@ -127,19 +127,27 @@ All agent config is in `config.json` under `agents_config`:
 
 ### Per-Agent Toolbox
 
-Each agent has its own section in `toolbox.json` under `agents.<name>`:
+Each agent has its own `toolbox` section in `config.json` under `agents_config.agents[]`:
 
 ```json
 {
-  "defaults": {"timeout": 60},
-  "agents": {
-    "default": {
-      "tools": {"load_cli": "preload", "fetch": "disabled"},
-      "mcp_servers": {}, "cli": {}, "skills": {}
-    },
-    "test": {
-      "tools": {}, "mcp_servers": {}, "cli": {}, "skills": {}
-    }
+  "toolbox_defaults": {"timeout": 60},
+  "agents_config": {
+    "agents": [
+      {
+        "name": "default",
+        "toolbox": {
+          "tools": {"load_cli": "preload", "fetch": "disabled"},
+          "mcp_servers": {}, "bridge": {}, "cli": {}, "skills": {}
+        }
+      },
+      {
+        "name": "test",
+        "toolbox": {
+          "tools": {}, "mcp_servers": {}, "bridge": {}, "cli": {}, "skills": {}
+        }
+      }
+    ]
   }
 }
 ```
@@ -303,7 +311,7 @@ Config in `tools/bridge/oat.json`:
 
 ### Bridge Toolbox
 
-`toolbox.json` `bridge` section controls bridge enable/disable:
+`config.json` `agents[].toolbox.bridge` section controls bridge enable/disable:
 
 ```json
 {
@@ -338,7 +346,7 @@ Use the `cli-register` skill to generate YAML from `--help` output automatically
 
 ## Skills
 
-Skills are directories under `tools/skills/` containing a `SKILL.md` file. They are **not** tool calls — the LLM reads the summary in the system prompt and uses `load_skill` to get full instructions when needed. Skill state (enabled/disabled/preloaded) is managed via `toolbox.json` or `qd-evolve toolbox`.
+Skills are directories under `tools/skills/` containing a `SKILL.md` file. They are **not** tool calls — the LLM reads the summary in the system prompt and uses `load_skill` to get full instructions when needed. Skill state (enabled/disabled/preloaded) is managed via `config.json` `agents[].toolbox.skills` or `qd-evolve toolbox`.
 
 ```
 tools/skills/
@@ -419,7 +427,7 @@ qd_evolve/
     providers.py           — Provider/ProviderRegistry, client creation
     memory.py              — SQLite + sqlite-vec persistent memory store
     registry.py            — ToolRegistry, tool registration, on-demand loading
-    toolbox.py             — Toolbox state management (per-agent toolbox.json support)
+    toolbox.py             — Toolbox state management (per-agent config.json support)
   agent/                   # Agent implementation
     agent.py               — AgentCore loop (openai_completion, openai_response, anthropic)
     a2a.py                 — A2A v1.0 data models (AgentCard, Task, Message, Part, TaskState)

@@ -193,18 +193,29 @@ def config_json(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def toolbox_json(tmp_path: Path) -> Path:
-    """Write a minimal toolbox.json to tmp_path."""
+    """Write a config.json with embedded toolbox data to tmp_path."""
     data = {
-        "agents": {
-            "default": {
-                "tools": {"fetch": "preload", "run_shell": "disabled"},
-                "mcp_servers": {},
-                "bridge": {},
-                "cli": {},
-                "skills": {},
-            },
+        "max_iterations": 5,
+        "tool_output_limit": 2000,
+        "default_provider": "test",
+        "default_model": "test-model",
+        "agents_config": {
+            "chat_agent": "default",
+            "agents": [
+                {
+                    "name": "default",
+                    "toolbox": {
+                        "tools": {"fetch": "preload", "run_shell": "disabled"},
+                        "mcp_servers": {},
+                        "bridge": {},
+                        "cli": {},
+                        "skills": {},
+                    },
+                },
+            ],
         },
+        "toolbox_defaults": {"timeout": 60},
     }
-    path = tmp_path / "toolbox.json"
+    path = tmp_path / "config.json"
     path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
     return path

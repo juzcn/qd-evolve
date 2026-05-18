@@ -35,7 +35,7 @@
 - **On-demand tool loading.** Tools start with name+description only. The LLM calls `load_func` to get the full schema, then the tool is activated for subsequent turns. This reduces prompt size. Applies to both system and func tools.
 - **Hot-loading.** `install_func/install_mcp/install_skill` register new tools in the current session without restart. Staged in `.qd_evolve/staging/`, persisted via `register_func/register_mcp/register_skill`. Staging cleaned on session exit.
 - **Dynamic system prompt sections.** The system prompt has sections for preloaded content: "Preloaded Skills SKILL.md", "Preloaded CLI Tools Usage", and "Func Tools" (schemas via API). When `load_skill`, `load_cli`, or `load_func` is called, the content is delivered via tool message (not injected into system prompt), and the item is removed from the unloaded summary.
-- **Toolbox manages tool state.** `toolbox.json` controls enable/disable/preload for tools, skills, CLI tools, MCP servers, and bridges. All toolbox functions accept optional `agent_name` parameter for per-agent config. Managed interactively via `qd-evolve toolbox` (Textual TUI).
+- **Toolbox manages tool state.** Per-agent tool enable/disable/preload state is stored in config.json under `agents_config.agents[].toolbox` (sections: tools, mcp_servers, bridge, cli, skills). Global defaults (e.g. timeout) are in `toolbox_defaults`. Managed interactively via `qd-evolve toolbox` (Textual TUI).
 - **Skills are non-callable.** SKILL.md files injected into system prompt as summaries — the LLM calls `load_skill` to get full instructions and uses callable tools to execute.
 - **CLI tools are non-callable definitions.** YAML files in `tools/cli/` describe CLI commands (name, command, help_summary, examples). The LLM calls `load_cli` to get usage info, then executes via `run_shell`.
 - **MCP multi-transport.** MCP bridge supports 4 transport types via `type` field: `stdio` (local subprocess), `sse` (Server-Sent Events), `http`/`streamable-http` (Streamable HTTP POST), `ws`/`websocket` (WebSocket). All string config values support `$VAR`/`${VAR}` env var expansion. `headers` field allows API key injection for remote transports.
@@ -52,13 +52,13 @@
 - **Embedder selection by config.** `embeddings_backends` section in `config.json` defines named backends with `backend` field (`sentence-transformers` or `llama-cpp-python`). `memory_search.embeddings_backend` selects which to use. No file-suffix auto-detection.
 - **Env vars from config.** `env_vars` in `config.json` are injected into `os.environ` at startup, so tools can access API keys without .env files.
 - **Clean shutdown.** On `/quit` exit, bridges disconnect with `shutdown=True`, closing remote sessions and killing subprocesses while skipping unnecessary in-memory registry cleanup.
-- **Config is read once at startup.** No runtime config changes — edit `config.json` and restart. However, registries (skills, CLI tools, bridges) are reloaded after each conversation turn to pick up new files without restart. Hot-loaded tools via `install_*` are immediately available without reload.
+- **Config is read once at startup.** No runtime config changes — edit `config.json` and restart. However, registries (skills, CLI tools, bridges) are reloaded after each conversation turn to pick up new files without restart. Hot-loaded tools via `install_*` are immediately available without reload. Toolbox state mutations (toggle, enable, disable, preload) are the exception — they write directly to config.json at runtime.
 - **Staging area for hot-loaded tools.** `.qd_evolve/staging/` holds func/mcp/skill files before user confirms permanent registration. Cleaned on session exit. Registries scan both permanent and staging directories during discovery.
 - **File paths relative to CWD.** Tools never hardcode paths; everything resolves against current working directory.
 - **Shell encoding.** `run_shell` uses `locale.getpreferredencoding()` to decode subprocess output, handling Windows GBK/cp936 correctly.
 - **BOAT via OAT bridge.** basic-open-agent-tools loaded in-process, no subprocess latency. Config in `tools/bridge/oat.json` — set `loadout` per package (coder, python, all, etc.).
 - **COAT via OAT bridge.** coding-open-agent-tools (485 code analysis functions) loaded in-process alongside boat. Same Google ADK format, same bridge, same schema/output converters.
-- **Bridge toolbox.** `toolbox.json` `bridge` section controls bridge enable/disable (e.g. `"oat:boat": "disabled"`). Bridges don't support preload — too many tools.
+- **Bridge toolbox.** config.json `agents[].toolbox.bridge` section controls bridge enable/disable (e.g. `"oat:boat": "disabled"`). Bridges don't support preload — too many tools.
 - **No backward-compat shims.** All imports use the real paths: `qd_evolve.core.config`, `qd_evolve.core.providers`, `qd_evolve.core.logger`, etc.
 
 ## Rules

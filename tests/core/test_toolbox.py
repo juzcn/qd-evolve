@@ -1,4 +1,4 @@
-"""Tests for qd_evolve.core.toolbox — state management, toggle, apply."""
+"""Tests for qd_evolve.core.toolbox — state management, toggle, apply, migration."""
 
 import json
 from pathlib import Path
@@ -16,15 +16,36 @@ from qd_evolve.core.toolbox import (
     get_default,
     get_disabled_bridges,
     apply_to_tools,
+    migrate_toolbox_to_config,
 )
+
+
+def _make_config(toolbox_data: dict | None = None, toolbox_defaults: dict | None = None) -> dict:
+    """Build a minimal config.json dict with optional toolbox data per agent."""
+    agents = [{"name": "default"}, {"name": "other"}]
+    if toolbox_data:
+        for agent in agents:
+            if agent["name"] in toolbox_data:
+                agent["toolbox"] = toolbox_data[agent["name"]]
+    cfg = {
+        "max_iterations": 5,
+        "tool_output_limit": 2000,
+        "default_provider": "test",
+        "default_model": "test-model",
+        "agents_config": {"chat_agent": "default", "agents": agents},
+    }
+    if toolbox_defaults:
+        cfg["toolbox_defaults"] = toolbox_defaults
+    return cfg
 
 
 @pytest.fixture
 def toolbox_dir(tmp_path, monkeypatch):
-    """Set up a temporary toolbox.json for testing."""
-    tb_path = tmp_path / "toolbox.json"
-    monkeypatch.setattr("qd_evolve.core.toolbox.TOOLBOX_PATH", tb_path)
-    return tb_path
+    """Set up a temporary config.json for toolbox testing."""
+    cfg_path = tmp_path / "config.json"
+    cfg_path.write_text(json.dumps(_make_config()), encoding="utf-8")
+    monkeypatch.setattr("qd_evolve.core.toolbox.CONFIG_PATH", cfg_path)
+    return cfg_path
 
 
 class TestGetState:
@@ -32,18 +53,18 @@ class TestGetState:
         assert get_state("tools", "echo") == "enabled"
 
     def test_disabled(self, toolbox_dir):
-        data = {"agents": {"default": {"tools": {"echo": "disabled"}}}}
-        toolbox_dir.write_text(json.dumps(data), encoding="utf-8")
+        tb = {"default": {"tools": {"echo": "disabled"}}}
+        toolbox_dir.write_text(json.dumps(_make_config(tb)), encoding="utf-8")
         assert get_state("tools", "echo") == "disabled"
 
     def test_preloaded(self, toolbox_dir):
-        data = {"agents": {"default": {"tools": {"echo": "preload"}}}}
-        toolbox_dir.write_text(json.dumps(data), encoding="utf-8")
+        tb = {"default": {"tools": {"echo": "preload"}}}
+        toolbox_dir.write_text(json.dumps(_make_config(tb)), encoding="utf-8")
         assert get_state("tools", "echo") == "preload"
 
     def test_per_agent(self, toolbox_dir):
-        data = {"agents": {"default": {"tools": {"echo": "disabled"}}, "other": {"tools": {"echo": "preload"}}}}
-        toolbox_dir.write_text(json.dumps(data), encoding="utf-8")
+        tb = {"default": {"tools": {"echo": "disabled"}}, "other": {"tools": {"echo": "preload"}}}
+        toolbox_dir.write_text(json.dumps(_make_config(tb)), encoding="utf-8")
         assert get_state("tools", "echo", agent_name="other") == "preload"
 
 
@@ -52,8 +73,8 @@ class TestGetDisabled:
         assert get_disabled("tools") == set()
 
     def test_with_disabled(self, toolbox_dir):
-        data = {"agents": {"default": {"tools": {"echo": "disabled", "fetch": "enabled"}}}}
-        toolbox_dir.write_text(json.dumps(data), encoding="utf-8")
+        tb = {"default": {"tools": {"echo": "disabled", "fetch": "enabled"}}}
+        toolbox_dir.write_text(json.dumps(_make_config(tb)), encoding="utf-8")
         assert get_disabled("tools") == {"echo"}
 
 
@@ -62,8 +83,8 @@ class TestGetPreloaded:
         assert get_preloaded("tools") == set()
 
     def test_with_preload(self, toolbox_dir):
-        data = {"agents": {"default": {"tools": {"echo": "preload", "fetch": "enabled"}}}}
-        toolbox_dir.write_text(json.dumps(data), encoding="utf-8")
+        tb = {"default": {"tools": {"echo": "preload", "fetch": "enabled"}}}
+        toolbox_dir.write_text(json.dumps(_make_config(tb)), encoding="utf-8")
         assert get_preloaded("tools") == {"echo"}
 
 
@@ -122,28 +143,29 @@ class TestStateMark:
 
 class TestGetDefault:
     def test_existing_key(self, toolbox_dir):
-        data = {"defaults": {"timeout": 60}}
-        toolbox_dir.write_text(json.dumps(data), encoding="utf-8")
+        cfg = _make_config(toolbox_defaults={"timeout": 60})
+        toolbox_dir.write_text(json.dumps(cfg), encoding="utf-8")
         assert get_default("timeout") == 60
 
     def test_missing_key(self, toolbox_dir):
         assert get_default("timeout", 30) == 30
 
     def test_no_file(self, toolbox_dir):
+        toolbox_dir.unlink()
         assert get_default("timeout", 30) == 30
 
 
 class TestGetDisabledBridges:
     def test_combines_bridge_and_mcp(self, toolbox_dir):
-        data = {"agents": {"default": {"bridge": {"oat:boat": "disabled"}, "mcp_servers": {"myserver": "disabled"}}}}
-        toolbox_dir.write_text(json.dumps(data), encoding="utf-8")
+        tb = {"default": {"bridge": {"oat:boat": "disabled"}, "mcp_servers": {"myserver": "disabled"}}}
+        toolbox_dir.write_text(json.dumps(_make_config(tb)), encoding="utf-8")
         disabled = get_disabled_bridges()
         assert "oat:boat" in disabled
         assert "mcp:myserver" in disabled
 
     def test_empty(self, toolbox_dir):
-        # Write empty toolbox.json to ensure no disabled bridges
-        toolbox_dir.write_text(json.dumps({"agents": {"default": {"tools": {}, "mcp_servers": {}, "bridge": {}, "cli": {}, "skills": {}}}}), encoding="utf-8")
+        tb = {"default": {"tools": {}, "mcp_servers": {}, "bridge": {}, "cli": {}, "skills": {}}}
+        toolbox_dir.write_text(json.dumps(_make_config(tb)), encoding="utf-8")
         assert get_disabled_bridges() == set()
 
 
@@ -151,8 +173,8 @@ class TestApplyToTools:
     def test_disables_tools(self, toolbox_dir, registry):
         registry.register("echo", "Echo", lambda s: s)
         registry.register("fetch", "Fetch", lambda u: u)
-        data = {"agents": {"default": {"tools": {"echo": "disabled"}}}}
-        toolbox_dir.write_text(json.dumps(data), encoding="utf-8")
+        tb = {"default": {"tools": {"echo": "disabled"}}}
+        toolbox_dir.write_text(json.dumps(_make_config(tb)), encoding="utf-8")
         preload = set()
         apply_to_tools(registry, preload)
         assert registry.get("echo").enabled is False
@@ -160,8 +182,52 @@ class TestApplyToTools:
 
     def test_preloads_tools(self, toolbox_dir, registry):
         registry.register("echo", "Echo", lambda s: s)
-        data = {"agents": {"default": {"tools": {"echo": "preload"}}}}
-        toolbox_dir.write_text(json.dumps(data), encoding="utf-8")
+        tb = {"default": {"tools": {"echo": "preload"}}}
+        toolbox_dir.write_text(json.dumps(_make_config(tb)), encoding="utf-8")
         preload = set()
         apply_to_tools(registry, preload)
         assert "echo" in preload
+
+
+class TestMigrateToolboxToConfig:
+    def test_merges_toolbox_into_config(self, tmp_path, monkeypatch):
+        cfg_path = tmp_path / "config.json"
+        tb_path = tmp_path / "toolbox.json"
+
+        cfg_data = {
+            "max_iterations": 5,
+            "tool_output_limit": 2000,
+            "agents_config": {
+                "agents": [{"name": "default"}],
+            },
+        }
+        cfg_path.write_text(json.dumps(cfg_data), encoding="utf-8")
+
+        tb_data = {
+            "defaults": {"timeout": 90},
+            "agents": {
+                "default": {"tools": {"echo": "preload"}, "mcp_servers": {}, "bridge": {}, "cli": {}, "skills": {}},
+            },
+        }
+        tb_path.write_text(json.dumps(tb_data), encoding="utf-8")
+
+        monkeypatch.setattr("qd_evolve.core.toolbox.CONFIG_PATH", cfg_path)
+        monkeypatch.setattr("qd_evolve.core.toolbox.TOOLBOX_MIGRATION_PATH", tb_path)
+        migrate_toolbox_to_config()
+
+        result = json.loads(cfg_path.read_text(encoding="utf-8"))
+        assert result["toolbox_defaults"]["timeout"] == 90
+        assert result["agents_config"]["agents"][0]["toolbox"]["tools"]["echo"] == "preload"
+        assert not tb_path.exists()
+        assert (tmp_path / "toolbox.json.bak").exists()
+
+    def test_no_toolbox_json_is_noop(self, tmp_path, monkeypatch):
+        cfg_path = tmp_path / "config.json"
+        cfg_data = {"max_iterations": 5, "tool_output_limit": 2000}
+        cfg_path.write_text(json.dumps(cfg_data), encoding="utf-8")
+        monkeypatch.setattr("qd_evolve.core.toolbox.CONFIG_PATH", cfg_path)
+
+        migrate_toolbox_to_config()
+        # config unchanged, no toolbox.json.bak
+        result = json.loads(cfg_path.read_text(encoding="utf-8"))
+        assert "toolbox_defaults" not in result

@@ -1,53 +1,53 @@
 """Toolbox — manage tool state: enabled / preload / disabled.
 
-All state is in toolbox.json under agents.<name> sections.
+All state is in config.json under agents_config.agents[].toolbox sections.
 Every operation requires an agent_name (defaults to "default").
-
-Layout:
-{
-  "agents": {
-    "default": {
-      "tools": {"fetch": "disabled", ...},
-      "mcp_servers": {}, "bridge": {}, "cli": {}, "skills": {},
-      "defaults": {"timeout": 60}
-    },
-    "test": {
-      "tools": {}, ...
-    }
-  }
-}
 """
 
 import json
 from pathlib import Path
 from typing import Any
 
-TOOLBOX_PATH = Path("toolbox.json")
+from qd_evolve.core.config import CONFIG_PATH
 
 VALID_STATES = ("enabled", "preload", "disabled")
 BRIDGE_VALID_STATES = ("enabled", "disabled")
+
+TOOLBOX_MIGRATION_PATH = Path("toolbox.json")
 
 _EMPTY = {"tools": {}, "mcp_servers": {}, "bridge": {}, "cli": {}, "skills": {}}
 
 
 def _load(agent_name: str | None = None) -> dict[str, Any]:
     name = agent_name or "default"
-    if TOOLBOX_PATH.is_file():
-        data = json.loads(TOOLBOX_PATH.read_text(encoding="utf-8"))
-        return data.get("agents", {}).get(name, dict(_EMPTY))
+    if CONFIG_PATH.is_file():
+        data = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+        agents = data.get("agents_config", {}).get("agents", [])
+        for agent in agents:
+            if agent.get("name") == name:
+                return agent.get("toolbox", dict(_EMPTY))
     return dict(_EMPTY)
 
 
 def _save(section_data: dict[str, Any], agent_name: str | None = None) -> None:
     name = agent_name or "default"
-    if TOOLBOX_PATH.is_file():
-        data = json.loads(TOOLBOX_PATH.read_text(encoding="utf-8"))
+    if CONFIG_PATH.is_file():
+        data = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
     else:
-        data = {"agents": {}}
-    if "agents" not in data:
-        data["agents"] = {}
-    data["agents"][name] = section_data
-    TOOLBOX_PATH.write_text(
+        data = {"agents_config": {"agents": []}}
+
+    agents = data.get("agents_config", {}).get("agents", [])
+    found = False
+    for i, agent in enumerate(agents):
+        if agent.get("name") == name:
+            agents[i]["toolbox"] = section_data
+            found = True
+            break
+    if not found:
+        agents.append({"name": name, "toolbox": section_data})
+        data["agents_config"]["agents"] = agents
+
+    CONFIG_PATH.write_text(
         json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )
 
@@ -146,11 +146,47 @@ def get_disabled_bridges(agent_name: str | None = None) -> set[str]:
 # ── tool defaults ─────────────────────────────────────────────
 
 def get_default(key: str, fallback: Any = None) -> Any:
-    """Read a global default value from toolbox.json (not per-agent)."""
-    if TOOLBOX_PATH.is_file():
-        data = json.loads(TOOLBOX_PATH.read_text(encoding="utf-8"))
-        return data.get("defaults", {}).get(key, fallback)
+    """Read a global default value from config.json toolbox_defaults section."""
+    if CONFIG_PATH.is_file():
+        data = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+        return data.get("toolbox_defaults", {}).get(key, fallback)
     return fallback
+
+
+# ── migration ──────────────────────────────────────────────────
+
+def migrate_toolbox_to_config() -> None:
+    """One-time migration: merge toolbox.json data into config.json."""
+    toolbox_path = TOOLBOX_MIGRATION_PATH
+    if not toolbox_path.is_file():
+        return
+
+    tb_data = json.loads(toolbox_path.read_text(encoding="utf-8"))
+    if not CONFIG_PATH.is_file():
+        return
+
+    cfg_data = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+
+    # Merge defaults → toolbox_defaults
+    defaults = tb_data.get("defaults", {})
+    if defaults:
+        cfg_data.setdefault("toolbox_defaults", {})
+        for key, value in defaults.items():
+            cfg_data["toolbox_defaults"][key] = value
+
+    # Merge per-agent toolbox data
+    tb_agents = tb_data.get("agents", {})
+    agents = cfg_data.get("agents_config", {}).get("agents", [])
+    for agent in agents:
+        agent_name = agent.get("name")
+        if agent_name in tb_agents:
+            agent["toolbox"] = tb_agents[agent_name]
+
+    CONFIG_PATH.write_text(
+        json.dumps(cfg_data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+
+    toolbox_path.rename(toolbox_path.with_suffix(".json.bak"))
 
 
 # ── display helpers ────────────────────────────────────────────
