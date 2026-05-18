@@ -655,8 +655,14 @@ async def _async_chat_loop(
         if etype == "heartbeat":
             hb_counts[agent_name] = 0
             color = _agent_color(agent_name)
-            console.print()
+            # Erase prompt_toolkit prompt before printing to avoid duplicate "You>"
+            _app = getattr(input_session, "app", None)
+            if _app and _app.is_running:
+                _app.renderer.erase()
             console.print(f"[bold {color}]{agent_name}>[/bold {color}] {event.get('content', '')}")
+            # Force prompt_toolkit to redraw prompt below the new output
+            if _app and _app.is_running:
+                _app.invalidate()
         elif etype == "heartbeat_silent":
             hb_counts[agent_name] += 1
 
@@ -822,7 +828,6 @@ async def _async_chat_loop(
                 except Exception as e:
                     response = f"[red]Error:[/red] {e}"
 
-            console.print()
             console.print(f"[bold {_agent_color(_current_agent_name())}]{_current_agent_name()}>[/bold {_agent_color(_current_agent_name())}] {response}")
 
             # Token stats — read directly from current agent core
@@ -1085,7 +1090,6 @@ async def _async_chat_loop(
                     else:
                         response = f"[red]Error:[/red] {e}"
 
-            console.print()
             console.print(f"[bold {_agent_color(_current_agent_name())}]{_current_agent_name()}>[/bold {_agent_color(_current_agent_name())}] {response}")
 
             # Token stats — from SSE event

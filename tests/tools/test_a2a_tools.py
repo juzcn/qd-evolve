@@ -18,6 +18,8 @@ class TestGetTask:
         data = json.loads(result)
         assert data["task_id"] == "t1"
         assert data["state"] == "completed"
+        assert data["result"] == "done"
+        assert data["agent"] == "helper"
 
         # Cleanup
         a2a_module._task_store.clear()
@@ -38,6 +40,7 @@ class TestCancelTask:
         result = _cancel_task("t1")
         data = json.loads(result)
         assert data["state"] == "canceled"
+        assert a2a_module._task_store["t1"]["state"] == "canceled"
 
         # Cleanup
         a2a_module._task_store.clear()
@@ -65,6 +68,17 @@ class TestExtractResultText:
         task = Task(status=TaskStatus(state=TaskState.completed))
         assert _extract_result_text(task) == ""
 
+    def test_no_parts(self):
+        from qd_evolve.tools.a2a import _extract_result_text
+        from qd_evolve.agent.a2a import Message
+        task = Task(
+            status=TaskStatus(
+                state=TaskState.completed,
+                message=Message(role="agent", parts=[]),
+            ),
+        )
+        assert _extract_result_text(task) == ""
+
 
 class TestSetTransport:
     def test_set_and_get(self):
@@ -80,3 +94,25 @@ class TestSetTransport:
         a2a_module._transport = None
         with pytest.raises(RuntimeError, match="transport not initialized"):
             _get_transport()
+
+
+class TestSendTask:
+    def test_send_task_returns_task_id(self):
+        from qd_evolve.tools.a2a import _send_task, set_transport
+        from qd_evolve.tools import a2a as a2a_module
+
+        mock_transport = MagicMock()
+        async def mock_send(agent, msg):
+            return Task(status=TaskStatus(state=TaskState.completed, message=make_text_message("agent", "done")))
+        mock_transport.send_task = mock_send
+        set_transport(mock_transport)
+
+        result = _send_task("helper", "do something")
+        data = json.loads(result)
+        assert "task_id" in data
+        assert data["state"] == "submitted"
+        assert data["agent"] == "helper"
+
+        # Cleanup
+        a2a_module._task_store.clear()
+        a2a_module._transport = None

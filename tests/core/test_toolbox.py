@@ -2,7 +2,7 @@
 
 import json
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -189,6 +189,115 @@ class TestApplyToTools:
         assert "echo" in preload
 
 
+class TestLoadAndSave:
+    def test_load_no_config_file(self, toolbox_dir, monkeypatch):
+        toolbox_dir.unlink()
+        from qd_evolve.core.toolbox import _load
+        result = _load()
+        # Returns a dict with all 5 sections
+        assert "tools" in result
+        assert "mcp_servers" in result
+        assert "bridge" in result
+        assert "cli" in result
+        assert "skills" in result
+
+    def test_load_agent_not_found(self, toolbox_dir):
+        from qd_evolve.core.toolbox import _load
+        result = _load("nonexistent_agent")
+        # Returns a copy of _EMPTY — check structure, not exact equality
+        assert "tools" in result
+        assert "mcp_servers" in result
+        assert "bridge" in result
+        assert "cli" in result
+        assert "skills" in result
+
+    def test_save_creates_new_agent(self, toolbox_dir):
+        from qd_evolve.core.toolbox import _save, _load
+        data = {"tools": {"echo": "preload"}, "mcp_servers": {}, "bridge": {}, "cli": {}, "skills": {}}
+        _save(data, agent_name="new_agent")
+        result = _load("new_agent")
+        assert result["tools"]["echo"] == "preload"
+
+    def test_save_no_config_file_creates_data(self, toolbox_dir, monkeypatch):
+        toolbox_dir.unlink()
+        from qd_evolve.core.toolbox import _save
+        data = {"tools": {"echo": "preload"}, "mcp_servers": {}, "bridge": {}, "cli": {}, "skills": {}}
+        _save(data, agent_name="new_agent")
+        assert toolbox_dir.exists()
+
+
+class TestApplyToCliRegistry:
+    def test_disables_cli_tools(self, toolbox_dir):
+        from qd_evolve.core.toolbox import apply_to_cli_registry
+        tb = {"default": {"cli": {"pandoc": "disabled"}}}
+        toolbox_dir.write_text(json.dumps(_make_config(tb)), encoding="utf-8")
+
+        mock_registry = MagicMock()
+        mock_tool = MagicMock()
+        mock_tool.name = "pandoc"
+        mock_registry.list_tools.return_value = [mock_tool]
+        mock_registry._disabled = set()
+
+        preload = set()
+        apply_to_cli_registry(mock_registry, preload)
+        assert "pandoc" in mock_registry._disabled
+
+    def test_preloads_cli_tools(self, toolbox_dir):
+        from qd_evolve.core.toolbox import apply_to_cli_registry
+        tb = {"default": {"cli": {"pandoc": "preload"}}}
+        toolbox_dir.write_text(json.dumps(_make_config(tb)), encoding="utf-8")
+
+        mock_registry = MagicMock()
+        mock_tool = MagicMock()
+        mock_tool.name = "pandoc"
+        mock_registry.list_tools.return_value = [mock_tool]
+        mock_registry._disabled = set()
+
+        preload = set()
+        apply_to_cli_registry(mock_registry, preload)
+        assert "pandoc" in preload
+        assert "pandoc" not in mock_registry._disabled
+
+
+class TestApplyToSkillRegistry:
+    def test_disables_skills(self, toolbox_dir):
+        from qd_evolve.core.toolbox import apply_to_skill_registry
+        tb = {"default": {"skills": {"find-tools": "disabled"}}}
+        toolbox_dir.write_text(json.dumps(_make_config(tb)), encoding="utf-8")
+
+        mock_registry = MagicMock()
+        mock_skill = MagicMock()
+        mock_skill.name = "find-tools"
+        mock_registry.get_all_skills.return_value = [mock_skill]
+        mock_registry._disabled = set()
+
+        preload = set()
+        apply_to_skill_registry(mock_registry, preload)
+        assert "find-tools" in mock_registry._disabled
+
+    def test_preloads_skills(self, toolbox_dir):
+        from qd_evolve.core.toolbox import apply_to_skill_registry
+        tb = {"default": {"skills": {"find-tools": "preload"}}}
+        toolbox_dir.write_text(json.dumps(_make_config(tb)), encoding="utf-8")
+
+        mock_registry = MagicMock()
+        mock_skill = MagicMock()
+        mock_skill.name = "find-tools"
+        mock_registry.get_all_skills.return_value = [mock_skill]
+        mock_registry._disabled = set()
+
+        preload = set()
+        apply_to_skill_registry(mock_registry, preload)
+        assert "find-tools" in preload
+
+
+class TestSetStateNewSection:
+    def test_set_state_creates_new_section(self, toolbox_dir):
+        # When section doesn't exist in toolbox data, set_state creates it
+        set_state("cli", "pandoc", "preload")
+        assert get_state("cli", "pandoc") == "preload"
+
+
 class TestMigrateToolboxToConfig:
     def test_merges_toolbox_into_config(self, tmp_path, monkeypatch):
         cfg_path = tmp_path / "config.json"
@@ -231,3 +340,15 @@ class TestMigrateToolboxToConfig:
         # config unchanged, no toolbox.json.bak
         result = json.loads(cfg_path.read_text(encoding="utf-8"))
         assert "toolbox_defaults" not in result
+
+    def test_no_config_file_is_noop(self, tmp_path, monkeypatch):
+        tb_path = tmp_path / "toolbox.json"
+        tb_data = {"defaults": {"timeout": 90}, "agents": {}}
+        tb_path.write_text(json.dumps(tb_data), encoding="utf-8")
+
+        cfg_path = tmp_path / "config.json"
+        monkeypatch.setattr("qd_evolve.core.toolbox.CONFIG_PATH", cfg_path)
+        monkeypatch.setattr("qd_evolve.core.toolbox.TOOLBOX_MIGRATION_PATH", tb_path)
+        migrate_toolbox_to_config()
+        # toolbox.json still exists (no config to merge into)
+        assert tb_path.exists()

@@ -224,3 +224,89 @@ class TestReset:
         assert agent_core.messages == []
         assert agent_core.total_input_tokens == 0
         assert agent_core.total_output_tokens == 0
+
+
+class TestTrackTokens:
+    def test_track_tokens_anthropic(self, agent_core):
+        class Usage:
+            input_tokens = 500
+            output_tokens = 100
+        agent_core._track_tokens_anthropic(Usage())
+        assert agent_core.last_input_tokens == 500
+        assert agent_core.last_output_tokens == 100
+        assert agent_core.total_input_tokens == 500
+        assert agent_core.total_output_tokens == 100
+        assert agent_core.total_tokens == 600
+
+    def test_track_tokens_openai_completion(self, agent_core):
+        class Usage:
+            prompt_tokens = 800
+            completion_tokens = 200
+        agent_core._track_tokens_openai_completion(Usage())
+        assert agent_core.last_input_tokens == 800
+        assert agent_core.last_output_tokens == 200
+        assert agent_core.total_input_tokens == 800
+        assert agent_core.total_output_tokens == 200
+
+    def test_track_tokens_openai_response(self, agent_core):
+        class Usage:
+            input_tokens = 300
+            output_tokens = 50
+        agent_core._track_tokens_openai_response(Usage())
+        assert agent_core.last_input_tokens == 300
+        assert agent_core.last_output_tokens == 50
+        assert agent_core.total_input_tokens == 300
+        assert agent_core.total_output_tokens == 50
+
+    def test_track_tokens_cumulative(self, agent_core):
+        class Usage1:
+            prompt_tokens = 100
+            completion_tokens = 20
+        class Usage2:
+            prompt_tokens = 200
+            completion_tokens = 30
+        agent_core._track_tokens_openai_completion(Usage1())
+        agent_core._track_tokens_openai_completion(Usage2())
+        assert agent_core.last_input_tokens == 200
+        assert agent_core.last_output_tokens == 30
+        assert agent_core.total_input_tokens == 300
+        assert agent_core.total_output_tokens == 50
+        assert agent_core.total_tokens == 350
+
+    def test_track_tokens_pushes_event(self, agent_core):
+        class Usage:
+            prompt_tokens = 100
+            completion_tokens = 20
+        q = agent_core.subscribe_events()
+        agent_core._track_tokens_openai_completion(Usage())
+        event = q.get_nowait()
+        assert event["type"] == "tokens"
+        assert event["input"] == 100
+        assert event["output"] == 20
+        assert event["total_in"] == 100
+        assert event["total_out"] == 20
+        agent_core.unsubscribe_events(q)
+
+    def test_track_tokens_anthropic_pushes_event(self, agent_core):
+        class Usage:
+            input_tokens = 50
+            output_tokens = 10
+        q = agent_core.subscribe_events()
+        agent_core._track_tokens_anthropic(Usage())
+        event = q.get_nowait()
+        assert event["type"] == "tokens"
+        assert event["input"] == 50
+        assert event["output"] == 10
+        agent_core.unsubscribe_events(q)
+
+    def test_track_tokens_response_pushes_event(self, agent_core):
+        class Usage:
+            input_tokens = 70
+            output_tokens = 15
+        q = agent_core.subscribe_events()
+        agent_core._track_tokens_openai_response(Usage())
+        event = q.get_nowait()
+        assert event["type"] == "tokens"
+        assert event["input"] == 70
+        assert event["output"] == 15
+        agent_core.unsubscribe_events(q)
