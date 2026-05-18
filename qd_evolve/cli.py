@@ -655,6 +655,7 @@ async def _async_chat_loop(
         if etype == "heartbeat":
             hb_counts[agent_name] = 0
             color = _agent_color(agent_name)
+            console.print()
             console.print(f"[bold {color}]{agent_name}>[/bold {color}] {event.get('content', '')}")
         elif etype == "heartbeat_silent":
             hb_counts[agent_name] += 1
