@@ -1,4 +1,4 @@
-"""Tests for qd_evolve.agent.loader — get_agent_entry, create_agent_core."""
+"""Tests for qd_evolve.agent.loader — get_agent_entry, create_agent."""
 
 import pytest
 
@@ -38,13 +38,11 @@ class TestGetAgentEntry:
         assert entry.description == "Helper"
 
 
-class TestCreateAgentCore:
+class TestCreateAgent:
     def test_raises_for_unknown_agent(self, minimal_settings):
-        from unittest.mock import patch
-        with patch("qd_evolve.agent.loader.load_settings", return_value=minimal_settings):
-            from qd_evolve.agent.loader import create_agent_core
-            with pytest.raises(ValueError, match="Agent 'nonexistent' not found"):
-                create_agent_core("nonexistent", settings=minimal_settings)
+        from qd_evolve.agent.loader import create_agent
+        with pytest.raises(ValueError, match="Agent 'nonexistent' not found"):
+            create_agent("nonexistent", settings=minimal_settings)
 
     def test_a2a_disabled_single_agent(self, minimal_settings):
         minimal_settings.agents_config = AgentsConfig(

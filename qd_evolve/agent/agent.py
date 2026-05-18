@@ -2,17 +2,15 @@
 
 import asyncio
 import json
-import platform
 from datetime import datetime
-from pathlib import Path
-from typing import Any, Callable, Self
+from typing import Any, Callable
 
-from qd_evolve.core.config import SKILLS_DIR, CLI_TOOLS_DIR, AgentEntry, Settings
+from qd_evolve.core.config import AgentEntry, Settings
 from qd_evolve.core.logger import logger
 from qd_evolve.core.memory import MemoryStore, RecalledMemoryRegistry
 from qd_evolve.core.providers import ProviderRegistry
 from qd_evolve.core.prompts import PromptTemplateManager
-from qd_evolve.core.registry import ToolRegistry, get_registry
+from qd_evolve.core.registry import ToolRegistry
 
 
 class Agent:
@@ -48,140 +46,6 @@ class Agent:
         self._preload_skills: set[str] = preload_skills or set()
         self._preload_cli: set[str] = preload_cli or set()
         self._hb_task: asyncio.Task | None = None
-
-    @classmethod
-    def from_settings(cls, name: str, settings: Settings) -> Self:
-        """Construct a fully initialized Agent from name + settings.
-
-        Resolves entry, registries, and providers internally.
-        Handles: memory creation, system prompt rendering, preload execution,
-        provider/model resolution, A2A tool toggling.
-        """
-        import json as _json
-
-        from qd_evolve.core.providers import ProviderRegistry
-
-        init_process(settings)
-
-        # Resolve entry
-        entry = next((a for a in settings.agents_config.agents if a.name == name), None)
-        if entry is None:
-            raise ValueError(f"Agent '{name}' not found in config.json agents list")
-
-        # Resolve process-level singletons
-        registry = get_registry()
-        providers = ProviderRegistry(settings)
-        skill_registry = get_skill_registry()
-        cli_registry = get_cli_registry()
-
-        # ── Toolbox state (per-agent) ─────────────────────────────
-        from qd_evolve.core.toolbox import (
-            apply_to_tools, apply_to_cli_registry, apply_to_skill_registry,
-            get_preloaded,
-        )
-
-        loaded_tool_names: set[str] = get_preloaded("tools", agent_name=name)
-        loaded_skill_names: set[str] = get_preloaded("skills", agent_name=name)
-        loaded_cli_names: set[str] = get_preloaded("cli", agent_name=name)
-
-        apply_to_tools(registry, loaded_tool_names, agent_name=name)
-        apply_to_cli_registry(cli_registry, loaded_cli_names, agent_name=name)
-        apply_to_skill_registry(skill_registry, loaded_skill_names, agent_name=name)
-
-        from qd_evolve.tools.tool_loader import set_preload_tools
-        set_preload_tools(loaded_tool_names)
-
-        # ── Build preload content for system prompt ───────────────
-        skill_registry._preload_skills |= loaded_skill_names
-        for s in skill_registry.get_all_skills():
-            if s.name in loaded_skill_names:
-                s.active = True
-
-        active_skills_parts = []
-        for s in skill_registry.get_all_skills():
-            if s.active and s.content:
-                active_skills_parts.append(s.content)
-                loaded_skill_names.add(s.name)
-        active_skills_content = "\n".join(active_skills_parts)
-
-        active_cli_parts = []
-        for t in cli_registry.list_tools():
-            if t.name in loaded_cli_names:
-                detail = cli_registry.get_detail(t.name)
-                if detail:
-                    active_cli_parts.append(_json.dumps(detail, ensure_ascii=False))
-                    loaded_cli_names.add(t.name)
-        active_cli_content = "\n".join(active_cli_parts)
-
-        unloaded_skills = skill_registry.format_for_prompt(loaded=loaded_skill_names)
-        unloaded_cli = cli_registry.format_for_prompt(loaded=loaded_cli_names)
-        unloaded_tools = registry.format_tools_summary(loaded=loaded_tool_names)
-
-        total_tools = len(registry.list_tools())
-        logger.debug(
-            "Agent [%s]: prompt %d tools (%d preload), %d unloaded skills, %d unloaded cli",
-            name, total_tools, len(loaded_tool_names),
-            sum(1 for l in (unloaded_skills or "").splitlines() if l.startswith("- ")),
-            sum(1 for l in (unloaded_cli or "").splitlines() if l.startswith("- ")),
-        )
-
-        # ── System prompt via template ────────────────────────────
-        template_mgr = PromptTemplateManager()
-        template_name = entry.system_prompt_template or "default"
-        # Subclasses can override _template_prefix (e.g. A2AAgent → "a2a-")
-        prefix = cls._template_prefix()
-        if prefix:
-            prefixed = f"{prefix}{template_name}"
-            if template_mgr.find_template(prefixed):
-                template_name = prefixed
-
-        a2a_enabled = cls._a2a_enabled(settings)
-        system_prompt = template_mgr.render(
-            template_name,
-            unpreloaded_skills=unloaded_skills,
-            unpreloaded_cli=unloaded_cli,
-            unloaded_tools=unloaded_tools,
-            preloaded_skills=active_skills_content,
-            preloaded_cli=active_cli_content,
-            os_name=platform.system(),
-            python_cmd="python",
-            cwd=str(Path.cwd()),
-            skills_dir=SKILLS_DIR,
-            agent_name=name,
-            available_agents=", ".join(a.name for a in settings.agents_config.agents),
-            agent_relations=", ".join(
-                f"{r['from']}→{r['to']} ({r.get('mode', 'peer')})"
-                for r in settings.agents_config.topology.relations
-            ) if settings.agents_config.topology.relations else "",
-        )
-        logger.debug("Agent [%s]: system prompt assembled (%d chars)\n%s", name, len(system_prompt), system_prompt)
-
-        # ── Memory ────────────────────────────────────────────────
-        memory = cls._create_memory(entry, settings, registry)
-
-        # ── Create instance ───────────────────────────────────────
-        agent = cls(
-            settings=settings,
-            registry=registry,
-            providers=providers,
-            memory=memory,
-            default_system_prompt=system_prompt,
-            preload_tools=loaded_tool_names,
-            preload_skills=loaded_skill_names,
-            preload_cli=loaded_cli_names,
-            template_mgr=template_mgr,
-        )
-
-        # ── Provider/model ────────────────────────────────────────
-        agent._provider_name = entry.effective_provider(settings)
-        agent._model = entry.effective_model(settings)
-
-        return agent
-
-    @staticmethod
-    def _template_prefix() -> str:
-        """Override in subclass to prefix template name (e.g. A2AAgent returns 'a2a-')."""
-        return ""
 
     @staticmethod
     def _create_memory(entry: AgentEntry, settings: Settings, registry: ToolRegistry) -> MemoryStore | None:

@@ -59,7 +59,7 @@ class TestPromptTemplateManager:
 
     def test_render_with_a2a_enabled(self):
         mgr = PromptTemplateManager()
-        result = mgr.render("default", agent_name="bot", os_name="Linux", python_cmd="python",
+        result = mgr.render("a2a-default", agent_name="bot", os_name="Linux", python_cmd="python",
                             cwd="/tmp", skills_dir="skills", a2a_enabled=True,
                             available_agents="bot, helper")
         assert "Inter-Agent Communication" in result
@@ -68,7 +68,7 @@ class TestPromptTemplateManager:
     def test_render_with_a2a_disabled(self):
         mgr = PromptTemplateManager()
         result = mgr.render("default", agent_name="bot", os_name="Linux", python_cmd="python",
-                            cwd="/tmp", skills_dir="skills", a2a_enabled=False)
+                            cwd="/tmp", skills_dir="skills")
         assert "Inter-Agent Communication" not in result
 
     def test_render_with_unloaded_tools(self):

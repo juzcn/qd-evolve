@@ -1,4 +1,4 @@
-"""Tests for qd_evolve.agent.agent — AgentCore logic (compress, inject, activate, events)."""
+"""Tests for qd_evolve.agent.agent — Agent logic (compress, inject, activate, events)."""
 
 import asyncio
 
@@ -15,18 +15,7 @@ from qd_evolve.core.config import Settings
 def a2a_agent(agent_core):
     """A2AAgent wrapping agent_core — for event subscriber tests."""
     card = AgentCard(name="test", description="Test agent", capabilities=AgentCapabilities(streaming=True))
-    return A2AAgent(
-        card=card,
-        task_store=TaskStore(),
-        settings=agent_core.settings,
-        registry=agent_core.registry,
-        providers=agent_core.providers,
-        default_system_prompt=agent_core.default_system_prompt,
-        preload_tools=agent_core._always_active,
-        preload_skills=agent_core._preload_skills,
-        preload_cli=agent_core._preload_cli,
-        template_mgr=agent_core._template_mgr,
-    )
+    return A2AAgent(agent_core, card, TaskStore())
 
 
 class TestAgentInit:

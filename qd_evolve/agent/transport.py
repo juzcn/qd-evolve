@@ -177,7 +177,7 @@ class InprocTransport:
                 return AgentCard(name=target, description=f"Agent '{target}' not found")
         from qd_evolve.agent.a2a import AgentCapabilities, AgentExtension
         from qd_evolve.agent.server import A2AServer
-        server = A2AServer(agent_node, agent_node.card, agent_node.task_store)
+        server = A2AServer(agent_node)
         return server._get_extended_agent_card()
 
     async def resubscribe(self, target: str, task_id: str = "") -> AsyncIterator[StreamResponse]:
@@ -212,12 +212,11 @@ class InprocTransport:
             agent_node.unsubscribe_events(queue)
 
     def _lazy_load(self, target: str, registry: Any) -> Any | None:
-        """Try to create and register an AgentCore from config on demand."""
+        """Try to create and register an Agent from config on demand."""
         try:
-            from qd_evolve.agent.agent import A2AAgent
+            from qd_evolve.agent.loader import create_agent
             from qd_evolve.core.config import load_settings
-            agent_core = A2AAgent.from_settings(target, load_settings())
-            agent_core = create_agent_core(target)
+            agent_core = create_agent(target, load_settings())
             registry.register(agent_core)
             logger.info("InprocTransport: lazy-loaded agent '%s'", target)
             return agent_core
@@ -419,8 +418,8 @@ class TransportRouter:
     def _pick(self, target: str) -> InprocTransport | HttpTransport:
         if self._inproc is None:
             return self._http
-        transport = self._get_registry().get_transport(target)
-        if transport == "inproc":
+        # If the agent is registered locally (in-process), use inproc; otherwise http
+        if self._get_registry().get(target) is not None:
             return self._inproc
         return self._http
 
@@ -448,6 +447,9 @@ class TransportRouter:
         transport = self._pick(target)
         async for sr in transport.resubscribe(target, task_id):
             yield sr
+
+    async def is_online(self, target: str) -> bool:
+        return await self._http.is_online(target)
 
 
 def _new_id() -> str:

@@ -146,9 +146,10 @@ class TestAgentEntry:
         ae = AgentEntry(name="test", memory_db=None)
         assert ae.memory_db is None
 
-    def test_transport_http(self):
-        ae = AgentEntry(name="remote", transport="http")
-        assert ae.transport == "http"
+    def test_server_config_defaults(self):
+        ae = AgentEntry(name="remote")
+        assert ae.server.host == "127.0.0.1"
+        assert ae.server.port == 8001
 
 
 class TestSettings:

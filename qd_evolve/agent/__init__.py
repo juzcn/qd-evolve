@@ -1,4 +1,10 @@
-"""Agent package — Agent, A2AAgent, init_process."""
-
-from qd_evolve.agent.agent import Agent, init_process  # noqa: F401
+from qd_evolve.agent.agent import Agent  # noqa: F401
 from qd_evolve.agent.a2a_agent import A2AAgent  # noqa: F401
+from qd_evolve.agent.loader import (  # noqa: F401
+    create_agent,
+    get_agent_entry,
+    get_bridges,
+    get_cli_registry,
+    get_skill_registry,
+    init_process,
+)

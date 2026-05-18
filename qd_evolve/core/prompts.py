@@ -54,6 +54,14 @@ class PromptTemplateManager:
         logger.debug("Prompt: rendered template '%s' (%s chars)", name, len(result))
         return result
 
+    def has_template(self, name: str) -> bool:
+        """Check whether a named template exists without rendering it."""
+        try:
+            self._env.get_template(f"{name}.j2")
+            return True
+        except TemplateNotFound:
+            return False
+
     @staticmethod
     def _default_context() -> dict[str, Any]:
         return {"date": date.today().isoformat()}

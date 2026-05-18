@@ -54,10 +54,15 @@ class A2AServer:
       - GET  /.well-known/agent.json → AgentCard discovery
     """
 
-    def __init__(self, agent_core: Any, card: AgentCard, task_store: TaskStore | None = None) -> None:
-        self.agent_core = agent_core
-        self.card = card
-        self.task_store = task_store or TaskStore()
+    def __init__(self, a2a_agent: Any) -> None:
+        """Accept an A2AAgent instance (composition wrapper around Agent).
+
+        The A2AAgent provides: .run(), .subscribe_events(), .unsubscribe_events(),
+        .card, .task_store, and all delegated Agent attributes.
+        """
+        self.agent_core = a2a_agent
+        self.card = a2a_agent.card
+        self.task_store = a2a_agent.task_store
 
     async def start(self, host: str = DEFAULT_SERVER_HOST, port: int = DEFAULT_SERVER_PORT) -> None:
         app = web.Application()

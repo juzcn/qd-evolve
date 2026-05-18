@@ -1,4 +1,8 @@
-"""A2A Agent — extends Agent with A2A protocol identity and event subscriber fan-out."""
+"""A2A Agent — wraps Agent with A2A identity and event subscriber fan-out.
+
+Composition, not inheritance. Agent stays pure (LLM loop + callbacks + heartbeat).
+A2AAgent adds: card, task_store, _event_subscribers, subscribe_events/unsubscribe_events.
+"""
 
 from __future__ import annotations
 
@@ -11,28 +15,204 @@ from qd_evolve.agent.server import TaskStore
 from qd_evolve.core.logger import logger
 
 
-class A2AAgent(Agent):
-    """Agent with A2A identity (AgentCard, TaskStore) and event subscriber fan-out.
+class A2AAgent:
+    """Wraps an Agent with A2A identity (AgentCard, TaskStore) and event fan-out.
 
-    Extends Agent by:
-    - Adding card (AgentCard) and task_store (TaskStore) for A2A identity
-    - Adding _event_subscribers for multi-subscriber event fan-out
-    - Overriding _update_status / _print to also push events to subscribers
-    - Adding subscribe_events / unsubscribe_events for A2A observability
+    Delegates all Agent methods/attributes through .agent.
+    Hooks agent._on_event to _push_event for multi-subscriber fan-out.
     """
 
-    def __init__(self, card: AgentCard, task_store: TaskStore | None = None, **kwargs: Any) -> None:
-        super().__init__(**kwargs)
+    def __init__(self, agent: Agent, card: AgentCard, task_store: TaskStore | None = None) -> None:
+        self.agent = agent
         self.card = card
         self.task_store = task_store or TaskStore()
         self._event_subscribers: list[asyncio.Queue] = []
 
-        # Hook our _push_event into the base Agent's event callback
-        self._on_event = self._push_event
+        # Hook our _push_event into the agent's event callback
+        agent._on_event = self._push_event
 
-    @staticmethod
-    def _template_prefix() -> str:
-        return "a2a-"
+    # ── Delegate key Agent methods ──────────────────────────────────
+
+    def run(self, *args: Any, **kwargs: Any) -> str:
+        return self.agent.run(*args, **kwargs)
+
+    def heartbeat_check(self, idle_seconds: int) -> str:
+        return self.agent.heartbeat_check(idle_seconds)
+
+    def start_heartbeat_loop(self) -> None:
+        self.agent.start_heartbeat_loop()
+
+    def stop_heartbeat_loop(self) -> None:
+        self.agent.stop_heartbeat_loop()
+
+    def reset(self) -> None:
+        self.agent.reset()
+
+    def set_status_callback(self, cb: Any) -> None:
+        self.agent.set_status_callback(cb)
+
+    def set_print_callback(self, cb: Any) -> None:
+        self.agent.set_print_callback(cb)
+
+    def set_event_callback(self, cb: Any) -> None:
+        self.agent.set_event_callback(cb)
+
+    def _update_status(self, text: str) -> None:
+        self.agent._update_status(text)
+
+    def _print(self, text: str) -> None:
+        self.agent._print(text)
+
+    def _track_tokens_anthropic(self, usage: Any) -> None:
+        self.agent._track_tokens_anthropic(usage)
+
+    def _track_tokens_openai_completion(self, usage: Any) -> None:
+        self.agent._track_tokens_openai_completion(usage)
+
+    def _track_tokens_openai_response(self, usage: Any) -> None:
+        self.agent._track_tokens_openai_response(usage)
+
+    # ── Delegate key Agent attributes ────────────────────────────────
+
+    @property
+    def settings(self) -> Any:
+        return self.agent.settings
+
+    @property
+    def registry(self) -> Any:
+        return self.agent.registry
+
+    @property
+    def providers(self) -> Any:
+        return self.agent.providers
+
+    @property
+    def memory(self) -> Any:
+        return self.agent.memory
+
+    @property
+    def messages(self) -> list[dict[str, Any]]:
+        return self.agent.messages
+
+    @messages.setter
+    def messages(self, value: list[dict[str, Any]]) -> None:
+        self.agent.messages = value
+
+    @property
+    def _provider_name(self) -> str | None:
+        return self.agent._provider_name
+
+    @_provider_name.setter
+    def _provider_name(self, value: str | None) -> None:
+        self.agent._provider_name = value
+
+    @property
+    def _model(self) -> str | None:
+        return self.agent._model
+
+    @_model.setter
+    def _model(self, value: str | None) -> None:
+        self.agent._model = value
+
+    @property
+    def _always_active(self) -> set[str]:
+        return self.agent._always_active
+
+    @property
+    def _active_tools(self) -> set[str]:
+        return self.agent._active_tools
+
+    @property
+    def _preload_skills(self) -> set[str]:
+        return self.agent._preload_skills
+
+    @property
+    def _preload_cli(self) -> set[str]:
+        return self.agent._preload_cli
+
+    @property
+    def _loaded_skill_names(self) -> set[str]:
+        return self.agent._loaded_skill_names
+
+    @property
+    def _loaded_cli_names(self) -> set[str]:
+        return self.agent._loaded_cli_names
+
+    @property
+    def last_input_tokens(self) -> int:
+        return self.agent.last_input_tokens
+
+    @property
+    def last_output_tokens(self) -> int:
+        return self.agent.last_output_tokens
+
+    @property
+    def total_input_tokens(self) -> int:
+        return self.agent.total_input_tokens
+
+    @property
+    def total_output_tokens(self) -> int:
+        return self.agent.total_output_tokens
+
+    @property
+    def total_tokens(self) -> int:
+        return self.agent.total_tokens
+
+    @property
+    def iteration(self) -> int:
+        return self.agent.iteration
+
+    @iteration.setter
+    def iteration(self, value: int) -> None:
+        self.agent.iteration = value
+
+    @property
+    def default_system_prompt(self) -> str:
+        return self.agent.default_system_prompt
+
+    @default_system_prompt.setter
+    def default_system_prompt(self, value: str) -> None:
+        self.agent.default_system_prompt = value
+
+    @property
+    def _template_mgr(self) -> Any:
+        return self.agent._template_mgr
+
+    @property
+    def _hb_task(self) -> asyncio.Task | None:
+        return self.agent._hb_task
+
+    @_hb_task.setter
+    def _hb_task(self, value: asyncio.Task | None) -> None:
+        self.agent._hb_task = value
+
+    @property
+    def _on_status(self) -> Any:
+        return self.agent._on_status
+
+    @_on_status.setter
+    def _on_status(self, value: Any) -> None:
+        self.agent._on_status = value
+
+    @property
+    def _on_print(self) -> Any:
+        return self.agent._on_print
+
+    @_on_print.setter
+    def _on_print(self, value: Any) -> None:
+        self.agent._on_print = value
+
+    @property
+    def _on_event(self) -> Any:
+        return self.agent._on_event
+
+    @_on_event.setter
+    def _on_event(self, value: Any) -> None:
+        self.agent._on_event = value
+
+    @property
+    def _recalled(self) -> Any:
+        return self.agent._recalled
 
     # ── Event subscriber mechanism (A2A observability) ──────────────
 

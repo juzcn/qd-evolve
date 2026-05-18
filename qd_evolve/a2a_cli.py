@@ -25,7 +25,7 @@ from qd_evolve.core.config import CONFIG_PATH, Settings, load_settings, save_jso
 
 from qd_evolve import __version__
 
-a2a_app = typer.Typer(help="A2A — remote agent HTTP client/server")
+a2a_app = typer.Typer(help="A2A — remote agent HTTP client/server", invoke_without_command=True)
 console = Console()
 
 
@@ -144,8 +144,7 @@ async def _handle_slash_command(
     router: Any,
     agent_entry: Any = None,
 ) -> str | None:
-    from qd_evolve.agent.a2a_agent import A2AAgent
-from qd_evolve.agent.agent import init_process, get_skill_registry, get_cli_registry
+    from qd_evolve.agent import A2AAgent, init_process, get_skill_registry, get_cli_registry
     from qd_evolve.core.registry import get_registry
     skill_registry = get_skill_registry()
     cli_registry = get_cli_registry()
@@ -272,8 +271,7 @@ async def _async_chat_loop(
     CLI never creates agents. All communication goes through router:
     send_stream for chat, resubscribe for heartbeat events, is_online for probes.
     """
-    from qd_evolve.agent.a2a_agent import A2AAgent
-from qd_evolve.agent.agent import init_process, get_skill_registry, get_cli_registry, get_bridges
+    from qd_evolve.agent import A2AAgent, init_process, get_skill_registry, get_cli_registry, get_bridges
     from qd_evolve.core.providers import ProviderRegistry
     from qd_evolve.agent.a2a import Message, Part, TaskState
     from tools.bridge import BridgeManager
@@ -547,7 +545,7 @@ def serve(
     """Start an agent as a standalone A2A HTTP server (for cross-process communication)."""
     from qd_evolve.core.logger import setup_logging
     from qd_evolve.core.config import LOG_DIR as LOG_DIR_PATH, load_settings
-    from qd_evolve.agent.loader import init_process, create_agent_core
+    from qd_evolve.agent import create_agent, init_process
     from qd_evolve.agent.server import A2AServer
 
     # 1. Config & logging
@@ -568,7 +566,7 @@ def serve(
     init_process(settings)
 
     # 3. Create AgentCore via loader (full init: toolbox, system prompt, memory, etc.)
-    agent_core = create_agent_core(agent, settings=settings)
+    agent_core = create_agent(agent, settings=settings)
 
     # 4. A2A setup — register in AgentRegistry + set transport
     from qd_evolve.agent.registry import AgentRegistry, Topology, set_agent_registry
@@ -584,7 +582,7 @@ def serve(
     set_transport(router)
 
     # 5. Start A2A server — bind 0.0.0.0 to accept all interfaces, display connect address
-    server = A2AServer(agent_core, agent_core.card, agent_core.task_store)
+    server = A2AServer(agent_core)
     entry = next((a for a in settings.agents_config.agents if a.name == agent), None)
     from qd_evolve.core.config import DEFAULT_BIND_HOST, DEFAULT_SERVER_HOST, DEFAULT_SERVER_PORT
     bind_host = DEFAULT_BIND_HOST
@@ -611,14 +609,17 @@ def serve(
         console.print("\n[dim]Server stopped.[/dim]")
 
 
-# ── a2a chat ──────────────────────────────────────────────────────────────
+# ── a2a chat (default command) ────────────────────────────────────────────
 
-@a2a_app.command()
+@a2a_app.callback()
 def chat(
+    ctx: typer.Context,
     replay: Path | None = typer.Option(None, "--replay", help="Replay inputs from file"),
     output: Path | None = typer.Option(None, "--output", help="Capture output to file"),
 ) -> None:
     """Connect to remote A2A agent servers as a pure HTTP client."""
+    if ctx.invoked_subcommand is not None:
+        return
     from qd_evolve.core.logger import setup_logging
     from qd_evolve.core.config import LOG_DIR as LOG_DIR_PATH
     from qd_evolve.agent.loader import init_process
