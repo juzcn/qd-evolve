@@ -19,8 +19,9 @@ BRIDGE_DIR = "tools/bridge"
 STAGING_DIR = ".qd_evolve/staging"
 DEFAULT_MEMORY_DB = "memory.db"
 LOG_DIR = "logs"
-DEFAULT_SERVER_HOST = "0.0.0.0"
+DEFAULT_SERVER_HOST = "127.0.0.1"
 DEFAULT_SERVER_PORT = 8001
+DEFAULT_BIND_HOST = "0.0.0.0"
 
 
 class ModelCost(BaseModel):

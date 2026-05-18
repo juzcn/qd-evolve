@@ -304,6 +304,7 @@ def _resolve_name(name: str) -> str:
 def _make_prompt_session() -> "PromptSession":
     from prompt_toolkit import PromptSession
     from prompt_toolkit.completion import WordCompleter
+    from prompt_toolkit.formatted_text import FormattedText
 
     completer = WordCompleter(
         list(SLASH_COMMANDS.keys()),
@@ -312,19 +313,22 @@ def _make_prompt_session() -> "PromptSession":
         meta_dict=SLASH_COMMANDS,
     )
 
+    # Cyan "You>" prompt
+    prompt_msg = FormattedText([("fg:#74c0fc bold", "You> "), ("", "")])
+
     # On Windows with TERM=xterm-256color (VS Code/Git Bash), prompt_toolkit
     # tries Win32Output which fails. Fall back to Vt100_Output + Vt100Input.
     import sys
     import os
     try:
-        return PromptSession("You> ", completer=completer)
+        return PromptSession(prompt_msg, completer=completer)
     except Exception:
         if os.name == "nt" and os.environ.get("TERM"):
             from prompt_toolkit.output.vt100 import Vt100_Output
             from prompt_toolkit.input.vt100 import Vt100Input
             output = Vt100_Output.from_pty(sys.stdout)
             input_stream = Vt100Input(sys.stdin)
-            return PromptSession("You> ", completer=completer, output=output, input=input_stream)
+            return PromptSession(prompt_msg, completer=completer, output=output, input=input_stream)
         raise
 
 
@@ -338,7 +342,6 @@ async def _read_input_async(session: "PromptSession | ReplayInput", hb_counts: d
         result = await asyncio.to_thread(session.prompt)
         return result.strip()
     if hb_counts is not None:
-        _agent_colors = ["#ff6b6b", "#51cf66", "#74c0fc", "#ffd43b", "#da77f2", "#63e6be"]
         def _bottom_toolbar() -> "FormattedText":
             from prompt_toolkit.formatted_text import FormattedText
             fragments: list[tuple[str, str]] = []
@@ -606,16 +609,16 @@ async def _async_chat_loop(
         name = _current_agent_name()
         return next((a for a in settings.agents_config.agents if a.name == name), None)
 
-    # Start A2A HTTP servers for all inproc agents
+    # Start A2A HTTP servers for all inproc agents — bind 0.0.0.0
+    from qd_evolve.core.config import DEFAULT_BIND_HOST
     if a2a_server and agent_config_server:
-        host = agent_config_server.host
         port = agent_config_server.port
         try:
-            await a2a_server.start(host=host, port=port)
-            console.print(f"[dim]A2A server running on {host}:{port}[/dim]")
+            await a2a_server.start(host=DEFAULT_BIND_HOST, port=port)
+            console.print(f"[dim]A2A server running on {DEFAULT_BIND_HOST}:{port}[/dim]")
         except OSError as e:
-            logger.warning("A2A: failed to start server on %s:%s: %s (may already be running)", host, port, e)
-            console.print(f"[dim]A2A server on {host}:{port} skipped (port in use)[/dim]")
+            logger.warning("A2A: failed to start server on %s:%s: %s (may already be running)", DEFAULT_BIND_HOST, port, e)
+            console.print(f"[dim]A2A server on {DEFAULT_BIND_HOST}:{port} skipped (port in use)[/dim]")
 
     # Start A2A servers and heartbeat loops for non-chat inproc agents
     if inproc_agents:
@@ -627,11 +630,11 @@ async def _async_chat_loop(
             if entry:
                 server = A2AServer(core, core.card, core.task_store)
                 try:
-                    await server.start(host=entry.server.host, port=entry.server.port)
-                    console.print(f"[dim]A2A server for '{name}' running on {entry.server.host}:{entry.server.port}[/dim]")
+                    await server.start(host=DEFAULT_BIND_HOST, port=entry.server.port)
+                    console.print(f"[dim]A2A server for '{name}' running on {DEFAULT_BIND_HOST}:{entry.server.port}[/dim]")
                 except OSError as e:
-                    logger.warning("A2A: failed to start server for '%s' on %s:%s: %s", name, entry.server.host, entry.server.port, e)
-                    console.print(f"[dim]A2A server for '{name}' on {entry.server.host}:{entry.server.port} skipped[/dim]")
+                    logger.warning("A2A: failed to start server for '%s' on %s:%s: %s", name, DEFAULT_BIND_HOST, entry.server.port, e)
+                    console.print(f"[dim]A2A server for '{name}' on {DEFAULT_BIND_HOST}:{entry.server.port} skipped[/dim]")
             # Start heartbeat loop for inproc non-chat agents
             if name != _current_agent_name():
                 core.start_heartbeat_loop()
@@ -639,13 +642,19 @@ async def _async_chat_loop(
     hb_idle = settings.heartbeat_idle_seconds
     all_agent_names = [a.name for a in settings.agents_config.agents]
     hb_counts: dict[str, int] = {name: 0 for name in all_agent_names}
+    _agent_colors = ["#ff6b6b", "#51cf66", "#74c0fc", "#ffd43b", "#da77f2", "#63e6be"]
+
+    def _agent_color(name: str) -> str:
+        idx = all_agent_names.index(name) if name in all_agent_names else 0
+        return _agent_colors[idx % len(_agent_colors)]
 
     def _handle_event(agent_name: str, event: dict) -> None:
         """Process an event from any agent — update hb_counts, display heartbeat."""
         etype = event.get("type", "")
         if etype == "heartbeat":
             hb_counts[agent_name] = 0
-            console.print(f"[bold]{agent_name}:[/bold] {event.get('content', '')}")
+            color = _agent_color(agent_name)
+            console.print(f"[bold {color}]{agent_name}>[/bold {color}] {event.get('content', '')}")
         elif etype == "heartbeat_silent":
             hb_counts[agent_name] += 1
 
@@ -702,7 +711,7 @@ async def _async_chat_loop(
                 except asyncio.CancelledError:
                     return
                 except Exception:
-                    logger.debug("Event worker for '%s': retrying in %ds", name, retry_delay)
+                    logger.warning("Event worker for '%s': offline, retrying in %ds", name, retry_delay)
                     await asyncio.sleep(retry_delay)
                     retry_delay = min(retry_delay * 2, 60)
 
@@ -745,7 +754,8 @@ async def _async_chat_loop(
 
                 if input_task.done():
                     exc = input_task.exception()
-                    if exc is not None and not isinstance(exc, CancelledError):
+                    if exc is not None and not isinstance(exc, (CancelledError, EOFError)):
+                        logger.warning("Input task failed: %s", exc)
                         console.print("\n[dim]Goodbye![/dim]")
                         return
 
@@ -810,7 +820,8 @@ async def _async_chat_loop(
                 except Exception as e:
                     response = f"[red]Error:[/red] {e}"
 
-            console.print(f"[bold]{_current_agent_name()}:[/bold] {response}")
+            console.print()
+            console.print(f"[bold {_agent_color(_current_agent_name())}]{_current_agent_name()}>[/bold {_agent_color(_current_agent_name())}] {response}")
 
             # Token stats — read directly from current agent core
             try:
@@ -846,6 +857,34 @@ async def _async_chat_loop(
 
     # --- HTTP mode: SSE event stream ---
     else:
+        # Probe HTTP agents for online status
+        async def _probe_http_agent(entry: Any) -> bool:
+            try:
+                import aiohttp
+                url = f"http://{entry.server.host}:{entry.server.port}/.well-known/agent.json"
+                async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=3)) as session:
+                    async with session.get(url) as resp:
+                        return resp.status == 200
+            except Exception:
+                return False
+
+        http_agents = [a for a in settings.agents_config.agents if a.transport == "http"]
+        online_status: dict[str, bool] = {}
+        if http_agents:
+            probe_results = await asyncio.gather(*[_probe_http_agent(a) for a in http_agents])
+            for a, ok in zip(http_agents, probe_results):
+                online_status[a.name] = ok
+                if not ok:
+                    logger.warning("Agent '%s' (HTTP :%s) is offline", a.name, a.server.port)
+            # Show online/offline status per agent
+            for a in http_agents:
+                status = "online" if online_status[a.name] else "offline"
+                console.print(f"  [dim]Agent '{a.name}' HTTP :{a.server.port} — {status}[/dim]")
+            # Warn if chat agent is offline
+            chat_name = _current_agent_name()
+            if not online_status.get(chat_name, False):
+                console.print(f"[bold yellow]Warning:[/bold yellow] Agent '{chat_name}' is offline. Use [bold]/agents[/bold] to switch to an online agent.")
+
         event_queue: asyncio.Queue[tuple[str, dict]] = asyncio.Queue()
         event_workers: list[asyncio.Task] = []
 
@@ -874,7 +913,7 @@ async def _async_chat_loop(
                 except asyncio.CancelledError:
                     return
                 except Exception:
-                    logger.debug("Event worker for '%s': retrying in %ds", name, retry_delay)
+                    logger.warning("Event worker for '%s': offline, retrying in %ds", name, retry_delay)
                     await asyncio.sleep(retry_delay)
                     retry_delay = min(retry_delay * 2, 60)
 
@@ -916,7 +955,8 @@ async def _async_chat_loop(
 
                 if input_task.done():
                     exc = input_task.exception()
-                    if exc is not None and not isinstance(exc, CancelledError):
+                    if exc is not None and not isinstance(exc, (CancelledError, EOFError)):
+                        logger.warning("Input task failed: %s", exc)
                         console.print("\n[dim]Goodbye![/dim]")
                         return
 
@@ -965,7 +1005,8 @@ async def _async_chat_loop(
                 continue
 
             # Chat via transport with SSE iteration display
-            from qd_evolve.agent.a2a import Message, Part
+            from qd_evolve.agent.a2a import Message, Part, TaskState
+            import aiohttp
             iteration_lines: list[str] = []
             output_lines: list[str] = []
             last_tokens_event: dict | None = None
@@ -1007,11 +1048,18 @@ async def _async_chat_loop(
                                 response = part.text
                                 break
                     if not response and task.status and task.status.state:
-                        response = f"[Task state: {task.status.state}]"
+                        if task.status.state == TaskState.failed:
+                            response = "[bold red]Agent offline[/bold red] — use /agents to switch to an online agent"
+                        else:
+                            response = f"[Task state: {task.status.state}]"
                 except Exception as e:
-                    response = f"[red]Error:[/red] {e}"
+                    if isinstance(e, (aiohttp.ClientError, OSError)):
+                        response = "[bold red]Agent offline[/bold red] — use /agents to switch to an online agent"
+                    else:
+                        response = f"[red]Error:[/red] {e}"
 
-            console.print(f"[bold]{_current_agent_name()}:[/bold] {response}")
+            console.print()
+            console.print(f"[bold {_agent_color(_current_agent_name())}]{_current_agent_name()}>[/bold {_agent_color(_current_agent_name())}] {response}")
 
             # Token stats — from SSE event
             if last_tokens_event:
@@ -1117,18 +1165,20 @@ def serve(
     from qd_evolve.tools.a2a import set_transport
     set_transport(router)
 
-    # 5. Start A2A server
+    # 5. Start A2A server — bind 0.0.0.0 to accept all interfaces, display connect address
     server = A2AServer(agent_core, agent_core.card, agent_core.task_store)
     entry = next((a for a in settings.agents_config.agents if a.name == agent), None)
-    host = entry.server.host if entry else "0.0.0.0"
+    from qd_evolve.core.config import DEFAULT_BIND_HOST
+    bind_host = DEFAULT_BIND_HOST
+    connect_host = entry.server.host if entry else DEFAULT_SERVER_HOST
     port = entry.server.port if entry else DEFAULT_SERVER_PORT
     console.print(Panel(
-        f"Serving agent [bold]{agent}[/bold] on {host}:{port}\nA2A v1.0 JSON-RPC + SSE",
+        f"Serving agent [bold]{agent}[/bold] on {bind_host}:{port} (connect: {connect_host}:{port})\nA2A v1.0 JSON-RPC + SSE",
         style="bold green",
     ))
 
     async def _run() -> None:
-        await server.start(host=host, port=port)
+        await server.start(host=bind_host, port=port)
         agent_core.start_heartbeat_loop()
         # Block until Ctrl+C
         stop_event = asyncio.Event()
@@ -1227,7 +1277,7 @@ def chat(
     # Build startup panel
     agents = settings.agents_config.agents
     chat_agent_entry = next((a for a in agents if a.name == chat_agent_name), None)
-    # Determine transport label per agent
+
     def _transport_label(a: Any) -> str:
         if a.transport == "http":
             return f"HTTP :{a.server.port}"
