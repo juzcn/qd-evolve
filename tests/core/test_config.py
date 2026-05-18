@@ -120,7 +120,6 @@ class TestAgentEntry:
         assert ae.model == ""
         assert ae.system_prompt_template == "default"
         assert ae.memory_db == "memory.db"
-        assert ae.transport == "inproc"
         assert ae.server.host == "127.0.0.1"
 
     def test_effective_provider_fallback(self, minimal_settings):

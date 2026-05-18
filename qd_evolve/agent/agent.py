@@ -1,13 +1,17 @@
-﻿import asyncio
+﻿from __future__ import annotations
+
+import asyncio
 import json
+import platform
 from datetime import datetime
-from typing import Any, Callable
+from pathlib import Path
+from typing import Any, Callable, Self
 
+from qd_evolve.core.config import SKILLS_DIR, CLI_TOOLS_DIR, AgentEntry, Settings
 from qd_evolve.core.logger import logger
-
-from qd_evolve.core.config import Settings
 from qd_evolve.core.memory import MemoryStore, RecalledMemoryRegistry
 from qd_evolve.core.providers import ProviderRegistry
+from qd_evolve.core.prompts import PromptTemplateManager
 from qd_evolve.core.registry import ToolRegistry
 
 
@@ -44,7 +48,158 @@ class Agent:
         self._preload_skills: set[str] = preload_skills or set()
         self._preload_cli: set[str] = preload_cli or set()
         self._hb_task: asyncio.Task | None = None
-        self._system_prompt_logged: bool = False
+
+    @classmethod
+    def from_config(
+        cls,
+        entry: AgentEntry,
+        settings: Settings,
+        registry: ToolRegistry,
+        providers: ProviderRegistry,
+        skill_registry: Any,
+        cli_registry: Any,
+    ) -> Self:
+        """Construct a fully initialized Agent from config entry.
+
+        Handles: memory creation, system prompt rendering, preload execution,
+        provider/model resolution, A2A tool toggling.
+        """
+        import json as _json
+
+        name = entry.name
+
+        # ── Toolbox state (per-agent) ─────────────────────────────
+        from qd_evolve.core.toolbox import (
+            apply_to_tools, apply_to_cli_registry, apply_to_skill_registry,
+            get_preloaded,
+        )
+
+        loaded_tool_names: set[str] = get_preloaded("tools", agent_name=name)
+        loaded_skill_names: set[str] = get_preloaded("skills", agent_name=name)
+        loaded_cli_names: set[str] = get_preloaded("cli", agent_name=name)
+
+        apply_to_tools(registry, loaded_tool_names, agent_name=name)
+        apply_to_cli_registry(cli_registry, loaded_cli_names, agent_name=name)
+        apply_to_skill_registry(skill_registry, loaded_skill_names, agent_name=name)
+
+        from qd_evolve.tools.tool_loader import set_preload_tools
+        set_preload_tools(loaded_tool_names)
+
+        # ── Build preload content for system prompt ───────────────
+        skill_registry._preload_skills |= loaded_skill_names
+        for s in skill_registry.get_all_skills():
+            if s.name in loaded_skill_names:
+                s.active = True
+
+        active_skills_parts = []
+        for s in skill_registry.get_all_skills():
+            if s.active and s.content:
+                active_skills_parts.append(s.content)
+                loaded_skill_names.add(s.name)
+        active_skills_content = "\n".join(active_skills_parts)
+
+        active_cli_parts = []
+        for t in cli_registry.list_tools():
+            if t.name in loaded_cli_names:
+                detail = cli_registry.get_detail(t.name)
+                if detail:
+                    active_cli_parts.append(_json.dumps(detail, ensure_ascii=False))
+                    loaded_cli_names.add(t.name)
+        active_cli_content = "\n".join(active_cli_parts)
+
+        unloaded_skills = skill_registry.format_for_prompt(loaded=loaded_skill_names)
+        unloaded_cli = cli_registry.format_for_prompt(loaded=loaded_cli_names)
+        unloaded_tools = registry.format_tools_summary(loaded=loaded_tool_names)
+
+        total_tools = len(registry.list_tools())
+        logger.debug(
+            "Agent [%s]: prompt %d tools (%d preload), %d unloaded skills, %d unloaded cli",
+            name, total_tools, len(loaded_tool_names),
+            sum(1 for l in (unloaded_skills or "").splitlines() if l.startswith("- ")),
+            sum(1 for l in (unloaded_cli or "").splitlines() if l.startswith("- ")),
+        )
+
+        # ── System prompt via template ────────────────────────────
+        template_mgr = PromptTemplateManager()
+        template_name = entry.system_prompt_template or "default"
+
+        a2a_enabled = cls._a2a_enabled(settings)
+        system_prompt = template_mgr.render(
+            template_name,
+            unpreloaded_skills=unloaded_skills,
+            unpreloaded_cli=unloaded_cli,
+            unloaded_tools=unloaded_tools,
+            preloaded_skills=active_skills_content,
+            preloaded_cli=active_cli_content,
+            os_name=platform.system(),
+            python_cmd="python",
+            cwd=str(Path.cwd()),
+            skills_dir=SKILLS_DIR,
+            agent_name=name,
+            a2a_enabled=a2a_enabled,
+            available_agents=", ".join(a.name for a in settings.agents_config.agents),
+            agent_relations=", ".join(
+                f"{r['from']}→{r['to']} ({r.get('mode', 'peer')})"
+                for r in settings.agents_config.topology.relations
+            ) if settings.agents_config.topology.relations else "",
+        )
+        logger.debug("Agent [%s]: system prompt assembled (%d chars)\n%s", name, len(system_prompt), system_prompt)
+
+        # ── Memory ────────────────────────────────────────────────
+        memory = cls._create_memory(entry, settings, registry)
+
+        # ── A2A tools ─────────────────────────────────────────────
+        if not a2a_enabled:
+            for tname in ("delegate_to", "send_task", "get_task", "cancel_task"):
+                td = registry.get(tname)
+                if td:
+                    td.enabled = False
+            logger.info("Agent [%s]: A2A disabled (single agent)", name)
+
+        # ── Create instance ───────────────────────────────────────
+        agent = cls(
+            settings=settings,
+            registry=registry,
+            providers=providers,
+            memory=memory,
+            default_system_prompt=system_prompt,
+            preload_tools=loaded_tool_names,
+            preload_skills=loaded_skill_names,
+            preload_cli=loaded_cli_names,
+            template_mgr=template_mgr,
+        )
+
+        # ── Provider/model ────────────────────────────────────────
+        agent._provider_name = entry.effective_provider(settings)
+        agent._model = entry.effective_model(settings)
+
+        return agent
+
+    @staticmethod
+    def _a2a_enabled(settings: Settings) -> bool:
+        return len(settings.agents_config.agents) > 1
+
+    @staticmethod
+    def _create_memory(entry: AgentEntry, settings: Settings, registry: ToolRegistry) -> MemoryStore | None:
+        memory_db = entry.memory_db
+        if memory_db:
+            backend_name = settings.memory_search.embeddings_backend
+            backend = settings.embeddings_backends.get(backend_name) if backend_name else None
+            if backend is None:
+                logger.warning("Agent [%s]: no embeddings backend, skipping memory", entry.name)
+                return None
+            memory = MemoryStore(memory_db, backend,
+                                 list_all_limit=settings.memory_search.list_all_limit)
+            from qd_evolve.tools.recall_memory import set_memory_store, set_default_limit
+            set_memory_store(memory)
+            set_default_limit(settings.memory_search.recall_memory_limit)
+            return memory
+        else:
+            logger.info("Agent [%s]: memory disabled (memory_db is empty/null)", entry.name)
+            recall_td = registry.get("recall_memory")
+            if recall_td:
+                recall_td.enabled = False
+            return None
 
     def set_status_callback(self, cb: Callable[[str], None]) -> None:
         self._on_status = cb
@@ -143,9 +298,6 @@ class Agent:
 
         # Auto recall: inject relevant memory into system prompt
         system_prompt = self._auto_recall(user_input, system_prompt)
-        if not self._system_prompt_logged:
-            logger.debug("Agent: system prompt assembled (%d chars)\n%s", len(system_prompt), system_prompt)
-            self._system_prompt_logged = True
 
         prov = self.providers.get(self._provider_name)
         max_tokens = prov.get_max_tokens(self._model)
