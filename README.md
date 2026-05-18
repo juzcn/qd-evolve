@@ -15,10 +15,11 @@ uvx --from git+https://github.com/juzcn/qd-evolve qd-evolve
 Create `config.json` in your working directory (copy from `config.json.example`, then add your API keys). At minimum you need a provider with `api_key`, `base_url`, `api`, and at least one model.
 
 ```bash
-qd-evolve                     # start chat
+qd-evolve                     # start chat (in-process)
+qd-evolve a2a                  # start A2A chat client (remote agents)
+qd-evolve a2a serve --agent test  # run agent as standalone A2A HTTP server
 qd-evolve toolbox             # interactive tool manager (Textual TUI)
 qd-evolve toolbox --agent test   # per-agent tool management
-qd-evolve serve --agent test  # run agent as standalone A2A HTTP server
 qd-evolve --replay in.txt     # replay inputs (automated testing)
 qd-evolve --replay in.txt --output out.txt   # replay + capture
 ```
@@ -54,8 +55,7 @@ All agent config in `config.json` under `agents_config`:
         "description": "Default agent",
         "provider": "",
         "model": "",
-        "server": {"host": "127.0.0.1", "port": 8001},
-        "transport": "inproc"
+        "server": {"host": "127.0.0.1", "port": 8001}
       },
       {
         "name": "remote",
@@ -63,8 +63,7 @@ All agent config in `config.json` under `agents_config`:
         "provider": "deepseek",
         "model": "deepseek-v4-pro",
         "memory_db": "remote_memory.db",
-        "server": {"host": "127.0.0.1", "port": 8002},
-        "transport": "http"
+        "server": {"host": "127.0.0.1", "port": 8002}
       }
     ],
     "topology": {
@@ -77,7 +76,6 @@ All agent config in `config.json` under `agents_config`:
 - `provider`/`model`: empty = use global defaults
 - `memory_db`: independent SQLite per agent; `""` or `null` disables memory
 - `server.host`: connect address (default `127.0.0.1`); server binds `0.0.0.0` to accept all interfaces
-- `transport`: `"inproc"` = runs in CLI process; `"http"` = runs remotely, CLI is HTTP client
 
 ### Per-Agent Toolbox
 
@@ -100,7 +98,7 @@ States: `"enabled"` (default), `"disabled"`, `"preload"` (load schema into syste
 
 ### Topology
 
-`agents_config.topology.relations` defines agent relationships. Transport is auto-derived from `AgentEntry.transport`: both inproc → inproc, either http → http.
+`agents_config.topology.relations` defines agent relationships. Transport between agents is auto-derived: if target is in local registry → inproc, otherwise → http.
 
 ```json
 {"relations": [
