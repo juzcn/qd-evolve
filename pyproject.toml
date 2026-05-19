@@ -35,9 +35,11 @@ boat = ["basic-open-agent-tools[all]>=1.3"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+addopts = "-n auto --tb=short -q"
+filterwarnings = ["ignore::DeprecationWarning"]
 
 [project.scripts]
-qd-evolve = "qd_evolve.cli:app"
+qd-evolve = "qd_evolve.chat_cli:app"
 
 [tool.uv]
 extra-index-url = [

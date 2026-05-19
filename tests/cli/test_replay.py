@@ -1,8 +1,8 @@
-"""Tests for qd_evolve.cli — ReplayInput, TeeWriter, SLASH_COMMANDS."""
+"""Tests for qd_evolve.chat_cli — ReplayInput, TeeWriter, SLASH_COMMANDS."""
 
 import pytest
 
-from qd_evolve.cli import ReplayInput, TeeWriter, SLASH_COMMANDS
+from qd_evolve.chat_cli import ReplayInput, TeeWriter, SLASH_COMMANDS
 
 
 class TestReplayInput:

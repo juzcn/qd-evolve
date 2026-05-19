@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from qd_evolve.core.logger import logger
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 CONFIG_PATH = Path("config.json")
 
@@ -107,14 +107,18 @@ class ToolboxDefaults(BaseModel):
 
 class AgentEntry(BaseModel):
     name: str
+    friendly_name: str = ""
     description: str = ""
     provider: str = ""
     model: str = ""
     system_prompt_template: str = "default"
     memory_db: str | None = DEFAULT_MEMORY_DB
     server: ServerConfig = ServerConfig()
-    transport: str = "inproc"
     toolbox: ToolboxSection = ToolboxSection()
+
+    @property
+    def is_human(self) -> bool:
+        return self.provider == "human"
 
     def effective_provider(self, settings: Settings) -> str:
         return self.provider or settings.default_provider
@@ -122,15 +126,40 @@ class AgentEntry(BaseModel):
     def effective_model(self, settings: Settings) -> str:
         return self.model or settings.default_model
 
+    def effective_friendly_name(self) -> str:
+        return self.friendly_name or self.name
+
 
 class TopologyConfig(BaseModel):
     relations: list[dict[str, str]] = []
+
+
+class A2ACLIConfig(BaseModel):
+    """A2A chat client configuration — server port for webhook callbacks."""
+    server: ServerConfig = ServerConfig(port=0)
+    resubscribe_retry_seconds: int = 15
 
 
 class AgentsConfig(BaseModel):
     chat_agent: str = "default"
     agents: list[AgentEntry] = []
     topology: TopologyConfig = TopologyConfig()
+    a2a_cli: A2ACLIConfig = A2ACLIConfig()
+
+    @model_validator(mode="after")
+    def _validate_ports(self) -> "AgentsConfig":
+        ports: dict[int, list[str]] = {}
+        for agent in self.agents:
+            ports.setdefault(agent.server.port, []).append(f"agent '{agent.name}'")
+
+        cli_port = self.a2a_cli.server.port or DEFAULT_SERVER_PORT
+        ports.setdefault(cli_port, []).append("a2a_cli server")
+
+        dupes = {p: owners for p, owners in ports.items() if len(owners) > 1}
+        if dupes:
+            lines = [f"  port {p} shared by: {', '.join(owners)}" for p, owners in dupes.items()]
+            raise ValueError("Duplicate server ports in config:\n" + "\n".join(lines))
+        return self
 
 
 class Settings(BaseModel):
@@ -162,6 +191,8 @@ class Settings(BaseModel):
         current = self.agents_config.chat_agent
         for a in self.agents_config.agents:
             if a.name == current:
+                if a.is_human:
+                    return True
                 prov = a.effective_provider(self)
                 p = self.get_provider(prov)
                 return bool(p and p.api_key)

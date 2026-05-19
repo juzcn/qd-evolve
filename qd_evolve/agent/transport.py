@@ -56,6 +56,21 @@ class InprocTransport:
             if agent_node is None:
                 return self._error_task(target, f"Agent '{target}' not found in registry")
 
+        # Human agent: async mode — return input_required, don't block
+        from qd_evolve.agent.human_agent import HumanAgent
+        if isinstance(agent_node, HumanAgent):
+            task_text = self._extract_text(message)
+            task = make_task_with_text(task_text)
+            callback_url = ""
+            if message.metadata:
+                callback_url = message.metadata.get("callback_url", "")
+            agent_node.receive_task(
+                task_id=task.id,
+                content=task_text,
+                callback_url=callback_url,
+            )
+            return agent_node.task_store.get(task.id) or task
+
         task_text = self._extract_text(message)
         task = make_task_with_text(task_text)
         task.status.state = TaskState.working
@@ -89,6 +104,24 @@ class InprocTransport:
 
         # First event: Task
         yield StreamResponse(task=task)
+
+        # Human agent: return input_required immediately, no blocking run
+        from qd_evolve.agent.human_agent import HumanAgent
+        if isinstance(agent_node, HumanAgent):
+            callback_url = ""
+            if message.metadata:
+                callback_url = message.metadata.get("callback_url", "")
+            agent_node.receive_task(task_id=task.id, content=task_text, callback_url=callback_url)
+            stored = agent_node.task_store.get(task.id)
+            if stored:
+                task = stored
+            yield StreamResponse(statusUpdate=TaskStatusUpdateEvent(
+                task_id=task.id,
+                context_id=task.session_id,
+                status=TaskStatus(state=TaskState.input_required, message=make_text_message("agent", "Waiting for human input")),
+                final=True,
+            ))
+            return
 
         # Subscribe to agent events
         event_queue = agent_node.subscribe_events()
@@ -177,7 +210,7 @@ class InprocTransport:
                 return AgentCard(name=target, description=f"Agent '{target}' not found")
         from qd_evolve.agent.a2a import AgentCapabilities, AgentExtension
         from qd_evolve.agent.server import A2AServer
-        server = A2AServer(agent_node, agent_node.card, agent_node.task_store)
+        server = A2AServer(agent_node)
         return server._get_extended_agent_card()
 
     async def resubscribe(self, target: str, task_id: str = "") -> AsyncIterator[StreamResponse]:
@@ -212,10 +245,11 @@ class InprocTransport:
             agent_node.unsubscribe_events(queue)
 
     def _lazy_load(self, target: str, registry: Any) -> Any | None:
-        """Try to create and register an AgentCore from config on demand."""
+        """Try to create and register an Agent from config on demand."""
         try:
-            from qd_evolve.agent.loader import create_agent_core
-            agent_core = create_agent_core(target)
+            from qd_evolve.agent.loader import create_agent
+            from qd_evolve.core.config import load_settings
+            agent_core = create_agent(target, load_settings())
             registry.register(agent_core)
             logger.info("InprocTransport: lazy-loaded agent '%s'", target)
             return agent_core
@@ -253,13 +287,41 @@ class HttpTransport:
             self._registry = get_agent_registry()
         return self._registry
 
+    def _get_callback_url(self) -> str:
+        """Return this agent's own A2A server URL for webhook callbacks.
+
+        For AI agent mode: returns the current agent's server URL.
+        For CLI mode (no current agent): falls back to a2a_cli config.
+        """
+        registry = self._get_registry()
+        current = registry.current_agent
+        if current:
+            return registry.get_url(current)
+        # Fallback: CLI mode — use a2a_cli server config
+        from qd_evolve.core.config import load_settings
+        settings = load_settings()
+        a2a_cli = settings.agents_config.a2a_cli
+        if a2a_cli.server.port:
+            return f"http://localhost:{a2a_cli.server.port}"
+        return ""
+
     async def send_task(self, target: str, message: Message) -> Task:
         """Blocking: HTTP POST message/send."""
         import aiohttp
 
         try:
             url = self._get_registry().get_url(target)
-            payload = self._rpc("message/send", {"message": message.model_dump()})
+            # Include callback_url so remote agent can push results via webhook
+            msg_dict = message.model_dump()
+            callback_url = self._get_callback_url()
+            if "metadata" not in msg_dict or msg_dict["metadata"] is None:
+                msg_dict["metadata"] = {}
+            if callback_url:
+                msg_dict["metadata"]["callback_url"] = callback_url
+            from_agent = self._get_registry().current_agent
+            if from_agent:
+                msg_dict["metadata"]["from_agent"] = from_agent
+            payload = self._rpc("message/send", {"message": msg_dict})
             async with aiohttp.ClientSession() as session:
                 resp = await session.post(url, json=payload)
                 data = await resp.json()
@@ -274,7 +336,16 @@ class HttpTransport:
 
         try:
             url = self._get_registry().get_url(target)
-            payload = self._rpc("message/stream", {"message": message.model_dump()})
+            msg_dict = message.model_dump()
+            callback_url = self._get_callback_url()
+            if "metadata" not in msg_dict or msg_dict["metadata"] is None:
+                msg_dict["metadata"] = {}
+            if callback_url:
+                msg_dict["metadata"]["callback_url"] = callback_url
+            from_agent = self._get_registry().current_agent
+            if from_agent:
+                msg_dict["metadata"]["from_agent"] = from_agent
+            payload = self._rpc("message/stream", {"message": msg_dict})
             async with aiohttp.ClientSession() as session:
                 async with session.post(url, json=payload) as resp:
                     async for line in resp.content:
@@ -348,6 +419,18 @@ class HttpTransport:
             logger.error("HttpTransport: get_extended_agent_card for '%s' failed: %s", target, e)
             return AgentCard(name=target, description=f"Error: {type(e).__name__}: {e}")
 
+    async def is_online(self, target: str) -> bool:
+        """Check if a remote agent server is reachable via /.well-known/agent.json."""
+        import aiohttp
+
+        try:
+            url = self._get_registry().get_url(target)
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=3)) as session:
+                async with session.get(f"{url}/.well-known/agent.json") as resp:
+                    return resp.status == 200
+        except Exception:
+            return False
+
     async def resubscribe(self, target: str, task_id: str = "") -> AsyncIterator[StreamResponse]:
         """SSE stream: HTTP POST tasks/resubscribe, parse StreamResponse."""
         import aiohttp
@@ -391,7 +474,7 @@ class HttpTransport:
 class TransportRouter:
     """Route A2A calls to inproc or http transport based on topology config."""
 
-    def __init__(self, inproc: InprocTransport, http: HttpTransport) -> None:
+    def __init__(self, inproc: InprocTransport | None, http: HttpTransport) -> None:
         self._inproc = inproc
         self._http = http
         self._registry: Any = None
@@ -403,8 +486,10 @@ class TransportRouter:
         return self._registry
 
     def _pick(self, target: str) -> InprocTransport | HttpTransport:
-        transport = self._get_registry().get_transport(target)
-        if transport == "inproc":
+        if self._inproc is None:
+            return self._http
+        # If the agent is registered locally (in-process), use inproc; otherwise http
+        if self._get_registry().get(target) is not None:
             return self._inproc
         return self._http
 
@@ -432,6 +517,9 @@ class TransportRouter:
         transport = self._pick(target)
         async for sr in transport.resubscribe(target, task_id):
             yield sr
+
+    async def is_online(self, target: str) -> bool:
+        return await self._http.is_online(target)
 
 
 def _new_id() -> str:

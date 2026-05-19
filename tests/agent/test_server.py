@@ -55,8 +55,11 @@ class TestTaskStore:
 
 class TestA2AServer:
     def test_init(self):
-        mock_agent = type("MockAgent", (), {"card": AgentCard(name="test", description="Test")})()
-        server = A2AServer(mock_agent, AgentCard(name="test", description="Test"))
+        mock_agent = type("MockAgent", (), {
+            "card": AgentCard(name="test", description="Test"),
+            "task_store": TaskStore(),
+        })()
+        server = A2AServer(mock_agent)
         assert server.card.name == "test"
 
     def test_extract_text(self):
@@ -103,7 +106,7 @@ class TestA2AServerRPC:
         mock_agent._preload_cli = set()
         mock_agent._loaded_cli_names = set()
 
-        server = A2AServer(mock_agent, mock_agent.card)
+        server = A2AServer(mock_agent)
         app = web.Application()
         app.router.add_get("/.well-known/agent.json", server._handle_agent_card)
         app.router.add_post("/", server._handle_rpc)
@@ -212,7 +215,7 @@ class TestGetExtendedAgentCardUnit:
         mock_agent._preload_cli = {"git"}
         mock_agent._loaded_cli_names = {"git", "docker"}
 
-        server = A2AServer(mock_agent, mock_agent.card)
+        server = A2AServer(mock_agent)
         card = server._get_extended_agent_card()
 
         assert card.capabilities.extended_agent_card is True

@@ -1,13 +1,15 @@
-﻿import asyncio
+﻿from __future__ import annotations
+
+import asyncio
 import json
 from datetime import datetime
 from typing import Any, Callable
 
+from qd_evolve.core.config import AgentEntry, Settings
 from qd_evolve.core.logger import logger
-
-from qd_evolve.core.config import Settings
 from qd_evolve.core.memory import MemoryStore, RecalledMemoryRegistry
 from qd_evolve.core.providers import ProviderRegistry
+from qd_evolve.core.prompts import PromptTemplateManager
 from qd_evolve.core.registry import ToolRegistry
 
 
@@ -17,9 +19,7 @@ class Agent:
                  preload_tools: set[str] | None = None,
                  preload_skills: set[str] | None = None,
                  preload_cli: set[str] | None = None,
-                 template_mgr: Any = None,
-                 card: Any = None,
-                 task_store: Any = None) -> None:
+                 template_mgr: Any = None) -> None:
         self.settings = settings
         self.registry = registry
         self.default_system_prompt = default_system_prompt
@@ -28,8 +28,6 @@ class Agent:
         self._always_active: set[str] = preload_tools or set()
         self.providers = providers
         self.memory = memory
-        self.card = card
-        self.task_store = task_store
         self.messages: list[dict[str, Any]] = []
         self._provider_name: str | None = None
         self._model: str | None = None
@@ -41,37 +39,35 @@ class Agent:
         self.iteration: int = 0
         self._on_status: Callable[[str], None] | None = None
         self._on_print: Callable[[str], None] | None = None
+        self._on_event: Callable[[dict], None] | None = None
         self._recalled = RecalledMemoryRegistry()
         self._loaded_skill_names: set[str] = set()
         self._loaded_cli_names: set[str] = set()
         self._preload_skills: set[str] = preload_skills or set()
         self._preload_cli: set[str] = preload_cli or set()
-        self._event_subscribers: list[asyncio.Queue] = []
-        self._hb_task: asyncio.Task | None = None
         self._hb_task: asyncio.Task | None = None
 
-    def subscribe_events(self) -> asyncio.Queue:
-        q: asyncio.Queue = asyncio.Queue()
-        self._event_subscribers.append(q)
-        return q
-
-    def unsubscribe_events(self, q: asyncio.Queue) -> None:
-        if q in self._event_subscribers:
-            self._event_subscribers.remove(q)
-
-    # Backward compat aliases
-    def subscribe_heartbeat(self) -> asyncio.Queue:
-        return self.subscribe_events()
-
-    def unsubscribe_heartbeat(self, q: asyncio.Queue) -> None:
-        self.unsubscribe_events(q)
-
-    def _push_event(self, event: dict) -> None:
-        for q in self._event_subscribers:
-            try:
-                q.put_nowait(event)
-            except Exception:
-                pass
+    @staticmethod
+    def _create_memory(entry: AgentEntry, settings: Settings, registry: ToolRegistry) -> MemoryStore | None:
+        memory_db = entry.memory_db
+        if memory_db:
+            backend_name = settings.memory_search.embeddings_backend
+            backend = settings.embeddings_backends.get(backend_name) if backend_name else None
+            if backend is None:
+                logger.warning("Agent [%s]: no embeddings backend, skipping memory", entry.name)
+                return None
+            memory = MemoryStore(memory_db, backend,
+                                 list_all_limit=settings.memory_search.list_all_limit)
+            from qd_evolve.tools.recall_memory import set_memory_store, set_default_limit
+            set_memory_store(memory)
+            set_default_limit(settings.memory_search.recall_memory_limit)
+            return memory
+        else:
+            logger.info("Agent [%s]: memory disabled (memory_db is empty/null)", entry.name)
+            recall_td = registry.get("recall_memory")
+            if recall_td:
+                recall_td.enabled = False
+            return None
 
     def set_status_callback(self, cb: Callable[[str], None]) -> None:
         self._on_status = cb
@@ -79,16 +75,21 @@ class Agent:
     def set_print_callback(self, cb: Callable[[str], None]) -> None:
         self._on_print = cb
 
+    def set_event_callback(self, cb: Callable[[dict], None] | None) -> None:
+        self._on_event = cb
+
     def _update_status(self, text: str) -> None:
         msg = f"[#{self.iteration}] {text}"
         if self._on_status:
             self._on_status(msg)
-        self._push_event({"type": "status", "text": msg})
+        if self._on_event:
+            self._on_event({"type": "status", "text": msg})
 
     def _print(self, text: str) -> None:
         if self._on_print:
             self._on_print(text)
-        self._push_event({"type": "print", "text": text})
+        if self._on_event:
+            self._on_event({"type": "print", "text": text})
 
     @property
     def total_tokens(self) -> int:
@@ -113,10 +114,12 @@ class Agent:
             return None
         if response.strip() == ".":
             logger.debug("Heartbeat: LLM sent '.' — staying silent")
-            self._push_event({"type": "heartbeat_silent"})
+            if self._on_event:
+                self._on_event({"type": "heartbeat_silent"})
         else:
             logger.info("Heartbeat: LLM responded (%s chars)", len(response))
-            self._push_event({"type": "heartbeat", "content": response})
+            if self._on_event:
+                self._on_event({"type": "heartbeat", "content": response})
         return response
 
     def start_heartbeat_loop(self) -> None:
@@ -170,7 +173,8 @@ class Agent:
 
         while True:
             self.iteration += 1
-            self._push_event({"type": "iteration", "num": self.iteration,
+            if self._on_event:
+                self._on_event({"type": "iteration", "num": self.iteration,
                               "provider": self._provider_name, "model": self._model})
             client = prov.create_client()
             active = self._active_tools | self._always_active
@@ -191,7 +195,8 @@ class Agent:
                     raise ValueError(f"Unsupported api_type: {self._api_type}")
             except Exception as e:
                 logger.error("Agent: API call failed: %s", e)
-                self._push_event({"type": "error", "content": f"API error: {type(e).__name__}: {e}"})
+                if self._on_event:
+                    self._on_event({"type": "error", "content": f"API error: {type(e).__name__}: {e}"})
                 self.messages.pop()  # remove the user message we just appended
                 return f"API error: {type(e).__name__}: {e}"
 
@@ -201,7 +206,8 @@ class Agent:
                     self.memory.save(user_input, result)
                 except Exception as e:
                     logger.warning("Agent: memory.save failed: %s", e)
-            self._push_event({"type": "completed", "content": result})
+            if self._on_event:
+                self._on_event({"type": "completed", "content": result})
             return result
 
     def _compress_messages(self) -> None:
@@ -537,12 +543,7 @@ class Agent:
             self._print(f"[bold bright_cyan]Reasoning:[/bold bright_cyan] {reasoning}")
 
         if usage:
-            self.last_input_tokens = usage.prompt_tokens or 0
-            self.last_output_tokens = usage.completion_tokens or 0
-            self.total_input_tokens += self.last_input_tokens
-            self.total_output_tokens += self.last_output_tokens
-            logger.debug("Agent: token usage: input=%s, output=%s, total=%s",
-                        self.last_input_tokens, self.last_output_tokens, self.total_tokens)
+            self._track_tokens_openai_completion(usage)
 
         if tool_call_chunks:
             tool_calls = sorted(tool_call_chunks.values(), key=lambda t: t.get("index", 0))
@@ -658,7 +659,8 @@ class Agent:
         self.total_input_tokens += usage.input_tokens
         self.total_output_tokens += usage.output_tokens
         logger.debug("Agent: token usage: input=%s, output=%s, total=%s", usage.input_tokens, usage.output_tokens, self.total_tokens)
-        self._push_event({"type": "tokens", "input": self.last_input_tokens, "output": self.last_output_tokens,
+        if self._on_event:
+            self._on_event({"type": "tokens", "input": self.last_input_tokens, "output": self.last_output_tokens,
                           "total_in": self.total_input_tokens, "total_out": self.total_output_tokens})
 
     def _track_tokens_openai_completion(self, usage: Any) -> None:
@@ -667,7 +669,8 @@ class Agent:
         self.total_input_tokens += usage.prompt_tokens
         self.total_output_tokens += usage.completion_tokens
         logger.debug("Agent: token usage: input=%s, output=%s, total=%s", usage.prompt_tokens, usage.completion_tokens, self.total_tokens)
-        self._push_event({"type": "tokens", "input": self.last_input_tokens, "output": self.last_output_tokens,
+        if self._on_event:
+            self._on_event({"type": "tokens", "input": self.last_input_tokens, "output": self.last_output_tokens,
                           "total_in": self.total_input_tokens, "total_out": self.total_output_tokens})
 
     def _track_tokens_openai_response(self, usage: Any) -> None:
@@ -676,7 +679,8 @@ class Agent:
         self.total_input_tokens += usage.input_tokens
         self.total_output_tokens += usage.output_tokens
         logger.debug("Agent: token usage: input=%s, output=%s, total=%s", usage.input_tokens, usage.output_tokens, self.total_tokens)
-        self._push_event({"type": "tokens", "input": self.last_input_tokens, "output": self.last_output_tokens,
+        if self._on_event:
+            self._on_event({"type": "tokens", "input": self.last_input_tokens, "output": self.last_output_tokens,
                           "total_in": self.total_input_tokens, "total_out": self.total_output_tokens})
 
     def _activate_tool(self, tool_name: str, tool_args: dict, result: str = "") -> None:

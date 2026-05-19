@@ -103,7 +103,7 @@ class TestMCPServerConfig:
 class TestServerConfig:
     def test_defaults(self):
         sc = ServerConfig()
-        assert sc.host == "0.0.0.0"
+        assert sc.host == "127.0.0.1"
         assert sc.port == 8001
 
     def test_custom(self):
@@ -120,8 +120,7 @@ class TestAgentEntry:
         assert ae.model == ""
         assert ae.system_prompt_template == "default"
         assert ae.memory_db == "memory.db"
-        assert ae.transport == "inproc"
-        assert ae.server.host == "0.0.0.0"
+        assert ae.server.host == "127.0.0.1"
 
     def test_effective_provider_fallback(self, minimal_settings):
         ae = AgentEntry(name="test")
@@ -147,9 +146,10 @@ class TestAgentEntry:
         ae = AgentEntry(name="test", memory_db=None)
         assert ae.memory_db is None
 
-    def test_transport_http(self):
-        ae = AgentEntry(name="remote", transport="http")
-        assert ae.transport == "http"
+    def test_server_config_defaults(self):
+        ae = AgentEntry(name="remote")
+        assert ae.server.host == "127.0.0.1"
+        assert ae.server.port == 8001
 
 
 class TestSettings:
@@ -169,7 +169,7 @@ class TestSettings:
     def test_is_configured_true(self, minimal_settings):
         minimal_settings.agents_config = AgentsConfig(
             chat_agent="default",
-            agents=[AgentEntry(name="default", provider="test", model="test-model")],
+            agents=[AgentEntry(name="default", provider="test", model="test-model", server=ServerConfig(port=8002))],
         )
         assert minimal_settings.is_configured is True
 
@@ -182,7 +182,7 @@ class TestSettings:
             default_model="test-model",
             agents_config=AgentsConfig(
                 chat_agent="default",
-                agents=[AgentEntry(name="default", provider="test")],
+                agents=[AgentEntry(name="default", provider="test", server=ServerConfig(port=8002))],
             ),
         )
         assert s.is_configured is False

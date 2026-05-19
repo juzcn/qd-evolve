@@ -58,10 +58,10 @@ class TestTransportRouter:
         http = HttpTransport()
         router = TransportRouter(inproc, http)
 
-        # Mock the registry to return "inproc" transport
+        # Mock the registry — agent found locally → inproc
         from unittest.mock import MagicMock
         mock_reg = MagicMock()
-        mock_reg.get_transport.return_value = "inproc"
+        mock_reg.get.return_value = MagicMock()  # agent exists in registry
         router._registry = mock_reg
 
         transport = router._pick("helper")
@@ -74,7 +74,7 @@ class TestTransportRouter:
 
         from unittest.mock import MagicMock
         mock_reg = MagicMock()
-        mock_reg.get_transport.return_value = "http"
+        mock_reg.get.return_value = None  # agent not in local registry → http
         router._registry = mock_reg
 
         transport = router._pick("remote")
@@ -99,7 +99,6 @@ class TestTransportRouter:
 
         mock_reg = MagicMock()
         mock_reg.get.return_value = mock_agent
-        mock_reg.get_transport.return_value = "inproc"
 
         inproc = InprocTransport()
         inproc._registry = mock_reg

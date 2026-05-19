@@ -32,30 +32,9 @@ def _make_settings(agents, relations=None):
 
 
 class TestTopology:
-    def test_get_transport_both_inproc(self):
-        settings = _make_settings([
-            AgentEntry(name="default", transport="inproc"),
-            AgentEntry(name="helper", transport="inproc"),
-        ])
-        topo = Topology(settings)
-        assert topo.get_transport("default", "helper") == "inproc"
-
-    def test_get_transport_one_http(self):
-        settings = _make_settings([
-            AgentEntry(name="default", transport="inproc"),
-            AgentEntry(name="remote", transport="http", server=ServerConfig(port=9000)),
-        ])
-        topo = Topology(settings)
-        assert topo.get_transport("default", "remote") == "http"
-
-    def test_get_transport_unknown_agent(self):
-        settings = _make_settings([AgentEntry(name="default")])
-        topo = Topology(settings)
-        assert topo.get_transport("default", "unknown") == "inproc"
-
     def test_get_relation_peer(self):
         settings = _make_settings(
-            [AgentEntry(name="default"), AgentEntry(name="helper")],
+            [AgentEntry(name="default", server=ServerConfig(port=8002)), AgentEntry(name="helper", server=ServerConfig(port=8003))],
             relations=[{"from": "default", "to": "helper", "mode": "peer"}],
         )
         topo = Topology(settings)
@@ -63,18 +42,18 @@ class TestTopology:
 
     def test_get_relation_default_peer(self):
         settings = _make_settings(
-            [AgentEntry(name="default"), AgentEntry(name="helper")],
+            [AgentEntry(name="default", server=ServerConfig(port=8002)), AgentEntry(name="helper", server=ServerConfig(port=8003))],
         )
         topo = Topology(settings)
         assert topo.get_relation("default", "helper") == "peer"
 
     def test_agents_url_map(self):
         settings = _make_settings([
-            AgentEntry(name="default", server=ServerConfig(port=8001)),
-            AgentEntry(name="remote", transport="http", server=ServerConfig(port=9000)),
+            AgentEntry(name="default", server=ServerConfig(port=8002)),
+            AgentEntry(name="remote", server=ServerConfig(port=9000)),
         ])
         topo = Topology(settings)
-        assert topo.agents["default"]["url"] == "http://localhost:8001"
+        assert topo.agents["default"]["url"] == "http://localhost:8002"
         assert topo.agents["remote"]["url"] == "http://localhost:9000"
 
 
@@ -113,12 +92,12 @@ class TestAgentRegistry:
 
     def test_get_url(self):
         settings = _make_settings([
-            AgentEntry(name="default", server=ServerConfig(port=8001)),
+            AgentEntry(name="default", server=ServerConfig(port=8002)),
         ])
         topo = Topology(settings)
         reg = AgentRegistry(topology=topo)
         url = reg.get_url("default")
-        assert url == "http://localhost:8001"
+        assert url == "http://localhost:8002"
 
     def test_get_url_unknown_agent(self):
         reg = AgentRegistry()
