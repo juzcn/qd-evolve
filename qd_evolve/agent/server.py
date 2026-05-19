@@ -47,38 +47,63 @@ class TaskStore:
 
 
 class A2AServer:
-    """A2A JSON-RPC server — one per Agent process.
+    """A2A JSON-RPC server — one per Agent process (or CLI stub).
 
     Handles:
       - POST /              → JSON-RPC (message/send, message/stream, tasks/get, tasks/cancel, tasks/resubscribe)
       - GET  /.well-known/agent.json → AgentCard discovery
+
+    Can operate with or without an agent_core. When used without one (CLI stub mode),
+    message/send and message/stream return errors — the server only handles
+    webhook callbacks (tasks/pushNotification) and event subscriptions.
     """
 
-    def __init__(self, a2a_agent: Any, *, on_task_completed: Any = None) -> None:
-        """Accept an A2AAgent instance (composition wrapper around Agent).
-
-        The A2AAgent provides: .run(), .subscribe_events(), .unsubscribe_events(),
-        .card, .task_store, and all delegated Agent attributes.
-
-        Args:
-            on_task_completed: Optional async callback(event_dict) invoked when
-                a webhook callback (tasks/pushNotification) completes a task.
-                Used by CLI to display results.
-        """
+    def __init__(self, a2a_agent: Any = None, *, card: AgentCard | None = None, task_store: TaskStore | None = None, on_task_completed: Any = None) -> None:
         self.agent_core = a2a_agent
-        self.card = a2a_agent.card
-        self.task_store = a2a_agent.task_store
+        self.card = a2a_agent.card if a2a_agent else card
+        self.task_store = a2a_agent.task_store if a2a_agent else (task_store or TaskStore())
         self._on_task_completed = on_task_completed
+        self._subscribers: list[asyncio.Queue] = []
+
+    def subscribe_events(self) -> asyncio.Queue:
+        if self.agent_core is not None:
+            return self.agent_core.subscribe_events()
+        q: asyncio.Queue = asyncio.Queue()
+        self._subscribers.append(q)
+        return q
+
+    def unsubscribe_events(self, q: asyncio.Queue) -> None:
+        if self.agent_core is not None:
+            self.agent_core.unsubscribe_events(q)
+            return
+        try:
+            self._subscribers.remove(q)
+        except ValueError:
+            pass
+
+    def _push_event(self, event: dict) -> None:
+        if self.agent_core is not None:
+            self.agent_core._push_event(event)
+            return
+        for q in self._subscribers:
+            try:
+                q.put_nowait(event)
+            except asyncio.QueueFull:
+                pass
 
     async def start(self, host: str = DEFAULT_SERVER_HOST, port: int = DEFAULT_SERVER_PORT) -> None:
         app = web.Application()
         app.router.add_get("/.well-known/agent.json", self._handle_agent_card)
         app.router.add_post("/", self._handle_rpc)
-        runner = web.AppRunner(app)
-        await runner.setup()
-        site = web.TCPSite(runner, host, port)
+        self._runner = web.AppRunner(app)
+        await self._runner.setup()
+        site = web.TCPSite(self._runner, host, port)
         await site.start()
         logger.info("A2A server: listening on %s:%d", host, port)
+
+    async def stop(self) -> None:
+        await self._runner.cleanup()
+        logger.info("A2A server: stopped")
 
     async def _handle_agent_card(self, request: web.Request) -> web.Response:
         card = self.card.model_dump()
@@ -125,6 +150,9 @@ class A2AServer:
         For human agents: return Task(input_required) immediately —
         human responds asynchronously via complete_task().
         """
+        if self.agent_core is None:
+            return Task(status=TaskStatus(state=TaskState.failed, message=make_text_message("agent", "CLI stub: message/send not supported")))
+
         message_data = params.get("message", {})
         message = Message.model_validate(message_data) if message_data else make_text_message("user", "")
         task_text = self._extract_text(message)
@@ -133,13 +161,16 @@ class A2AServer:
         from qd_evolve.agent.human_agent import HumanAgent
         if isinstance(self.agent_core, HumanAgent):
             callback_url = ""
+            from_agent = ""
             if message.metadata:
                 callback_url = message.metadata.get("callback_url", "")
+                from_agent = message.metadata.get("from_agent", "")
             task = make_task_with_text(task_text)
             self.agent_core.receive_task(
                 task_id=task.id,
                 content=task_text,
                 callback_url=callback_url,
+                from_agent=from_agent,
             )
             # receive_task stores the task; retrieve it
             return self.task_store.get(task.id) or task
@@ -166,6 +197,17 @@ class A2AServer:
 
     async def _message_stream(self, params: dict, request: web.Request, req_id: Any) -> web.StreamResponse:
         """SSE stream: send message, stream TaskStatusUpdateEvent with intermediate events in metadata."""
+        if self.agent_core is None:
+            task = Task(status=TaskStatus(state=TaskState.failed, message=make_text_message("agent", "CLI stub: message/stream not supported")))
+            sr = StreamResponse(statusUpdate=TaskStatusUpdateEvent(task_id="", context_id="", status=task.status, final=True))
+            resp = web.StreamResponse()
+            resp.content_type = "text/event-stream"
+            resp.charset = "utf-8"
+            await resp.prepare(request)
+            await resp.write(f"data: {json.dumps({'jsonrpc': '2.0', 'result': sr.model_dump(), 'id': req_id}, ensure_ascii=False)}\n\n".encode())
+            await resp.write_eof()
+            return resp
+
         message_data = params.get("message", {})
         message = Message.model_validate(message_data) if message_data else make_text_message("user", "")
         task_text = self._extract_text(message)
@@ -186,9 +228,11 @@ class A2AServer:
         from qd_evolve.agent.human_agent import HumanAgent
         if isinstance(self.agent_core, HumanAgent):
             callback_url = ""
+            from_agent = ""
             if message.metadata:
                 callback_url = message.metadata.get("callback_url", "")
-            self.agent_core.receive_task(task_id=task.id, content=task_text, callback_url=callback_url)
+                from_agent = message.metadata.get("from_agent", "")
+            self.agent_core.receive_task(task_id=task.id, content=task_text, callback_url=callback_url, from_agent=from_agent)
             task = self.task_store.get(task.id) or task
             sr = StreamResponse(statusUpdate=TaskStatusUpdateEvent(
                 task_id=task.id,
@@ -201,7 +245,7 @@ class A2AServer:
             return resp
 
         # Subscribe to agent events for intermediate updates
-        event_queue = self.agent_core.subscribe_events()
+        event_queue = self.subscribe_events()
 
         # Background execution
         run_task = asyncio.ensure_future(asyncio.to_thread(self.agent_core.run, task_text))
@@ -280,7 +324,7 @@ class A2AServer:
             "task_id": task.id,
             "content": self._extract_text(task.status.message) if task.status.message else "",
         }
-        self.agent_core._push_event(event)
+        self._push_event(event)
         if self._on_task_completed:
             try:
                 await self._on_task_completed(event)
@@ -328,12 +372,20 @@ class A2AServer:
         except (ConnectionError, asyncio.CancelledError):
             pass
         finally:
-            self.agent_core.unsubscribe_events(queue)
+            self.unsubscribe_events(queue)
         return resp
 
     def _get_extended_agent_card(self) -> AgentCard:
         """Return extended AgentCard with runtime status in extensions."""
         a = self.agent_core
+        if a is None:
+            return self.card.model_copy(update={
+                "capabilities": AgentCapabilities(
+                    streaming=self.card.capabilities.streaming,
+                    push_notifications=True,
+                    extended_agent_card=True,
+                ),
+            })
         # Human agent: minimal status, no provider/model/tools
         from qd_evolve.agent.human_agent import HumanAgent
         if isinstance(a, HumanAgent):

@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from qd_evolve.core.logger import logger
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 CONFIG_PATH = Path("config.json")
 
@@ -144,6 +144,21 @@ class AgentsConfig(BaseModel):
     agents: list[AgentEntry] = []
     topology: TopologyConfig = TopologyConfig()
     a2a_cli: A2ACLIConfig = A2ACLIConfig()
+
+    @model_validator(mode="after")
+    def _validate_ports(self) -> "AgentsConfig":
+        ports: dict[int, list[str]] = {}
+        for agent in self.agents:
+            ports.setdefault(agent.server.port, []).append(f"agent '{agent.name}'")
+
+        cli_port = self.a2a_cli.server.port or DEFAULT_SERVER_PORT
+        ports.setdefault(cli_port, []).append("a2a_cli server")
+
+        dupes = {p: owners for p, owners in ports.items() if len(owners) > 1}
+        if dupes:
+            lines = [f"  port {p} shared by: {', '.join(owners)}" for p, owners in dupes.items()]
+            raise ValueError("Duplicate server ports in config:\n" + "\n".join(lines))
+        return self
 
 
 class Settings(BaseModel):

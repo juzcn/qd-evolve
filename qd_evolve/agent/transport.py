@@ -305,10 +305,13 @@ class HttpTransport:
             # Include callback_url so remote agent can push results via webhook
             msg_dict = message.model_dump()
             callback_url = self._get_callback_url()
-            if callback_url and "metadata" not in msg_dict:
+            if "metadata" not in msg_dict or msg_dict["metadata"] is None:
                 msg_dict["metadata"] = {}
             if callback_url:
                 msg_dict["metadata"]["callback_url"] = callback_url
+            from_agent = self._get_registry().current_agent
+            if from_agent:
+                msg_dict["metadata"]["from_agent"] = from_agent
             payload = self._rpc("message/send", {"message": msg_dict})
             async with aiohttp.ClientSession() as session:
                 resp = await session.post(url, json=payload)
@@ -326,10 +329,13 @@ class HttpTransport:
             url = self._get_registry().get_url(target)
             msg_dict = message.model_dump()
             callback_url = self._get_callback_url()
-            if callback_url and "metadata" not in msg_dict:
+            if "metadata" not in msg_dict or msg_dict["metadata"] is None:
                 msg_dict["metadata"] = {}
             if callback_url:
                 msg_dict["metadata"]["callback_url"] = callback_url
+            from_agent = self._get_registry().current_agent
+            if from_agent:
+                msg_dict["metadata"]["from_agent"] = from_agent
             payload = self._rpc("message/stream", {"message": msg_dict})
             async with aiohttp.ClientSession() as session:
                 async with session.post(url, json=payload) as resp:

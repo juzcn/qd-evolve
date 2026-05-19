@@ -150,7 +150,7 @@ async def _handle_slash_command(
     router: Any,
     agent_entry: Any = None,
 ) -> str | None:
-    from qd_evolve.agent import A2AAgent, init_process, get_skill_registry, get_cli_registry
+    from qd_evolve.agent import get_skill_registry, get_cli_registry
     from qd_evolve.core.registry import get_registry
     skill_registry = get_skill_registry()
     cli_registry = get_cli_registry()
@@ -280,7 +280,7 @@ async def _async_chat_loop(
     CLI never creates agents. All communication goes through router:
     send_stream for chat, resubscribe for heartbeat events, is_online for probes.
     """
-    from qd_evolve.agent import A2AAgent, init_process, get_skill_registry, get_cli_registry, get_bridges
+    from qd_evolve.agent import get_skill_registry, get_cli_registry, get_bridges
     from qd_evolve.core.providers import ProviderRegistry
     from qd_evolve.agent.a2a import Message, Part, TaskState
     from tools.bridge import BridgeManager
@@ -348,6 +348,7 @@ async def _async_chat_loop(
             event_workers.append(asyncio.ensure_future(_remote_event_worker(name)))
 
     input_task = None
+    quitting = False
 
     try:
       while True:
@@ -432,6 +433,7 @@ async def _async_chat_loop(
             result = await _handle_slash_command(user_input, settings, router, agent_entry=_current_agent_entry())
             if result is None:
                 console.print("[dim]Goodbye![/dim]")
+                quitting = True
                 break
             if result:
                 console.print(result)
@@ -454,6 +456,7 @@ async def _async_chat_loop(
         is_human_target = cur_entry is not None and cur_entry.is_human
         msg = Message(role="user", parts=[Part(type="text", text=user_input)])
         response = ""
+        last_tokens_event: dict | None = None
 
         if is_human_target:
             # Human agent: send_task (non-blocking), returns input_required
@@ -566,11 +569,11 @@ async def _async_chat_loop(
                 input_task.result()
             except BaseException:
                 pass
-        for t in event_workers:
-            if not t.done():
-                t.cancel()
         console.print("\n[dim]Goodbye![/dim]")
 
+    for t in event_workers:
+        if not t.done():
+            t.cancel()
     for b in bridges:
         try:
             b.disconnect(shutdown=True)
@@ -584,9 +587,14 @@ async def _async_chat_loop(
 
 # ── Human terminal loop ────────────────────────────────────────────────────
 
-async def _human_terminal_loop(agent_core: Any, friendly_name: str) -> None:
+async def _human_terminal_loop(agent_core: Any, friendly_name: str, settings: Any = None) -> None:
     """Interactive loop: receive tasks, prompt human, submit responses."""
     queue = agent_core.subscribe_events()
+    # Build friendly name lookup from config
+    agent_friendly: dict[str, str] = {}
+    if settings:
+        for a in settings.agents_config.agents:
+            agent_friendly[a.name] = a.effective_friendly_name()
     try:
         while True:
             event = await queue.get()
@@ -594,11 +602,13 @@ async def _human_terminal_loop(agent_core: Any, friendly_name: str) -> None:
             if etype == "human_task":
                 task_id = event.get("task_id", "")
                 task_content = event.get("content", "")
-                console.print(f"\n[bold yellow]Task {task_id}:[/bold yellow] {task_content}")
+                from_agent = event.get("from_agent", "")
+                label = agent_friendly.get(from_agent, from_agent) if from_agent else task_id[:8]
+                console.print(f"\n[bold yellow]{label}:[/bold yellow] {task_content}")
                 console.print("[bold cyan]Your response:[/bold cyan] ", end="")
                 response = await asyncio.to_thread(input)
                 agent_core.complete_task(task_id, response)
-                console.print(f"[dim]Response submitted for task {task_id}[/dim]")
+                console.print(f"[dim]Response submitted[/dim]")
             elif etype == "task_completed":
                 # Already handled by complete_task caller; ignore echo
                 pass
@@ -686,7 +696,7 @@ def serve(
             console.print("[dim]Another process may be using this port. Kill it or change the port in config.json.[/dim]")
             return
         if is_human:
-            await _human_terminal_loop(agent_core, fn)
+            await _human_terminal_loop(agent_core, fn, settings)
         else:
             agent_core.start_heartbeat_loop()
             # Block until Ctrl+C
@@ -715,7 +725,7 @@ def chat(
         return
     from qd_evolve.core.logger import setup_logging
     from qd_evolve.core.config import LOG_DIR as LOG_DIR_PATH
-    from qd_evolve.agent.loader import init_process, create_agent
+    from qd_evolve.agent.loader import init_process
 
     # 1. Config & logging
     setup_logging("WARNING", log_dir=LOG_DIR_PATH)
@@ -734,33 +744,27 @@ def chat(
     # 2. Per-process init (skills, CLI tools, bridges, registry injection)
     init_process(settings)
 
-    # 3. Create chat agent via loader (full A2A agent with server)
+    # 3. Chat agent from config (remote only — never created in-process)
     chat_agent_name = settings.agents_config.chat_agent
     chat_agent_entry = next((a for a in settings.agents_config.agents if a.name == chat_agent_name), None)
     if chat_agent_entry is None:
         console.print(f"[red]Error:[/red] Agent '{chat_agent_name}' not found in config")
         raise SystemExit(1)
 
-    try:
-        agent_core = create_agent(chat_agent_name, settings=settings)
-    except ValueError as e:
-        console.print(f"[bold red]Error:[/bold red] {e}")
-        raise typer.Exit(code=1)
-
-    # 4. A2A setup — register agent + full transport (inproc + http)
+    # 4. Pure HTTP transport — no in-process agents, no InprocTransport
     from qd_evolve.agent.registry import AgentRegistry, Topology, set_agent_registry
-    from qd_evolve.agent.transport import InprocTransport, HttpTransport, TransportRouter
+    from qd_evolve.agent.transport import HttpTransport, TransportRouter
+    from qd_evolve.agent.a2a import AgentCard, AgentCapabilities
 
     topology = Topology(settings)
-    router = TransportRouter(InprocTransport(), HttpTransport())
+    router = TransportRouter(None, HttpTransport())
     agent_reg = AgentRegistry(topology, current_agent=chat_agent_name)
-    agent_reg.register(agent_core)
     set_agent_registry(agent_reg)
 
     from qd_evolve.tools.a2a import set_transport
     set_transport(router)
 
-    # 5. Start A2A server for this agent (accepts webhook callbacks)
+    # 5. Minimal A2A server for webhook callbacks — no agent needed
     from qd_evolve.agent.server import A2AServer
     from qd_evolve.core.config import DEFAULT_BIND_HOST, DEFAULT_SERVER_HOST, DEFAULT_SERVER_PORT
 
@@ -768,7 +772,12 @@ def chat(
         """Push webhook callback events to the CLI event queue."""
         await event_queue.put(("webhook", event))
 
-    server = A2AServer(agent_core, on_task_completed=_on_webhook)
+    cli_card = AgentCard(
+        name="qd-evolve-cli",
+        description="qd-evolve A2A CLI client",
+        capabilities=AgentCapabilities(streaming=False, push_notifications=True),
+    )
+    server = A2AServer(card=cli_card, on_task_completed=_on_webhook)
     bind_host = DEFAULT_BIND_HOST
     a2a_cli_cfg = settings.agents_config.a2a_cli
     connect_host = a2a_cli_cfg.server.host or DEFAULT_SERVER_HOST
@@ -831,14 +840,13 @@ def chat(
             console.print(f"[red]Error:[/red] Cannot bind to {bind_host}:{port} — {e}")
             console.print("[dim]Another process may be using this port. Kill it or change the port in config.json.[/dim]")
             return
-        if chat_agent_entry.is_human:
-            agent_core.start_heartbeat_loop(settings.heartbeat_idle_seconds)
-        else:
-            agent_core.start_heartbeat_loop()
-        await _async_chat_loop(
-            input_session, settings, output_file,
-            router=router,
-        )
+        try:
+            await _async_chat_loop(
+                input_session, settings, output_file,
+                router=router,
+            )
+        finally:
+            await server.stop()
 
     try:
         asyncio.run(_run())

@@ -122,7 +122,7 @@ class HumanAgent:
         if callback_url:
             self._fire_webhook(task, callback_url)
 
-    def receive_task(self, task_id: str, content: str, callback_url: str = "") -> None:
+    def receive_task(self, task_id: str, content: str, callback_url: str = "", from_agent: str = "") -> None:
         """Called by A2AServer when a new task arrives via message/send.
 
         Creates task in input_required state, stores callback URL,
@@ -133,12 +133,13 @@ class HumanAgent:
         task.status.state = TaskState.input_required
         task.metadata["callback_url"] = callback_url
         self.task_store.put(task)
-        logger.info("HumanAgent [%s]: received task '%s' (%d chars)", self.card.name, task_id, len(content))
+        logger.info("HumanAgent [%s]: received task '%s' from '%s' (%d chars)", self.card.name, task_id, from_agent, len(content))
         self._push_event({
             "type": "human_task",
             "task_id": task_id,
             "content": content,
             "callback_url": callback_url,
+            "from_agent": from_agent,
         })
 
     # ── Event fan-out (same pattern as A2AAgent) ────────────────────
@@ -161,9 +162,12 @@ class HumanAgent:
         try:
             import asyncio
             async def _post() -> None:
-                async with aiohttp.ClientSession() as session:
-                    async with session.post(callback_url, json=payload, timeout=aiohttp.ClientTimeout(total=10)):
-                        pass
+                try:
+                    async with aiohttp.ClientSession() as session:
+                        async with session.post(callback_url, json=payload, timeout=aiohttp.ClientTimeout(total=10)):
+                            pass
+                except Exception:
+                    logger.debug("HumanAgent [%s]: webhook POST failed for %s", self.card.name, callback_url, exc_info=True)
             try:
                 loop = asyncio.get_running_loop()
                 asyncio.ensure_future(_post())
