@@ -1,12 +1,14 @@
 """A2A Agent — wraps Agent with A2A identity and event subscriber fan-out.
 
 Composition, not inheritance. Agent stays pure (LLM loop + callbacks + heartbeat).
-A2AAgent adds: card, task_store, _event_subscribers, subscribe_events/unsubscribe_events.
+A2AAgent adds: card, task_store, _event_subscribers, subscribe_events/unsubscribe_events,
+and heartbeat_check override that checks pending task results from push notifications.
 """
 
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime
 from typing import Any
 
 from qd_evolve.agent.a2a import AgentCard
@@ -37,10 +39,72 @@ class A2AAgent:
         return self.agent.run(*args, **kwargs)
 
     def heartbeat_check(self, idle_seconds: int) -> str:
-        return self.agent.heartbeat_check(idle_seconds)
+        """A2A heartbeat: check pending task results before calling LLM.
+
+        Uses a2a-heartbeat template and injects any completed task results
+        from push notifications (e.g. human agent replies).
+        """
+        pending_results = self._check_pending_task_results()
+
+        if self.agent._template_mgr is not None:
+            msg = self.agent._template_mgr.render("a2a-heartbeat", idle_seconds=idle_seconds,
+                                                   now=datetime.now().strftime("%Y-%m-%d %A %H:%M:%S"),
+                                                   pending_task_results=pending_results)
+        else:
+            msg = f"[System heartbeat: idle {idle_seconds}s. Chat if you want, '.' to stay silent.]"
+            if pending_results:
+                msg += "\n" + pending_results
+
+        logger.debug("A2A Heartbeat: idle %ss, sending heartbeat message", idle_seconds)
+        try:
+            response = self.agent.run(msg)
+        except Exception as e:
+            logger.warning("A2A Heartbeat: LLM call failed: %s", e)
+            return None
+        if response.strip() == ".":
+            logger.debug("A2A Heartbeat: LLM sent '.' — staying silent")
+            self._push_event({"type": "heartbeat_silent"})
+        else:
+            logger.info("A2A Heartbeat: LLM responded (%s chars)", len(response))
+            self._push_event({"type": "heartbeat", "content": response})
+        return response
+
+    def _check_pending_task_results(self) -> str:
+        """Check _task_store for tasks that were input_required and now completed.
+
+        Returns a formatted string of completed task results, or empty string.
+        """
+        from qd_evolve.tools.a2a import _task_store
+        completed_items = []
+        for task_id, entry in list(_task_store.items()):
+            if entry.get("state") in ("completed", "failed", "canceled") and entry.get("result"):
+                target = entry.get("target", "")
+                result = entry.get("result", "")
+                completed_items.append(f"- Task {task_id[:8]} → {target}: [{entry['state']}] {result[:200]}")
+        if not completed_items:
+            return ""
+        return "\nPending task results arrived via push notification:\n" + "\n".join(completed_items)
 
     def start_heartbeat_loop(self) -> None:
-        self.agent.start_heartbeat_loop()
+        """Start heartbeat loop using A2AAgent.heartbeat_check (not Agent's).
+
+        Must run our own loop so heartbeat_check resolves to the A2A override
+        (which uses a2a-heartbeat template and checks pending task results),
+        not the base Agent.heartbeat_check.
+        """
+        seconds = self.agent.settings.heartbeat_idle_seconds
+        if seconds <= 0:
+            return
+
+        async def _loop() -> None:
+            while True:
+                await asyncio.sleep(seconds)
+                try:
+                    await asyncio.to_thread(self.heartbeat_check, seconds)
+                except Exception as e:
+                    logger.debug("A2A Heartbeat loop error: %s", e)
+
+        self.agent._hb_task = asyncio.ensure_future(_loop())
 
     def stop_heartbeat_loop(self) -> None:
         self.agent.stop_heartbeat_loop()

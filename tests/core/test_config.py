@@ -169,7 +169,7 @@ class TestSettings:
     def test_is_configured_true(self, minimal_settings):
         minimal_settings.agents_config = AgentsConfig(
             chat_agent="default",
-            agents=[AgentEntry(name="default", provider="test", model="test-model")],
+            agents=[AgentEntry(name="default", provider="test", model="test-model", server=ServerConfig(port=8002))],
         )
         assert minimal_settings.is_configured is True
 
@@ -182,7 +182,7 @@ class TestSettings:
             default_model="test-model",
             agents_config=AgentsConfig(
                 chat_agent="default",
-                agents=[AgentEntry(name="default", provider="test")],
+                agents=[AgentEntry(name="default", provider="test", server=ServerConfig(port=8002))],
             ),
         )
         assert s.is_configured is False

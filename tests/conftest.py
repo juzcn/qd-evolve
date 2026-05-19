@@ -182,7 +182,7 @@ def config_json(tmp_path: Path) -> Path:
         "agents_config": {
             "chat_agent": "default",
             "agents": [
-                {"name": "default", "description": "Default agent"},
+                {"name": "default", "description": "Default agent", "server": {"port": 8002}},
             ],
         },
     }

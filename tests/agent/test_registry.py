@@ -34,15 +34,15 @@ def _make_settings(agents: list[AgentEntry], relations: list[dict] | None = None
 class TestTopology:
     def test_get_relation_peer(self):
         agents = [
-            AgentEntry(name="a"),
-            AgentEntry(name="b"),
+            AgentEntry(name="a", server=ServerConfig(port=8002)),
+            AgentEntry(name="b", server=ServerConfig(port=8003)),
         ]
         settings = _make_settings(agents, relations=[{"from": "a", "to": "b", "mode": "peer"}])
         topo = Topology(settings)
         assert topo.get_relation("a", "b") == "peer"
 
     def test_get_relation_default_peer(self):
-        agents = [AgentEntry(name="a")]
+        agents = [AgentEntry(name="a", server=ServerConfig(port=8002))]
         settings = _make_settings(agents)
         topo = Topology(settings)
         assert topo.get_relation("a", "b") == "peer"

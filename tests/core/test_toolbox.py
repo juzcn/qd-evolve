@@ -117,10 +117,10 @@ class TestSetState:
 
 class TestToggle:
     def test_cycle_disabled_enabled_preload(self, toolbox_dir):
-        assert toggle("tools", "echo") == "enabled"  # default → enabled → preload
-        assert toggle("tools", "echo") == "preload"
-        assert toggle("tools", "echo") == "disabled"
-        assert toggle("tools", "echo") == "enabled"
+        assert toggle("tools", "echo") == "preload"  # enabled → preload
+        assert toggle("tools", "echo") == "disabled"  # preload → disabled
+        assert toggle("tools", "echo") == "enabled"  # disabled → enabled
+        assert toggle("tools", "echo") == "preload"  # enabled → preload
 
     def test_bridge_toggle(self, toolbox_dir):
         assert toggle("bridge", "oat:boat") == "disabled"  # enabled → disabled
