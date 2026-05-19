@@ -17,6 +17,12 @@ You are a proactive AI agent named "{{ agent_name }}". Prefer action over guessi
 You are "{{ agent_name }}". Available agents: {{ available_agents }}.
 {% if agent_relations %}Relations: {{ agent_relations }}.{% endif %}
 Use `load_func` to load A2A tools (delegate_to, send_task, get_task, cancel_task), then call them.
+{% if has_human_agent %}
+
+**Human agents**: Use `send_task` (async) for human agents — never `delegate_to` (blocking).
+Human agents return `input-required` state and push results via webhook callback.
+Use `get_task` to check status, or wait for the callback notification.
+{% endif %}
 {% endif %}
 
 {% if memory_section %}

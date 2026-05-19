@@ -272,10 +272,12 @@ async def _handle_slash_command(
         current = settings.agents_config.chat_agent
         for i, a in enumerate(agent_list, 1):
             marker = " *" if a.name == current else ""
-            prov = a.effective_provider(settings)
-            mdl = a.effective_model(settings)
             srv = f"{a.server.host}:{a.server.port}"
-            table.add_row(str(i), a.name + marker, a.effective_friendly_name(), f"{prov}/{mdl}", srv)
+            if a.is_human:
+                prov_mdl = "human"
+            else:
+                prov_mdl = f"{a.effective_provider(settings)}/{a.effective_model(settings)}"
+            table.add_row(str(i), a.name + marker, a.effective_friendly_name(), prov_mdl, srv)
         console.print(table)
         try:
             from prompt_toolkit import PromptSession

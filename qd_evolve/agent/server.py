@@ -100,6 +100,8 @@ class A2AServer:
                 result = await self._tasks_cancel(params)
             elif method == "tasks/resubscribe":
                 return await self._tasks_resubscribe(params, request, req_id)
+            elif method == "tasks/pushNotification":
+                result = await self._tasks_push_notification(params)
             elif method == "agent/getExtendedAgentCard":
                 result = self._get_extended_agent_card()
             else:
@@ -112,11 +114,31 @@ class A2AServer:
         return web.json_response({"jsonrpc": "2.0", "result": result.model_dump(), "id": req_id})
 
     async def _message_send(self, params: dict) -> Task:
-        """Blocking: create task, run agent, return completed task."""
+        """Create task, run agent, return completed task.
+
+        For human agents: return Task(input_required) immediately —
+        human responds asynchronously via complete_task().
+        """
         message_data = params.get("message", {})
         message = Message.model_validate(message_data) if message_data else make_text_message("user", "")
         task_text = self._extract_text(message)
 
+        # Human agent: async mode — return input_required, don't block
+        from qd_evolve.agent.human_agent import HumanAgent
+        if isinstance(self.agent_core, HumanAgent):
+            callback_url = ""
+            if message.metadata:
+                callback_url = message.metadata.get("callback_url", "")
+            task = make_task_with_text(task_text)
+            self.agent_core.receive_task(
+                task_id=task.id,
+                content=task_text,
+                callback_url=callback_url,
+            )
+            # receive_task stores the task; retrieve it
+            return self.task_store.get(task.id) or task
+
+        # AI agent: blocking run
         task = make_task_with_text(task_text)
         task.status.state = TaskState.working
         self.task_store.put(task)
@@ -153,6 +175,24 @@ class A2AServer:
         # First event: Task object
         sr = StreamResponse(task=task)
         await resp.write(f"data: {json.dumps({'jsonrpc': '2.0', 'result': sr.model_dump(), 'id': req_id}, ensure_ascii=False)}\n\n".encode())
+
+        # Human agent: return input_required immediately, no blocking run
+        from qd_evolve.agent.human_agent import HumanAgent
+        if isinstance(self.agent_core, HumanAgent):
+            callback_url = ""
+            if message.metadata:
+                callback_url = message.metadata.get("callback_url", "")
+            self.agent_core.receive_task(task_id=task.id, content=task_text, callback_url=callback_url)
+            task = self.task_store.get(task.id) or task
+            sr = StreamResponse(statusUpdate=TaskStatusUpdateEvent(
+                task_id=task.id,
+                context_id=task.session_id,
+                status=TaskStatus(state=TaskState.input_required, message=make_text_message("agent", "Waiting for human input")),
+                final=True,
+            ))
+            await resp.write(f"data: {json.dumps({'jsonrpc': '2.0', 'result': sr.model_dump(), 'id': req_id}, ensure_ascii=False)}\n\n".encode())
+            await resp.write_eof()
+            return resp
 
         # Subscribe to agent events for intermediate updates
         event_queue = self.agent_core.subscribe_events()
@@ -215,6 +255,27 @@ class A2AServer:
             return Task(status=TaskStatus(state=TaskState.failed, message=make_text_message("agent", f"Task '{task_id}' not found")))
         return task
 
+    async def _tasks_push_notification(self, params: dict) -> Task:
+        """Webhook callback: receive completed task from remote agent.
+
+        Updates local task store and pushes event so CLI/subscribers
+        see the result. This is how human agent callbacks reach the
+        calling AI agent.
+        """
+        task_data = params.get("task", {})
+        if not task_data:
+            return Task(status=TaskStatus(state=TaskState.failed, message=make_text_message("agent", "No task data in pushNotification")))
+        task = Task.model_validate(task_data)
+        self.task_store.put(task)
+        logger.info("A2A server: pushNotification received for task '%s' (state=%s)", task.id, task.status.state)
+        # Push event so CLI and subscribers see the result
+        self.agent_core._push_event({
+            "type": "task_completed",
+            "task_id": task.id,
+            "content": self._extract_text(task.status.message) if task.status.message else "",
+        })
+        return task
+
     @staticmethod
     def _extract_text(message: Message) -> str:
         for part in message.parts:
@@ -261,6 +322,23 @@ class A2AServer:
     def _get_extended_agent_card(self) -> AgentCard:
         """Return extended AgentCard with runtime status in extensions."""
         a = self.agent_core
+        # Human agent: minimal status, no provider/model/tools
+        from qd_evolve.agent.human_agent import HumanAgent
+        if isinstance(a, HumanAgent):
+            status_ext = AgentExtension(
+                uri="x-qd-evolve-status",
+                description="Runtime status of the agent",
+                params={"type": "human"},
+            )
+            card = self.card.model_copy(update={
+                "capabilities": AgentCapabilities(
+                    streaming=self.card.capabilities.streaming,
+                    push_notifications=True,
+                    extended_agent_card=True,
+                ),
+                "extensions": [status_ext],
+            })
+            return card
         status_ext = AgentExtension(
             uri="x-qd-evolve-status",
             description="Runtime status of the agent",

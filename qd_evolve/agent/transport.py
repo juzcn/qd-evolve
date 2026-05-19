@@ -254,13 +254,27 @@ class HttpTransport:
             self._registry = get_agent_registry()
         return self._registry
 
+    def _get_callback_url(self) -> str:
+        """Return this agent's own server URL for webhook callbacks."""
+        registry = self._get_registry()
+        if registry.current_agent:
+            return registry.get_url(registry.current_agent)
+        return ""
+
     async def send_task(self, target: str, message: Message) -> Task:
         """Blocking: HTTP POST message/send."""
         import aiohttp
 
         try:
             url = self._get_registry().get_url(target)
-            payload = self._rpc("message/send", {"message": message.model_dump()})
+            # Include callback_url so remote agent can push results via webhook
+            msg_dict = message.model_dump()
+            callback_url = self._get_callback_url()
+            if callback_url and "metadata" not in msg_dict:
+                msg_dict["metadata"] = {}
+            if callback_url:
+                msg_dict["metadata"]["callback_url"] = callback_url
+            payload = self._rpc("message/send", {"message": msg_dict})
             async with aiohttp.ClientSession() as session:
                 resp = await session.post(url, json=payload)
                 data = await resp.json()
@@ -275,7 +289,13 @@ class HttpTransport:
 
         try:
             url = self._get_registry().get_url(target)
-            payload = self._rpc("message/stream", {"message": message.model_dump()})
+            msg_dict = message.model_dump()
+            callback_url = self._get_callback_url()
+            if callback_url and "metadata" not in msg_dict:
+                msg_dict["metadata"] = {}
+            if callback_url:
+                msg_dict["metadata"]["callback_url"] = callback_url
+            payload = self._rpc("message/stream", {"message": msg_dict})
             async with aiohttp.ClientSession() as session:
                 async with session.post(url, json=payload) as resp:
                     async for line in resp.content:

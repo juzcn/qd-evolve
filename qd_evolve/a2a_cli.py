@@ -244,10 +244,12 @@ async def _handle_slash_command(
         current = settings.agents_config.chat_agent
         for i, a in enumerate(agent_list, 1):
             marker = " *" if a.name == current else ""
-            prov = a.effective_provider(settings)
-            mdl = a.effective_model(settings)
             srv = f"{a.server.host}:{a.server.port}"
-            table.add_row(str(i), a.name + marker, a.effective_friendly_name(), f"{prov}/{mdl}", srv)
+            if a.is_human:
+                prov_mdl = "human"
+            else:
+                prov_mdl = f"{a.effective_provider(settings)}/{a.effective_model(settings)}"
+            table.add_row(str(i), a.name + marker, a.effective_friendly_name(), prov_mdl, srv)
         console.print(table)
         try:
             from prompt_toolkit import PromptSession
@@ -545,6 +547,32 @@ async def _async_chat_loop(
         output_file.close()
 
 
+# ── Human terminal loop ────────────────────────────────────────────────────
+
+async def _human_terminal_loop(agent_core: Any, friendly_name: str) -> None:
+    """Interactive loop: receive tasks, prompt human, submit responses."""
+    queue = agent_core.subscribe_events()
+    try:
+        while True:
+            event = await queue.get()
+            etype = event.get("type", "")
+            if etype == "human_task":
+                task_id = event.get("task_id", "")
+                task_content = event.get("content", "")
+                console.print(f"\n[bold yellow]Task {task_id}:[/bold yellow] {task_content}")
+                console.print("[bold cyan]Your response:[/bold cyan] ", end="")
+                response = await asyncio.to_thread(input)
+                agent_core.complete_task(task_id, response)
+                console.print(f"[dim]Response submitted for task {task_id}[/dim]")
+            elif etype == "task_completed":
+                # Already handled by complete_task caller; ignore echo
+                pass
+    except (KeyboardInterrupt, EOFError):
+        pass
+    finally:
+        agent_core.unsubscribe_events(queue)
+
+
 # ── a2a serve ─────────────────────────────────────────────────────────────
 
 @a2a_app.command()
@@ -574,43 +602,59 @@ def serve(
     # 2. Per-process init (skills, CLI tools, bridges, registry injection)
     init_process(settings)
 
-    # 3. Create AgentCore via loader (full init: toolbox, system prompt, memory, etc.)
-    agent_core = create_agent(agent, settings=settings)
+    # 3. Create agent via loader
+    try:
+        agent_core = create_agent(agent, settings=settings)
+    except ValueError as e:
+        console.print(f"[bold red]Error:[/bold red] {e}")
+        raise typer.Exit(code=1)
+    entry = next((a for a in settings.agents_config.agents if a.name == agent), None)
+    is_human = entry is not None and entry.is_human
 
-    # 4. A2A setup — register in AgentRegistry + set transport
-    from qd_evolve.agent.registry import AgentRegistry, Topology, set_agent_registry
-    from qd_evolve.agent.transport import InprocTransport, HttpTransport, TransportRouter
+    # 4. A2A setup — register in AgentRegistry + set transport (AI agents only)
+    if not is_human:
+        from qd_evolve.agent.registry import AgentRegistry, Topology, set_agent_registry
+        from qd_evolve.agent.transport import InprocTransport, HttpTransport, TransportRouter
 
-    topology = Topology(settings)
-    router = TransportRouter(InprocTransport(), HttpTransport())
-    agent_reg = AgentRegistry(topology, current_agent=agent)
-    agent_reg.register(agent_core)
-    set_agent_registry(agent_reg)
+        topology = Topology(settings)
+        router = TransportRouter(InprocTransport(), HttpTransport())
+        agent_reg = AgentRegistry(topology, current_agent=agent)
+        agent_reg.register(agent_core)
+        set_agent_registry(agent_reg)
 
-    from qd_evolve.tools.a2a import set_transport
-    set_transport(router)
+        from qd_evolve.tools.a2a import set_transport
+        set_transport(router)
 
     # 5. Start A2A server — bind 0.0.0.0 to accept all interfaces, display connect address
     server = A2AServer(agent_core)
-    entry = next((a for a in settings.agents_config.agents if a.name == agent), None)
     from qd_evolve.core.config import DEFAULT_BIND_HOST, DEFAULT_SERVER_HOST, DEFAULT_SERVER_PORT
     bind_host = DEFAULT_BIND_HOST
     connect_host = entry.server.host if entry else DEFAULT_SERVER_HOST
     port = entry.server.port if entry else DEFAULT_SERVER_PORT
-    console.print(Panel(
-        f"Serving agent [bold]{_friendly_name(settings, agent)} ({agent})[/bold] on {bind_host}:{port} (connect: {connect_host}:{port})\nA2A v1.0 JSON-RPC + SSE",
-        style="bold green",
-    ))
+    fn = _friendly_name(settings, agent)
+    if is_human:
+        console.print(Panel(
+            f"Human agent [bold]{fn} ({agent})[/bold] on {bind_host}:{port} (connect: {connect_host}:{port})\nWaiting for tasks...",
+            style="bold yellow",
+        ))
+    else:
+        console.print(Panel(
+            f"Serving agent [bold]{fn} ({agent})[/bold] on {bind_host}:{port} (connect: {connect_host}:{port})\nA2A v1.0 JSON-RPC + SSE",
+            style="bold green",
+        ))
 
     async def _run() -> None:
         await server.start(host=bind_host, port=port)
-        agent_core.start_heartbeat_loop()
-        # Block until Ctrl+C
-        stop_event = asyncio.Event()
-        try:
-            await stop_event.wait()
-        except KeyboardInterrupt:
-            pass
+        if is_human:
+            await _human_terminal_loop(agent_core, fn)
+        else:
+            agent_core.start_heartbeat_loop()
+            # Block until Ctrl+C
+            stop_event = asyncio.Event()
+            try:
+                await stop_event.wait()
+            except KeyboardInterrupt:
+                pass
 
     try:
         asyncio.run(_run())
@@ -626,12 +670,12 @@ def chat(
     replay: Path | None = typer.Option(None, "--replay", help="Replay inputs from file"),
     output: Path | None = typer.Option(None, "--output", help="Capture output to file"),
 ) -> None:
-    """Connect to remote A2A agent servers as a pure HTTP client."""
+    """A2A chat client + server. Connects to remote agents and accepts webhook callbacks."""
     if ctx.invoked_subcommand is not None:
         return
     from qd_evolve.core.logger import setup_logging
     from qd_evolve.core.config import LOG_DIR as LOG_DIR_PATH
-    from qd_evolve.agent.loader import init_process
+    from qd_evolve.agent.loader import init_process, create_agent
 
     # 1. Config & logging
     setup_logging("WARNING", log_dir=LOG_DIR_PATH)
@@ -650,52 +694,76 @@ def chat(
     # 2. Per-process init (skills, CLI tools, bridges, registry injection)
     init_process(settings)
 
-    # 3. A2A setup — HttpTransport only (CLI is not an agent)
+    # 3. Create chat agent via loader (full A2A agent with server)
+    chat_agent_name = settings.agents_config.chat_agent
+    chat_agent_entry = next((a for a in settings.agents_config.agents if a.name == chat_agent_name), None)
+    if chat_agent_entry is None:
+        console.print(f"[red]Error:[/red] Agent '{chat_agent_name}' not found in config")
+        raise SystemExit(1)
+
+    try:
+        agent_core = create_agent(chat_agent_name, settings=settings)
+    except ValueError as e:
+        console.print(f"[bold red]Error:[/bold red] {e}")
+        raise typer.Exit(code=1)
+
+    # 4. A2A setup — register agent + full transport (inproc + http)
     from qd_evolve.agent.registry import AgentRegistry, Topology, set_agent_registry
-    from qd_evolve.agent.transport import HttpTransport, TransportRouter
+    from qd_evolve.agent.transport import InprocTransport, HttpTransport, TransportRouter
 
     topology = Topology(settings)
-    router = TransportRouter(None, HttpTransport())
-    agent_reg = AgentRegistry(topology)
+    router = TransportRouter(InprocTransport(), HttpTransport())
+    agent_reg = AgentRegistry(topology, current_agent=chat_agent_name)
+    agent_reg.register(agent_core)
     set_agent_registry(agent_reg)
 
     from qd_evolve.tools.a2a import set_transport
     set_transport(router)
 
-    # 4. Startup panel
-    chat_agent_name = settings.agents_config.chat_agent
-    chat_agent_entry = next((a for a in settings.agents_config.agents if a.name == chat_agent_name), None)
+    # 5. Start A2A server for this agent (accepts webhook callbacks)
+    from qd_evolve.agent.server import A2AServer
+    from qd_evolve.core.config import DEFAULT_BIND_HOST, DEFAULT_SERVER_HOST, DEFAULT_SERVER_PORT
+
+    server = A2AServer(agent_core)
+    bind_host = DEFAULT_BIND_HOST
+    connect_host = chat_agent_entry.server.host if chat_agent_entry else DEFAULT_SERVER_HOST
+    port = chat_agent_entry.server.port if chat_agent_entry else DEFAULT_SERVER_PORT
+
+    # 6. Startup panel
     agents = settings.agents_config.agents
+    fn = _friendly_name(settings, chat_agent_name)
 
     if len(agents) > 1:
         max_name_len = max(len(a.effective_friendly_name()) for a in agents)
         agent_lines = []
         for a in agents:
-            prov = a.effective_provider(settings)
-            mdl = a.effective_model(settings)
-            fn = a.effective_friendly_name()
-            name_col = f"{fn:<{max_name_len}}"
-            if a.name == chat_agent_name:
-                agent_lines.append(f"  [bold]► {name_col}[/bold]  {prov}/{mdl}")
+            a_fn = a.effective_friendly_name()
+            name_col = f"{a_fn:<{max_name_len}}"
+            if a.is_human:
+                info = "human"
             else:
-                agent_lines.append(f"    {name_col}  {prov}/{mdl}")
+                info = f"{a.effective_provider(settings)}/{a.effective_model(settings)}"
+            if a.name == chat_agent_name:
+                agent_lines.append(f"  [bold]► {name_col}[/bold]  {info}")
+            else:
+                agent_lines.append(f"    {name_col}  {info}")
         panel_text = (
-            f"qd-evolve v{__version__} (A2A HTTP client)\n\n"
+            f"qd-evolve v{__version__} (A2A client+server)\n\n"
             + "\n".join(agent_lines)
-            + f"\n\nChat: {_friendly_name(settings, chat_agent_name)} ({chat_agent_name})"
+            + f"\n\nChat: {fn} ({chat_agent_name})"
+            + f"\nServer: {bind_host}:{port}"
             + f"\n/help for commands, /quit to leave"
         )
     else:
-        agent_label = f" ({chat_agent_name})" if agents else ""
         model_info = escape(f"[{chat_agent_entry.effective_provider(settings)}/{chat_agent_entry.effective_model(settings)}]") if chat_agent_entry else ""
-        panel_text = f"qd-evolve v{__version__} (A2A HTTP client){agent_label} {model_info} - /help for commands, /quit to leave"
+        panel_text = f"qd-evolve v{__version__} (A2A client+server) {fn} ({chat_agent_name}) {model_info}\nServer: {bind_host}:{port}\n/help for commands, /quit to leave"
 
     console.print(Panel(
         panel_text,
         style="bold green",
     ))
 
-    # 5. Replay mode setup
+    # 7. Replay mode setup
     output_file = None
     if replay:
         lines = replay.read_text(encoding="utf-8").splitlines()
@@ -711,10 +779,18 @@ def chat(
     else:
         input_session = _make_prompt_session()
 
-    asyncio.run(_async_chat_loop(
-        input_session, settings, output_file,
-        router=router,
-    ))
+    async def _run() -> None:
+        await server.start(host=bind_host, port=port)
+        agent_core.start_heartbeat_loop()
+        await _async_chat_loop(
+            input_session, settings, output_file,
+            router=router,
+        )
+
+    try:
+        asyncio.run(_run())
+    except KeyboardInterrupt:
+        console.print("\n[dim]Server stopped.[/dim]")
 
 
 if __name__ == "__main__":

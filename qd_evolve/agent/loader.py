@@ -122,6 +122,15 @@ def create_agent(name: str, settings: Settings, *, need_a2a: bool | None = None)
     if entry is None:
         raise ValueError(f"Agent '{name}' not found in config.json agents list")
 
+    # ── Human agent: short-circuit ────────────────────────────
+    if entry.is_human:
+        from qd_evolve.agent.human_agent import HumanAgent
+        return HumanAgent(
+            name=entry.name,
+            description=entry.description,
+            friendly_name=entry.effective_friendly_name(),
+        )
+
     # Resolve process-level singletons
     registry = get_registry()
     providers = ProviderRegistry(settings)
@@ -206,6 +215,7 @@ def create_agent(name: str, settings: Settings, *, need_a2a: bool | None = None)
             f"{r['from']}→{r['to']} ({r.get('mode', 'peer')})"
             for r in settings.agents_config.topology.relations
         ) if settings.agents_config.topology.relations else "",
+        has_human_agent=any(a.is_human for a in settings.agents_config.agents),
     )
     logger.debug("Agent [%s]: system prompt assembled (%d chars), template=%s\n%s", name, len(system_prompt), template_name, system_prompt)
 

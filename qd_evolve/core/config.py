@@ -116,6 +116,10 @@ class AgentEntry(BaseModel):
     server: ServerConfig = ServerConfig()
     toolbox: ToolboxSection = ToolboxSection()
 
+    @property
+    def is_human(self) -> bool:
+        return self.provider == "human"
+
     def effective_provider(self, settings: Settings) -> str:
         return self.provider or settings.default_provider
 
