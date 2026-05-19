@@ -29,6 +29,12 @@ a2a_app = typer.Typer(help="A2A — remote agent HTTP client/server", invoke_wit
 console = Console()
 
 
+def _friendly_name(settings: Settings, name: str) -> str:
+    """Resolve friendly_name for an agent, falling back to name."""
+    entry = next((a for a in settings.agents_config.agents if a.name == name), None)
+    return entry.effective_friendly_name() if entry else name
+
+
 class ReplayInput:
     """Feeds pre-recorded inputs instead of reading from prompt_toolkit."""
 
@@ -232,6 +238,7 @@ async def _handle_slash_command(
         table = Table(title="Available Agents", show_header=True)
         table.add_column("#", style="dim")
         table.add_column("Agent", style="bold cyan")
+        table.add_column("Name", style="bold green")
         table.add_column("Provider/Model", style="bold")
         table.add_column("Server", style="dim")
         current = settings.agents_config.chat_agent
@@ -240,7 +247,7 @@ async def _handle_slash_command(
             prov = a.effective_provider(settings)
             mdl = a.effective_model(settings)
             srv = f"{a.server.host}:{a.server.port}"
-            table.add_row(str(i), a.name + marker, f"{prov}/{mdl}", srv)
+            table.add_row(str(i), a.name + marker, a.effective_friendly_name(), f"{prov}/{mdl}", srv)
         console.print(table)
         try:
             from prompt_toolkit import PromptSession
@@ -289,8 +296,9 @@ async def _async_chat_loop(
         return next((a for a in settings.agents_config.agents if a.name == name), None)
 
     all_agent_names = [a.name for a in settings.agents_config.agents]
+    all_friendly_names = {a.name: a.effective_friendly_name() for a in settings.agents_config.agents}
     hb_idle = settings.heartbeat_idle_seconds
-    hb_counts: dict[str, int] = {name: 0 for name in all_agent_names}
+    hb_counts: dict[str, int] = {all_friendly_names[name]: 0 for name in all_agent_names}
 
     def _agent_color(name: str) -> str:
         idx = all_agent_names.index(name) if name in all_agent_names else 0
@@ -302,13 +310,13 @@ async def _async_chat_loop(
         ok = await router.is_online(a.name)
         online_status[a.name] = ok
         status_str = "online" if ok else "offline"
-        console.print(f"  [dim]Agent '{a.name}' HTTP :{a.server.port} — {status_str}[/dim]")
+        console.print(f"  [dim]{_friendly_name(settings, a.name)} ({a.name}) HTTP :{a.server.port} — {status_str}[/dim]")
         if not ok:
             logger.warning("Agent '%s' (HTTP :%s) is offline", a.name, a.server.port)
 
     chat_name = _current_agent_name()
     if not online_status.get(chat_name, False):
-        console.print(f"[bold yellow]Warning:[/bold yellow] Agent '{chat_name}' is offline. Use [bold]/agents[/bold] to switch.")
+        console.print(f"[bold yellow]Warning:[/bold yellow] {_friendly_name(settings, chat_name)} is offline. Use [bold]/agents[/bold] to switch.")
 
     def _is_current_agent_online() -> bool:
         return online_status.get(_current_agent_name(), False)
@@ -376,14 +384,15 @@ async def _async_chat_loop(
                     agent_name, event = event_wait.result()
                 except Exception:
                     continue
+                fn = all_friendly_names.get(agent_name, agent_name)
                 etype = event.get("type", "")
                 if etype == "heartbeat":
-                    hb_counts[agent_name] = 0
+                    hb_counts[fn] = 0
                     color = _agent_color(agent_name)
                     _app = getattr(input_session, "app", None)
                     if _app and _app.is_running:
                         _app.renderer.erase()
-                    console.print(f"[bold {color}]{agent_name}>[/bold {color}] {event.get('content', '')}")
+                    console.print(f"[bold {color}]{fn}>[/bold {color}] {event.get('content', '')}")
                     if _app and _app.is_running:
                         _app.invalidate()
                     if agent_name == _current_agent_name():
@@ -395,7 +404,7 @@ async def _async_chat_loop(
                         user_input = None
                         break
                 elif etype == "heartbeat_silent":
-                    hb_counts[agent_name] += 1
+                    hb_counts[fn] += 1
                 continue
 
             # User input arrived
@@ -489,7 +498,7 @@ async def _async_chat_loop(
                 else:
                     response = f"[red]Error:[/red] {e}"
 
-        console.print(f"[bold {_agent_color(_current_agent_name())}]{_current_agent_name()}>[/bold {_agent_color(_current_agent_name())}] {response}")
+        console.print(f"[bold {_agent_color(_current_agent_name())}]{_friendly_name(settings, _current_agent_name())}>[/bold {_agent_color(_current_agent_name())}] {response}")
 
         # Token stats from SSE event
         if last_tokens_event:
@@ -589,7 +598,7 @@ def serve(
     connect_host = entry.server.host if entry else DEFAULT_SERVER_HOST
     port = entry.server.port if entry else DEFAULT_SERVER_PORT
     console.print(Panel(
-        f"Serving agent [bold]{agent}[/bold] on {bind_host}:{port} (connect: {connect_host}:{port})\nA2A v1.0 JSON-RPC + SSE",
+        f"Serving agent [bold]{_friendly_name(settings, agent)} ({agent})[/bold] on {bind_host}:{port} (connect: {connect_host}:{port})\nA2A v1.0 JSON-RPC + SSE",
         style="bold green",
     ))
 
@@ -659,12 +668,13 @@ def chat(
     agents = settings.agents_config.agents
 
     if len(agents) > 1:
-        max_name_len = max(len(a.name) for a in agents)
+        max_name_len = max(len(a.effective_friendly_name()) for a in agents)
         agent_lines = []
         for a in agents:
             prov = a.effective_provider(settings)
             mdl = a.effective_model(settings)
-            name_col = f"{a.name:<{max_name_len}}"
+            fn = a.effective_friendly_name()
+            name_col = f"{fn:<{max_name_len}}"
             if a.name == chat_agent_name:
                 agent_lines.append(f"  [bold]► {name_col}[/bold]  {prov}/{mdl}")
             else:
@@ -672,7 +682,7 @@ def chat(
         panel_text = (
             f"qd-evolve v{__version__} (A2A HTTP client)\n\n"
             + "\n".join(agent_lines)
-            + f"\n\nChat: {chat_agent_name}"
+            + f"\n\nChat: {_friendly_name(settings, chat_agent_name)} ({chat_agent_name})"
             + f"\n/help for commands, /quit to leave"
         )
     else:

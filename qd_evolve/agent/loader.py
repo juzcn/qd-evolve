@@ -200,8 +200,8 @@ def create_agent(name: str, settings: Settings, *, need_a2a: bool | None = None)
         python_cmd="python",
         cwd=str(Path.cwd()),
         skills_dir=SKILLS_DIR,
-        agent_name=name,
-        available_agents=", ".join(a.name for a in settings.agents_config.agents),
+        agent_name=entry.effective_friendly_name(),
+        available_agents=", ".join(a.effective_friendly_name() for a in settings.agents_config.agents),
         agent_relations=", ".join(
             f"{r['from']}→{r['to']} ({r.get('mode', 'peer')})"
             for r in settings.agents_config.topology.relations
