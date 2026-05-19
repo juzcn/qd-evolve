@@ -104,6 +104,13 @@ def _a2a_enabled(settings: Settings) -> bool:
     return len(settings.agents_config.agents) > 1
 
 
+def _lookup_friendly(settings: Settings, name: str) -> str:
+    for a in settings.agents_config.agents:
+        if a.name == name:
+            return a.effective_friendly_name()
+    return name
+
+
 # ── Per-agent factory ──────────────────────────────────────────────
 
 def create_agent(name: str, settings: Settings, *, need_a2a: bool | None = None) -> Any:
@@ -141,6 +148,9 @@ def create_agent(name: str, settings: Settings, *, need_a2a: bool | None = None)
     skill_registry = get_skill_registry()
     cli_registry = get_cli_registry()
 
+    # A2A mode: auto-detect (>1 agent) or explicit override
+    a2a_on = _a2a_enabled(settings) if need_a2a is None else need_a2a
+
     # ── Toolbox state (per-agent) ─────────────────────────────
     from qd_evolve.core.toolbox import (
         apply_to_tools, apply_to_cli_registry, apply_to_skill_registry,
@@ -154,6 +164,12 @@ def create_agent(name: str, settings: Settings, *, need_a2a: bool | None = None)
     apply_to_tools(registry, loaded_tool_names, agent_name=name)
     apply_to_cli_registry(cli_registry, loaded_cli_names, agent_name=name)
     apply_to_skill_registry(skill_registry, loaded_skill_names, agent_name=name)
+
+    # A2A tools (delegate_to, send_task, etc.): only enabled in A2A mode
+    a2a_tool_names = {"delegate_to", "send_task", "get_task", "cancel_task"}
+    for td in registry.list_tools():
+        if td.name in a2a_tool_names:
+            td.enabled = a2a_on
 
     from qd_evolve.tools.tool_loader import set_preload_tools
     set_preload_tools(loaded_tool_names)
@@ -196,7 +212,6 @@ def create_agent(name: str, settings: Settings, *, need_a2a: bool | None = None)
     template_mgr = PromptTemplateManager()
     template_name = entry.system_prompt_template or "default"
 
-    a2a_on = _a2a_enabled(settings) if need_a2a is None else need_a2a
     if a2a_on:
         prefixed = f"a2a-{template_name}"
         if template_mgr.has_template(prefixed):
@@ -204,6 +219,7 @@ def create_agent(name: str, settings: Settings, *, need_a2a: bool | None = None)
 
     system_prompt = template_mgr.render(
         template_name,
+        a2a_enabled=a2a_on,
         unpreloaded_skills=unloaded_skills,
         unpreloaded_cli=unloaded_cli,
         unloaded_tools=unloaded_tools,
@@ -216,10 +232,11 @@ def create_agent(name: str, settings: Settings, *, need_a2a: bool | None = None)
         agent_name=entry.effective_friendly_name(),
         available_agents=", ".join(a.effective_friendly_name() for a in settings.agents_config.agents),
         agent_relations=", ".join(
-            f"{r['from']}→{r['to']} ({r.get('mode', 'peer')})"
+            f"{_lookup_friendly(settings, r['from'])}→{_lookup_friendly(settings, r['to'])} ({r.get('mode', 'peer')})"
             for r in settings.agents_config.topology.relations
         ) if settings.agents_config.topology.relations else "",
         has_human_agent=any(a.is_human for a in settings.agents_config.agents),
+        human_agent_names=", ".join(a.effective_friendly_name() for a in settings.agents_config.agents if a.is_human),
     )
     logger.debug("Agent [%s]: system prompt assembled (%d chars), template=%s\n%s", name, len(system_prompt), template_name, system_prompt)
 
