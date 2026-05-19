@@ -1,5 +1,7 @@
 """Tests for qd_evolve.core.providers — Provider, ProviderRegistry."""
 
+from unittest.mock import MagicMock, patch
+
 import pytest
 
 from qd_evolve.core.config import ModelConfig, ProviderConfig, Settings
@@ -81,23 +83,35 @@ class TestProvider:
         with pytest.raises(KeyError):
             p.get_reasoning("nonexistent")
 
-    def test_create_client_anthropic(self):
+    @patch("anthropic.Anthropic")
+    def test_create_client_anthropic(self, mock_cls):
+        mock_instance = MagicMock()
+        mock_cls.return_value = mock_instance
         pc = ProviderConfig(name="anthro", api_key="sk-ant", api="anthropic")
         p = Provider(pc)
         client = p.create_client()
-        assert client is not None
+        mock_cls.assert_called_once_with(api_key="sk-ant")
+        assert client is mock_instance
 
-    def test_create_client_openai(self):
+    @patch("openai.OpenAI")
+    def test_create_client_openai(self, mock_cls):
+        mock_instance = MagicMock()
+        mock_cls.return_value = mock_instance
         pc = ProviderConfig(name="openai", api_key="sk-oai", api="openai-completions")
         p = Provider(pc)
         client = p.create_client()
-        assert client is not None
+        mock_cls.assert_called_once_with(api_key="sk-oai")
+        assert client is mock_instance
 
-    def test_create_client_with_base_url(self):
+    @patch("openai.OpenAI")
+    def test_create_client_with_base_url(self, mock_cls):
+        mock_instance = MagicMock()
+        mock_cls.return_value = mock_instance
         pc = ProviderConfig(name="deepseek", api_key="sk", base_url="https://api.deepseek.com")
         p = Provider(pc)
         client = p.create_client()
-        assert client is not None
+        mock_cls.assert_called_once_with(api_key="sk", base_url="https://api.deepseek.com")
+        assert client is mock_instance
 
 
 class TestProviderRegistry:

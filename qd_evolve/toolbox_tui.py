@@ -22,33 +22,32 @@ toolbox_app = typer.Typer(help="Toolbox — manage tool state")
 def toolbox(
     toggle: str = typer.Option("", "--toggle", "-t", help="Quick toggle: --toggle <name>"),
     tui: bool = typer.Option(True, "--tui/--no-tui", help="Use Textual TUI (default: on)"),
-    agent: str = typer.Option("", "--agent", help="Per-agent toolbox config (from config.json agents list)"),
+    agent: str = typer.Option(..., "--agent", "-a", help="Per-agent toolbox config (from config.json agents list)"),
 ) -> None:
     """Interactive tool manager — enable/disable/preload tools, MCP, CLI, skills.
 
     Opens a Textual TUI by default. Use --no-tui for interactive shell.
     --toggle <name> for quick non-interactive toggle.
-    --agent <name> to manage a specific agent's toolbox.
+    --agent <name> is required — specifies which agent's toolbox to manage.
     """
     from qd_evolve.core.toolbox import toggle as tb_toggle
-    an = agent or None
 
     # Quick toggle mode
     if toggle:
         section = _resolve_section(toggle)
         name = _resolve_name(toggle)
-        new_state = tb_toggle(section, name, agent_name=an)
+        new_state = tb_toggle(section, name, agent_name=agent)
         console.print(f"[bold]{toggle}[/bold] → [cyan]{new_state}[/cyan]")
         return
 
     if tui:
         from qd_evolve.toolbox_tui import _build_data, ToolboxApp
         console.print("Loading tools...", end="\r")
-        data, bridges, bridge_entries = _build_data(connect_bridges=True, agent_name=an)
+        data, bridges, bridge_entries = _build_data(connect_bridges=True, agent_name=agent)
         console.print(f"Loaded {sum(len(v) for v in data.values())} items across {len(data)} categories")
-        ToolboxApp(data, bridges, bridge_entries, agent_name=an).run()
+        ToolboxApp(data, bridges, bridge_entries, agent_name=agent).run()
     else:
-        _toolbox_interactive(an)
+        _toolbox_interactive(agent)
 
 
 def _toolbox_interactive(agent_name: str | None = None) -> None:

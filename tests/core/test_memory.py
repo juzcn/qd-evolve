@@ -1,12 +1,28 @@
 """Tests for qd_evolve.core.memory — MemoryStore, RecalledMemoryRegistry, _parse_time_range."""
 
 from datetime import datetime, timedelta
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
 
 from qd_evolve.core.memory import MemoryEntry, RecalledMemoryRegistry
+
+
+class _ControllableDatetime:
+    """Wrapper around datetime that lets tests advance ``now()`` without sleeping."""
+
+    def __init__(self, start: datetime | None = None):
+        self._now = start or datetime(2025, 1, 1, 12, 0, 0)
+
+    def now(self, tz=None):
+        return self._now
+
+    def advance(self, seconds: int = 2):
+        self._now += timedelta(seconds=seconds)
+
+    def __getattr__(self, name):
+        return getattr(datetime, name)
 
 
 class TestMemoryEntry:
@@ -107,10 +123,8 @@ class TestMemoryStore:
 
     def test_new_session_changes_id(self, memory_store):
         old_sid = memory_store.session_id
-        # Wait briefly to ensure different timestamp
-        import time
-        time.sleep(1.1)
-        new_sid = memory_store.new_session()
+        with patch("qd_evolve.core.memory.datetime", _ControllableDatetime(datetime.fromisoformat(old_sid) + timedelta(seconds=2))):
+            new_sid = memory_store.new_session()
         assert new_sid != old_sid
 
     def test_recall_excludes_current_session(self, memory_store):
@@ -123,9 +137,8 @@ class TestMemoryStore:
     def test_recall_finds_old_session(self, memory_store):
         # Save, then switch session, then recall
         memory_store.save("old q", "old a")
-        import time
-        time.sleep(1.1)
-        memory_store.new_session()
+        with patch("qd_evolve.core.memory.datetime", _ControllableDatetime(datetime.now() + timedelta(seconds=2))):
+            memory_store.new_session()
         entries = memory_store.recall(query="old", limit=5)
         # With mock embedder (zeros), semantic search may return results
         # Keyword search should find it
