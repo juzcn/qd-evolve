@@ -288,7 +288,16 @@ class HttpTransport:
         return self._registry
 
     def _get_callback_url(self) -> str:
-        """Return the CLI's own server URL for webhook callbacks."""
+        """Return this agent's own A2A server URL for webhook callbacks.
+
+        For AI agent mode: returns the current agent's server URL.
+        For CLI mode (no current agent): falls back to a2a_cli config.
+        """
+        registry = self._get_registry()
+        current = registry.current_agent
+        if current:
+            return registry.get_url(current)
+        # Fallback: CLI mode — use a2a_cli server config
         from qd_evolve.core.config import load_settings
         settings = load_settings()
         a2a_cli = settings.agents_config.a2a_cli

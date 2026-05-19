@@ -325,6 +325,11 @@ class A2AServer:
             "content": self._extract_text(task.status.message) if task.status.message else "",
         }
         self._push_event(event)
+        # Update a2a tools _task_store so get_task() returns the result
+        from qd_evolve.tools.a2a import on_push_notification
+        state_value = task.status.state.value if isinstance(task.status.state, TaskState) else str(task.status.state)
+        result_text = self._extract_text(task.status.message) if task.status.message else ""
+        on_push_notification(task.id, state_value, result_text)
         if self._on_task_completed:
             try:
                 await self._on_task_completed(event)

@@ -37,6 +37,42 @@ def _get_transport() -> Any:
     return _transport
 
 
+def _get_own_callback_url() -> str:
+    """Return callback URL for push notifications.
+
+    For A2AAgent in serve mode: returns the agent's own server URL.
+    For CLI mode: returns the CLI's A2A server URL from a2a_cli config.
+    """
+    from qd_evolve.agent.registry import get_agent_registry
+    registry = get_agent_registry()
+    current = registry.current_agent
+    if current:
+        url = registry.get_url(current)
+        if url:
+            return url
+    # Fallback: CLI mode — use a2a_cli server config
+    from qd_evolve.core.config import load_settings
+    settings = load_settings()
+    a2a_cli = settings.agents_config.a2a_cli
+    if a2a_cli.server.port:
+        return f"http://localhost:{a2a_cli.server.port}"
+    return ""
+
+
+def _get_current_agent_name() -> str:
+    """Return the name of the current agent from the registry."""
+    from qd_evolve.agent.registry import get_agent_registry
+    return get_agent_registry().current_agent
+
+
+def on_push_notification(task_id: str, state: str, result: str) -> None:
+    """Called by A2AServer._tasks_push_notification to update _task_store."""
+    entry = _task_store.get(task_id)
+    if entry is not None:
+        entry["state"] = state
+        entry["result"] = result
+
+
 # ── Tool handlers ──────────────────────────────────────────────
 
 
@@ -61,6 +97,11 @@ def _delegate_to(agent: str, task: str) -> str:
             except ValueError as e:
                 return f"Error: Agent '{agent}' not found in config — {e}"
 
+        # Human agent: reject — must use send_task for async communication
+        from qd_evolve.agent.human_agent import HumanAgent
+        if isinstance(agent_node, HumanAgent):
+            return "Error: Human agents require async communication. Use send_task instead of delegate_to."
+
         try:
             from qd_evolve.core.config import load_settings
             settings = load_settings()
@@ -80,6 +121,10 @@ def _delegate_to(agent: str, task: str) -> str:
         future = pool.submit(asyncio.run, transport.send_task(agent, message))
         result_task = future.result(timeout=60)
 
+    # Human agent returned input_required — reject
+    if result_task.status.state == TaskState.input_required:
+        return "Error: Human agent requires async communication. Use send_task instead of delegate_to."
+
     if result_task.status.state == TaskState.completed:
         text = _extract_result_text(result_task)
         logger.info("delegate_to: %s completed (%d chars)", agent, len(text))
@@ -92,18 +137,30 @@ def _delegate_to(agent: str, task: str) -> str:
 
 
 def _send_task(agent: str, task: str) -> str:
-    """Non-blocking: submit task, return task_id immediately."""
+    """Non-blocking: send message to target agent, return task_id immediately."""
     task_id = uuid4().hex
     _task_store[task_id] = {"target": agent, "state": "submitted", "result": None}
 
     transport = _get_transport()
     message = make_text_message("user", task)
 
+    # Set callback_url to AI agent's own A2A server for push notifications
+    callback_url = _get_own_callback_url()
+    if callback_url:
+        message.metadata["callback_url"] = callback_url
+    from_agent = _get_current_agent_name()
+    if from_agent:
+        message.metadata["from_agent"] = from_agent
+
     async def _watch() -> None:
         try:
             result_task = await transport.send_task(agent, message)
             _task_store[task_id]["state"] = result_task.status.state.value
             _task_store[task_id]["result"] = _extract_result_text(result_task)
+            # Map remote task_id to local entry so push notifications can update it
+            remote_task_id = result_task.id
+            if remote_task_id and remote_task_id != task_id:
+                _task_store[remote_task_id] = _task_store[task_id]
         except Exception as e:
             _task_store[task_id]["state"] = "failed"
             _task_store[task_id]["result"] = f"{type(e).__name__}: {e}"

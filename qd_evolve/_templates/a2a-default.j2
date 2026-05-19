@@ -23,8 +23,8 @@ Use `load_func` to load A2A tools, then:
 - `get_task` — poll status/result of a task submitted via `send_task`.
 - `cancel_task` — cancel a pending task.
 {% if has_human_agent %}
-Human agents respond asynchronously via webhook — results arrive automatically after `send_task`.
-Poll with `get_task` to retrieve the response.
+Human agents respond asynchronously via push notification — results arrive automatically after `send_task`.
+Use `get_task` to check the response at any time.
 {% endif %}
 {% endif %}
 

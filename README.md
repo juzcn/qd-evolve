@@ -1,6 +1,6 @@
 # QD-Evolve
 
-Multi-agent AI system with A2A protocol, human agents, dual transport, tool use, skills, MCP integration, and CLI interface.
+Multi-agent AI system with A2A protocol, human agents, push notifications, dual transport, tool use, skills, MCP integration, and CLI interface.
 
 ## Quick Start
 
@@ -84,6 +84,7 @@ All agent config in `config.json` under `agents_config`:
 ```
 
 - `provider`/`model`: empty = use global defaults; `"human"` = human agent
+- `friendly_name`: display name in CLI prompts and heartbeat (falls back to `name`)
 - `memory_db`: independent SQLite per agent; `""` or `null` disables memory
 - `server.host`: connect address (default `127.0.0.1`); server binds `0.0.0.0` to accept all interfaces
 - `a2a_cli.server.port`: CLI's own A2A server port (for webhook callbacks)
@@ -139,10 +140,12 @@ SSE events use A2A v1.0 `StreamResponse` format. Custom events (iteration, statu
 
 `provider: "human"` creates a human agent — a full A2A participant whose "inference engine" is a person. Human agents have their own server, AgentCard, TaskStore, event subscribers, and heartbeat.
 
-Communication pattern (async callback):
+Communication pattern (async callback via push notification):
 1. AI agent calls `send_task("human", ...)` → human agent returns `Task(input_required)`
 2. Human responds asynchronously → `complete_task()` fires webhook callback (`tasks/pushNotification`)
 3. Calling agent's server receives webhook → updates task store → pushes event
+
+`delegate_to` rejects human agents — they require async `send_task` because `delegate_to` is blocking.
 
 CLI uses `send_task` (non-blocking) for human agents because humans may leave; uses `send_stream` (blocking) for AI agents.
 
@@ -150,7 +153,9 @@ CLI uses `send_task` (non-blocking) for human agents because humans may leave; u
 
 - **InprocTransport** — Direct `AgentCore.run()` via `asyncio.to_thread`. Zero latency for same-machine agents.
 - **HttpTransport** — aiohttp JSON-RPC client for cross-machine agents. Standard A2A protocol.
-- **TransportRouter** — Auto-selects based on `AgentEntry.transport`.
+- **TransportRouter** — Auto-selects: local registry → inproc, otherwise → http.
+
+`send_task` includes `callback_url` and `from_agent` in message metadata so push notifications route back to the sender's own A2A server (not the CLI's).
 
 ### Event Stream
 
@@ -166,6 +171,12 @@ All agent events flow through `_push_event()` to subscriber queues:
 | `error` | `content` | API error |
 | `heartbeat` | `content` | Speaking heartbeat (LLM replied with non-"." content) |
 | `heartbeat_silent` | — | Silent heartbeat (LLM replied ".") |
+
+### Push Notifications
+
+When `A2AServer._tasks_push_notification` receives a completed task, it updates `_task_store` via `on_push_notification()` so `get_task()` returns the result. `send_task` maps the remote `task_id` to the local entry so push notifications can find it.
+
+A2AAgent's `heartbeat_check` reads pending completed results from `_task_store` and injects them into the heartbeat prompt via `a2a-heartbeat.j2`, enabling the agent to act on asynchronously received responses (e.g. human agent replies).
 
 ## System Tools
 
@@ -183,7 +194,7 @@ Bundled in `qd_evolve/tools/` — core infrastructure, not user-replaceable:
 | `register_mcp` | Persist a staged MCP config |
 | `install_skill` | Install + hot-load a skill from GitHub |
 | `register_skill` | Persist a staged skill |
-| `delegate_to` | Call another agent, wait for response (blocking A2A) |
+| `delegate_to` | Call another agent, wait for response (blocking A2A; rejects human agents) |
 | `send_task` | Submit task to another agent, return task_id (non-blocking) |
 | `get_task` | Query task status/result |
 | `cancel_task` | Cancel a pending task |
@@ -270,7 +281,7 @@ examples:
 
 ## Prompt Templates
 
-Jinja2 templates in `templates/` (user) or `qd_evolve/_templates/` (builtin fallback). Default template variables:
+Jinja2 templates in `templates/` (user) or `qd_evolve/_templates/` (builtin fallback). `a2a-heartbeat.j2` is used for multi-agent heartbeat (includes pending task results and timestamp). Default template variables:
 
 | Variable | Description |
 |----------|-------------|
@@ -308,6 +319,7 @@ All config via `config.json`. Key fields:
 | `memory_search.embeddings_backend` | Name of embeddings backend |
 | `agents_config.chat_agent` | Currently active agent |
 | `agents_config.agents[].server.host` | Connect address (default: `127.0.0.1`) |
+| `agents_config.agents[].friendly_name` | Display name (falls back to `name`) |
 | `agents_config.agents[].memory_db` | Per-agent SQLite file; `""`/`null` disables |
 | `toolbox_defaults.timeout` | Default tool timeout in seconds |
 
@@ -330,7 +342,7 @@ qd_evolve/
     server.py              — A2A HTTP server (aiohttp JSON-RPC)
     registry.py            — AgentRegistry + Topology
     loader.py              — init_process, create_agent_core
-  _templates/              — Builtin Jinja2 templates (default.j2, heartbeat.j2)
+  _templates/              — Builtin Jinja2 templates (default.j2, heartbeat.j2, a2a-heartbeat.j2)
   utils/
     adk_schema.py          — Google ADK → OpenAI JSON Schema converter
     adk_output.py          — Output normalizer

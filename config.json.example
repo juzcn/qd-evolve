@@ -1,5 +1,5 @@
 {
-  "_note": "See README.md for full setup instructions.",
+  "_note": "See README.md for full setup instructions. Copy to config.json and fill in your API keys.",
   "log": {"level": "INFO", "truncation": 500},
   "ui": {"page_size": 20, "refresh_per_second": 10, "prompt_refresh_interval": 0.5},
   "env_vars": {
@@ -32,17 +32,84 @@
     "agents": [
       {
         "name": "default",
+        "friendly_name": "Jack",
         "description": "Default qd-evolve agent",
         "provider": "",
         "model": "",
         "system_prompt_template": "default",
-        "memory_db": "memory.db",  // "" or null to disable memory
-        "server": {"host": "0.0.0.0", "port": 8001},
-        "transport": "inproc"  // "inproc" | "http"
+        "memory_db": "memory.db",
+        "server": {"host": "127.0.0.1", "port": 8002},
+        "toolbox": {
+          "tools": {
+            "load_cli": "preload",
+            "recall_memory": "preload",
+            "load_skill": "preload",
+            "load_func": "preload",
+            "run_python": "preload",
+            "run_shell": "preload",
+            "install_func": "preload",
+            "register_func": "preload",
+            "install_skill": "preload",
+            "register_skill": "preload",
+            "install_mcp": "preload",
+            "register_mcp": "preload"
+          },
+          "mcp_servers": {},
+          "bridge": {},
+          "cli": {},
+          "skills": {}
+        }
+      },
+      {
+        "name": "remote",
+        "friendly_name": "Sophie",
+        "description": "Remote agent for cross-process A2A",
+        "provider": "",
+        "model": "",
+        "system_prompt_template": "default",
+        "memory_db": null,
+        "server": {"host": "127.0.0.1", "port": 8003},
+        "toolbox": {
+          "tools": {
+            "load_cli": "preload",
+            "recall_memory": "preload",
+            "load_skill": "preload",
+            "load_func": "preload",
+            "run_python": "preload",
+            "run_shell": "preload"
+          },
+          "mcp_servers": {},
+          "bridge": {},
+          "cli": {},
+          "skills": {}
+        }
+      },
+      {
+        "name": "human",
+        "friendly_name": "You",
+        "description": "Human operator for decisions and questions",
+        "provider": "human",
+        "model": "",
+        "system_prompt_template": "default",
+        "memory_db": "",
+        "server": {"host": "127.0.0.1", "port": 8004},
+        "toolbox": {
+          "tools": {},
+          "mcp_servers": {},
+          "bridge": {},
+          "cli": {},
+          "skills": {}
+        }
       }
     ],
     "topology": {
-      "relations": []
+      "relations": [
+        {"from": "default", "to": "remote", "mode": "peer"}
+      ]
+    },
+    "a2a_cli": {
+      "server": {"host": "127.0.0.1", "port": 8001},
+      "resubscribe_retry_seconds": 15
     }
   },
   "embeddings_backends": {
@@ -66,5 +133,8 @@
   "max_iterations": 20,
   "tool_output_limit": 50000,
   "stream": true,
-  "heartbeat_idle_seconds": 60
+  "heartbeat_idle_seconds": 60,
+  "toolbox_defaults": {
+    "timeout": 60
+  }
 }
