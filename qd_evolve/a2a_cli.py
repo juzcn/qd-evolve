@@ -280,14 +280,9 @@ async def _async_chat_loop(
     CLI never creates agents. All communication goes through router:
     send_stream for chat, resubscribe for heartbeat events, is_online for probes.
     """
-    from qd_evolve.agent import get_skill_registry, get_cli_registry, get_bridges
     from qd_evolve.core.providers import ProviderRegistry
     from qd_evolve.agent.a2a import Message, Part, TaskState
-    from tools.bridge import BridgeManager
 
-    skill_registry = get_skill_registry()
-    cli_registry = get_cli_registry()
-    bridges = get_bridges()
     providers = ProviderRegistry(settings)
 
     def _current_agent_name() -> str:
@@ -329,17 +324,17 @@ async def _async_chat_loop(
 
     async def _remote_event_worker(name: str) -> None:
         """Subscribe to a remote agent's events via router.resubscribe."""
-        retry_delay = 5
+        retry_delay = settings.agents_config.a2a_cli.resubscribe_retry_seconds
         while True:
             try:
                 async for sr in router.resubscribe(name):
                     if sr.statusUpdate and sr.statusUpdate.metadata:
                         await event_queue.put((name, sr.statusUpdate.metadata))
-                    retry_delay = 5
+                    retry_delay = settings.agents_config.a2a_cli.resubscribe_retry_seconds
             except asyncio.CancelledError:
                 return
             except Exception:
-                logger.warning("Event worker for '%s': offline, retrying in %ds", name, retry_delay)
+                logger.debug("Event worker for '%s': offline, retrying in %ds", name, retry_delay)
                 await asyncio.sleep(retry_delay)
                 retry_delay = min(retry_delay * 2, 60)
 
@@ -558,9 +553,6 @@ async def _async_chat_loop(
             except Exception:
                 logger.debug("token stats display failed", exc_info=True)
 
-        skill_registry.reload()
-        cli_registry.reload()
-        bridges = BridgeManager.reload(settings, bridges)
 
     except KeyboardInterrupt:
         if input_task and not input_task.done():
@@ -574,13 +566,6 @@ async def _async_chat_loop(
     for t in event_workers:
         if not t.done():
             t.cancel()
-    for b in bridges:
-        try:
-            b.disconnect(shutdown=True)
-        except Exception:
-            logger.debug("shutdown: bridge disconnect failed for %s", b, exc_info=True)
-    from qd_evolve.tools.staging import cleanup_staging
-    cleanup_staging()
     if output_file:
         output_file.close()
 
@@ -644,8 +629,13 @@ def serve(
         console.print("[red]Error:[/red] --agent is required. E.g. qd-evolve a2a serve --agent test")
         raise SystemExit(1)
 
+    entry = next((a for a in settings.agents_config.agents if a.name == agent), None)
+    is_human = entry is not None and entry.is_human
+
     # 2. Per-process init (skills, CLI tools, bridges, registry injection)
-    init_process(settings)
+    # Human agents don't need tools, skills, or bridges
+    if not is_human:
+        init_process(settings)
 
     # 3. Create agent via loader
     try:
@@ -653,8 +643,6 @@ def serve(
     except ValueError as e:
         console.print(f"[bold red]Error:[/bold red] {e}")
         raise typer.Exit(code=1)
-    entry = next((a for a in settings.agents_config.agents if a.name == agent), None)
-    is_human = entry is not None and entry.is_human
 
     # 4. A2A setup — register in AgentRegistry + set transport (AI agents only)
     if not is_human:
@@ -696,6 +684,7 @@ def serve(
             console.print("[dim]Another process may be using this port. Kill it or change the port in config.json.[/dim]")
             return
         if is_human:
+            agent_core.start_heartbeat_loop(settings.heartbeat_idle_seconds)
             await _human_terminal_loop(agent_core, fn, settings)
         else:
             agent_core.start_heartbeat_loop()
@@ -725,8 +714,6 @@ def chat(
         return
     from qd_evolve.core.logger import setup_logging
     from qd_evolve.core.config import LOG_DIR as LOG_DIR_PATH
-    from qd_evolve.agent.loader import init_process
-
     # 1. Config & logging
     setup_logging("WARNING", log_dir=LOG_DIR_PATH)
     settings = load_settings()
@@ -741,8 +728,8 @@ def chat(
         console.print("[red]Error:[/red] No API key configured. Edit config.json")
         raise SystemExit(1)
 
-    # 2. Per-process init (skills, CLI tools, bridges, registry injection)
-    init_process(settings)
+    # A2A CLI is a pure HTTP client — no tools, skills, or bridges needed.
+    # Tools live on the remote agent servers.
 
     # 3. Chat agent from config (remote only — never created in-process)
     chat_agent_name = settings.agents_config.chat_agent

@@ -73,6 +73,10 @@ def init_process(settings: Settings) -> None:
     from qd_evolve.tools.cli_loader import set_cli_registry
     set_cli_registry(_cli_registry)
 
+    # A2A tools (delegate_to, send_task, etc.)
+    from qd_evolve.tools.a2a import register_a2a_tools
+    register_a2a_tools()
+
     # Bridges
     from tools.bridge import BridgeManager
     _bridges = BridgeManager.connect_all(settings)

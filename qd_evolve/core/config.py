@@ -137,6 +137,7 @@ class TopologyConfig(BaseModel):
 class A2ACLIConfig(BaseModel):
     """A2A chat client configuration — server port for webhook callbacks."""
     server: ServerConfig = ServerConfig(port=0)
+    resubscribe_retry_seconds: int = 15
 
 
 class AgentsConfig(BaseModel):

@@ -151,76 +151,81 @@ def _extract_result_text(task: Task) -> str:
 
 # ── Register tools ─────────────────────────────────────────────
 
-registry = get_registry()
+def register_a2a_tools() -> None:
+    """Register A2A interaction tools. Called by init_process."""
+    registry = get_registry()
+    _register(registry)
 
-registry.register(
-    name="delegate_to",
-    description="Call another Agent and wait for its response. Blocking call — returns the Agent's output directly.",
-    handler=_delegate_to,
-    input_schema={
-        "type": "object",
-        "properties": {
-            "agent": {
-                "type": "string",
-                "description": "Name of the target Agent to call",
-            },
-            "task": {
-                "type": "string",
-                "description": "The task description or question to send to the target Agent",
-            },
-        },
-        "required": ["agent", "task"],
-    },
-)
 
-registry.register(
-    name="send_task",
-    description="Submit a task to another Agent without waiting. Returns a task_id for later status queries via get_task.",
-    handler=_send_task,
-    input_schema={
-        "type": "object",
-        "properties": {
-            "agent": {
-                "type": "string",
-                "description": "Name of the target Agent",
+def _register(registry: Any) -> None:
+    registry.register(
+        name="delegate_to",
+        description="Call another Agent and wait for its response. Blocking call — returns the Agent's output directly.",
+        handler=_delegate_to,
+        input_schema={
+            "type": "object",
+            "properties": {
+                "agent": {
+                    "type": "string",
+                    "description": "Name of the target Agent to call",
+                },
+                "task": {
+                    "type": "string",
+                    "description": "The task description or question to send to the target Agent",
+                },
             },
-            "task": {
-                "type": "string",
-                "description": "The task to send",
-            },
+            "required": ["agent", "task"],
         },
-        "required": ["agent", "task"],
-    },
-)
+    )
 
-registry.register(
-    name="get_task",
-    description="Query the status and result of a previously submitted task (from send_task).",
-    handler=_get_task,
-    input_schema={
-        "type": "object",
-        "properties": {
-            "task_id": {
-                "type": "string",
-                "description": "The task_id returned by send_task",
+    registry.register(
+        name="send_task",
+        description="Submit a task to another Agent without waiting. Returns a task_id for later status queries via get_task.",
+        handler=_send_task,
+        input_schema={
+            "type": "object",
+            "properties": {
+                "agent": {
+                    "type": "string",
+                    "description": "Name of the target Agent",
+                },
+                "task": {
+                    "type": "string",
+                    "description": "The task to send",
+                },
             },
+            "required": ["agent", "task"],
         },
-        "required": ["task_id"],
-    },
-)
+    )
 
-registry.register(
-    name="cancel_task",
-    description="Cancel a pending task submitted via send_task.",
-    handler=_cancel_task,
-    input_schema={
-        "type": "object",
-        "properties": {
-            "task_id": {
-                "type": "string",
-                "description": "The task_id to cancel",
+    registry.register(
+        name="get_task",
+        description="Query the status and result of a previously submitted task (from send_task).",
+        handler=_get_task,
+        input_schema={
+            "type": "object",
+            "properties": {
+                "task_id": {
+                    "type": "string",
+                    "description": "The task_id returned by send_task",
+                },
             },
+            "required": ["task_id"],
         },
-        "required": ["task_id"],
-    },
-)
+    )
+
+    registry.register(
+        name="cancel_task",
+        description="Cancel a pending task submitted via send_task.",
+        handler=_cancel_task,
+        input_schema={
+            "type": "object",
+            "properties": {
+                "task_id": {
+                    "type": "string",
+                    "description": "The task_id to cancel",
+                },
+            },
+            "required": ["task_id"],
+        },
+    )

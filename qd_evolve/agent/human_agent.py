@@ -86,7 +86,7 @@ class HumanAgent:
         async def _loop() -> None:
             while True:
                 await asyncio.sleep(idle_seconds)
-                self._push_event({"type": "heartbeat", "content": "online"})
+                self._push_event({"type": "heartbeat_silent"})
 
         self._hb_task = asyncio.ensure_future(_loop())
 
