@@ -134,10 +134,16 @@ class TopologyConfig(BaseModel):
     relations: list[dict[str, str]] = []
 
 
+class A2ACLIConfig(BaseModel):
+    """A2A chat client configuration — server port for webhook callbacks."""
+    server: ServerConfig = ServerConfig(port=0)
+
+
 class AgentsConfig(BaseModel):
     chat_agent: str = "default"
     agents: list[AgentEntry] = []
     topology: TopologyConfig = TopologyConfig()
+    a2a_cli: A2ACLIConfig = A2ACLIConfig()
 
 
 class Settings(BaseModel):
@@ -169,6 +175,8 @@ class Settings(BaseModel):
         current = self.agents_config.chat_agent
         for a in self.agents_config.agents:
             if a.name == current:
+                if a.is_human:
+                    return True
                 prov = a.effective_provider(self)
                 p = self.get_provider(prov)
                 return bool(p and p.api_key)

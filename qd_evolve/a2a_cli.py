@@ -449,56 +449,91 @@ async def _async_chat_loop(
             console.print(f"[bold red]Agent '{cur_name}' is offline.[/bold red] Use [bold]/agents[/bold] to switch to an online agent.")
             continue
 
-        # Chat via router.send_stream
-        iteration_lines: list[str] = []
-        output_lines: list[str] = []
-        last_tokens_event: dict | None = None
-        spinner = Spinner("dots", text=Text("Thinking...", style="bold green"))
+        # Chat via router
+        cur_entry = _current_agent_entry()
+        is_human_target = cur_entry is not None and cur_entry.is_human
+        msg = Message(role="user", parts=[Part(type="text", text=user_input)])
+        response = ""
 
-        def _refresh() -> None:
-            items = [Text(line, style="bold green") for line in iteration_lines]
-            items.append(spinner)
-            for line in output_lines:
-                items.append(Text.from_markup(line, style="dim cyan"))
-            live.update(Group(*items))
-
-        with Live(Group(spinner), console=console, refresh_per_second=10) as live:
+        if is_human_target:
+            # Human agent: send_task (non-blocking), returns input_required
+            # Human responds asynchronously via webhook callback
             try:
-                msg = Message(role="user", parts=[Part(type="text", text=user_input)])
-                response = ""
-                async for sr in router.send_stream(_current_agent_name(), msg):
-                    if sr.task:
-                        pass
-                    elif sr.statusUpdate and sr.statusUpdate.metadata:
-                        event = sr.statusUpdate.metadata
-                        etype = event.get("type", "")
-                        if etype == "status":
-                            iteration_lines.append(event["text"])
-                            _refresh()
-                        elif etype == "print":
-                            output_lines.append(event["text"])
-                            _refresh()
-                        elif etype == "iteration":
-                            spinner.update(text=Text("Thinking...", style="bold green"))
-                            _refresh()
-                        elif etype == "tokens":
-                            last_tokens_event = event
-                    elif sr.statusUpdate and sr.statusUpdate.final:
-                        if sr.statusUpdate.status and sr.statusUpdate.status.message:
-                            for part in sr.statusUpdate.status.message.parts:
-                                if part.type == "text" and part.text:
-                                    response = part.text
-                                    break
-                        if not response and sr.statusUpdate.status:
-                            if sr.statusUpdate.status.state == TaskState.failed:
-                                response = "[bold red]Agent offline[/bold red] — use /agents to switch"
-                            else:
-                                response = f"[Task state: {sr.statusUpdate.status.state}]"
-            except Exception as e:
-                if isinstance(e, (OSError,)):
-                    response = "[bold red]Agent offline[/bold red] — use /agents to switch"
+                task = await router.send_task(_current_agent_name(), msg)
+                if task.status.state == TaskState.input_required:
+                    console.print(f"[dim]Task sent to {_friendly_name(settings, _current_agent_name())}. Waiting for response...[/dim]")
+                    # Wait for webhook callback via event queue
+                    pending_task_id = task.id
+                    while True:
+                        try:
+                            agent_name, event = await asyncio.wait_for(event_queue.get(), timeout=300)
+                            etype = event.get("type", "")
+                            if etype == "task_completed" and event.get("task_id") == pending_task_id:
+                                response = event.get("content", "")
+                                break
+                            # Heartbeat or other events from other agents — ignore
+                        except asyncio.TimeoutError:
+                            console.print("[dim]Still waiting...[/dim]")
                 else:
-                    response = f"[red]Error:[/red] {e}"
+                    # Task completed immediately (shouldn't happen for human)
+                    if task.status.message:
+                        for part in task.status.message.parts:
+                            if part.type == "text" and part.text:
+                                response = part.text
+                                break
+                    if not response:
+                        response = f"[Task state: {task.status.state}]"
+            except Exception as e:
+                response = f"[red]Error:[/red] {e}"
+        else:
+            # AI agent: send_stream (blocking with live display)
+            iteration_lines: list[str] = []
+            output_lines: list[str] = []
+            last_tokens_event: dict | None = None
+            spinner = Spinner("dots", text=Text("Thinking...", style="bold green"))
+
+            def _refresh() -> None:
+                items = [Text(line, style="bold green") for line in iteration_lines]
+                items.append(spinner)
+                for line in output_lines:
+                    items.append(Text.from_markup(line, style="dim cyan"))
+                live.update(Group(*items))
+
+            with Live(Group(spinner), console=console, refresh_per_second=10) as live:
+                try:
+                    async for sr in router.send_stream(_current_agent_name(), msg):
+                        if sr.task:
+                            pass
+                        elif sr.statusUpdate and sr.statusUpdate.metadata:
+                            event = sr.statusUpdate.metadata
+                            etype = event.get("type", "")
+                            if etype == "status":
+                                iteration_lines.append(event["text"])
+                                _refresh()
+                            elif etype == "print":
+                                output_lines.append(event["text"])
+                                _refresh()
+                            elif etype == "iteration":
+                                spinner.update(text=Text("Thinking...", style="bold green"))
+                                _refresh()
+                            elif etype == "tokens":
+                                last_tokens_event = event
+                        elif sr.statusUpdate and sr.statusUpdate.final:
+                            if sr.statusUpdate.status and sr.statusUpdate.status.message:
+                                for part in sr.statusUpdate.status.message.parts:
+                                    if part.type == "text" and part.text:
+                                        response = part.text
+                                        break
+                            if not response and sr.statusUpdate.status:
+                                if sr.statusUpdate.status.state == TaskState.failed:
+                                    response = "[bold red]Agent offline[/bold red] — use /agents to switch"
+                                else:
+                                    response = f"[Task state: {sr.statusUpdate.status.state}]"
+                except Exception as e:
+                    if isinstance(e, (OSError,)):
+                        response = "[bold red]Agent offline[/bold red] — use /agents to switch"
+                    else:
+                        response = f"[red]Error:[/red] {e}"
 
         console.print(f"[bold {_agent_color(_current_agent_name())}]{_friendly_name(settings, _current_agent_name())}>[/bold {_agent_color(_current_agent_name())}] {response}")
 
@@ -644,7 +679,12 @@ def serve(
         ))
 
     async def _run() -> None:
-        await server.start(host=bind_host, port=port)
+        try:
+            await server.start(host=bind_host, port=port)
+        except OSError as e:
+            console.print(f"[red]Error:[/red] Cannot bind to {bind_host}:{port} — {e}")
+            console.print("[dim]Another process may be using this port. Kill it or change the port in config.json.[/dim]")
+            return
         if is_human:
             await _human_terminal_loop(agent_core, fn)
         else:
@@ -724,10 +764,15 @@ def chat(
     from qd_evolve.agent.server import A2AServer
     from qd_evolve.core.config import DEFAULT_BIND_HOST, DEFAULT_SERVER_HOST, DEFAULT_SERVER_PORT
 
-    server = A2AServer(agent_core)
+    async def _on_webhook(event: dict) -> None:
+        """Push webhook callback events to the CLI event queue."""
+        await event_queue.put(("webhook", event))
+
+    server = A2AServer(agent_core, on_task_completed=_on_webhook)
     bind_host = DEFAULT_BIND_HOST
-    connect_host = chat_agent_entry.server.host if chat_agent_entry else DEFAULT_SERVER_HOST
-    port = chat_agent_entry.server.port if chat_agent_entry else DEFAULT_SERVER_PORT
+    a2a_cli_cfg = settings.agents_config.a2a_cli
+    connect_host = a2a_cli_cfg.server.host or DEFAULT_SERVER_HOST
+    port = a2a_cli_cfg.server.port or DEFAULT_SERVER_PORT
 
     # 6. Startup panel
     agents = settings.agents_config.agents
@@ -780,8 +825,16 @@ def chat(
         input_session = _make_prompt_session()
 
     async def _run() -> None:
-        await server.start(host=bind_host, port=port)
-        agent_core.start_heartbeat_loop()
+        try:
+            await server.start(host=bind_host, port=port)
+        except OSError as e:
+            console.print(f"[red]Error:[/red] Cannot bind to {bind_host}:{port} — {e}")
+            console.print("[dim]Another process may be using this port. Kill it or change the port in config.json.[/dim]")
+            return
+        if chat_agent_entry.is_human:
+            agent_core.start_heartbeat_loop(settings.heartbeat_idle_seconds)
+        else:
+            agent_core.start_heartbeat_loop()
         await _async_chat_loop(
             input_session, settings, output_file,
             router=router,

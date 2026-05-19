@@ -1,6 +1,6 @@
 # QD-Evolve
 
-Multi-agent AI system with A2A protocol, dual transport, tool use, skills, MCP integration, and CLI interface.
+Multi-agent AI system with A2A protocol, human agents, dual transport, tool use, skills, MCP integration, and CLI interface.
 
 ## Quick Start
 
@@ -16,7 +16,7 @@ Create `config.json` in your working directory (copy from `config.json.example`,
 
 ```bash
 qd-evolve                     # start chat (in-process)
-qd-evolve a2a                  # start A2A chat client (remote agents)
+qd-evolve a2a                  # start A2A chat client+server (remote agents)
 qd-evolve a2a serve --agent test  # run agent as standalone A2A HTTP server
 qd-evolve toolbox             # interactive tool manager (Textual TUI)
 qd-evolve toolbox --agent test   # per-agent tool management
@@ -55,7 +55,7 @@ All agent config in `config.json` under `agents_config`:
         "description": "Default agent",
         "provider": "",
         "model": "",
-        "server": {"host": "127.0.0.1", "port": 8001}
+        "server": {"host": "127.0.0.1", "port": 8002}
       },
       {
         "name": "remote",
@@ -63,19 +63,30 @@ All agent config in `config.json` under `agents_config`:
         "provider": "deepseek",
         "model": "deepseek-v4-pro",
         "memory_db": "remote_memory.db",
-        "server": {"host": "127.0.0.1", "port": 8002}
+        "server": {"host": "127.0.0.1", "port": 8003}
+      },
+      {
+        "name": "human",
+        "friendly_name": "You",
+        "description": "Human operator",
+        "provider": "human",
+        "server": {"host": "127.0.0.1", "port": 8004}
       }
     ],
     "topology": {
       "relations": [{"from": "default", "to": "remote", "mode": "peer"}]
+    },
+    "a2a_cli": {
+      "server": {"host": "127.0.0.1", "port": 8001}
     }
   }
 }
 ```
 
-- `provider`/`model`: empty = use global defaults
+- `provider`/`model`: empty = use global defaults; `"human"` = human agent
 - `memory_db`: independent SQLite per agent; `""` or `null` disables memory
 - `server.host`: connect address (default `127.0.0.1`); server binds `0.0.0.0` to accept all interfaces
+- `a2a_cli.server.port`: CLI's own A2A server port (for webhook callbacks)
 
 ### Per-Agent Toolbox
 
@@ -109,7 +120,7 @@ States: `"enabled"` (default), `"disabled"`, `"preload"` (load schema into syste
 
 ### A2A Protocol (v1.0)
 
-Full A2A v1.0 spec implementation:
+Full A2A v1.0 spec implementation. All agents and CLI are independent A2A servers — they may be distributed across different machines.
 
 | Method | Description | Blocking? |
 |--------|-------------|-----------|
@@ -118,10 +129,22 @@ Full A2A v1.0 spec implementation:
 | `tasks/get` | Query task status | No |
 | `tasks/cancel` | Cancel a task | No |
 | `tasks/resubscribe` | Subscribe to events for an existing task via SSE | No |
+| `tasks/pushNotification` | Webhook callback: receive completed task from remote agent | No |
 | `agent/getExtendedAgentCard` | Extended AgentCard with runtime status | No |
 | `/.well-known/agent.json` | Agent discovery | — |
 
 SSE events use A2A v1.0 `StreamResponse` format. Custom events (iteration, status, print, tokens, heartbeat) carried in `TaskStatusUpdateEvent.metadata`.
+
+### Human Agent
+
+`provider: "human"` creates a human agent — a full A2A participant whose "inference engine" is a person. Human agents have their own server, AgentCard, TaskStore, event subscribers, and heartbeat.
+
+Communication pattern (async callback):
+1. AI agent calls `send_task("human", ...)` → human agent returns `Task(input_required)`
+2. Human responds asynchronously → `complete_task()` fires webhook callback (`tasks/pushNotification`)
+3. Calling agent's server receives webhook → updates task store → pushes event
+
+CLI uses `send_task` (non-blocking) for human agents because humans may leave; uses `send_stream` (blocking) for AI agents.
 
 ### Dual Transport
 

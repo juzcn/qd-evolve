@@ -27,7 +27,9 @@ class HumanAgent:
     """A2A agent whose "inference engine" is a human at a terminal.
 
     Implements AgentProtocol: card, task_store, run(), subscribe_events().
-    No system prompt, no tools, no memory, no LLM, no heartbeat.
+    No system prompt, no tools, no memory, no LLM.
+    Supports heartbeat — pushes periodic "online" events so other
+    agents know the human is present.
 
     Communication pattern:
     - AI agent calls send_task("human", ...) → returns Task(input_required)
@@ -53,6 +55,7 @@ class HumanAgent:
         self.task_store = TaskStore()
         self._friendly_name = friendly_name or name
         self._event_subscribers: list[asyncio.Queue] = []
+        self._hb_task: asyncio.Task | None = None
 
     # ── AgentProtocol interface ──────────────────────────────────────
 
@@ -74,6 +77,22 @@ class HumanAgent:
     def unsubscribe_events(self, q: asyncio.Queue) -> None:
         if q in self._event_subscribers:
             self._event_subscribers.remove(q)
+
+    def start_heartbeat_loop(self, idle_seconds: int) -> None:
+        """Start heartbeat loop — pushes periodic 'online' events."""
+        if idle_seconds <= 0:
+            return
+
+        async def _loop() -> None:
+            while True:
+                await asyncio.sleep(idle_seconds)
+                self._push_event({"type": "heartbeat", "content": "online"})
+
+        self._hb_task = asyncio.ensure_future(_loop())
+
+    def stop_heartbeat_loop(self) -> None:
+        if self._hb_task and not self._hb_task.done():
+            self._hb_task.cancel()
 
     # ── Human-specific methods ───────────────────────────────────────
 

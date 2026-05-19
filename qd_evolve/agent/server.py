@@ -54,15 +54,21 @@ class A2AServer:
       - GET  /.well-known/agent.json → AgentCard discovery
     """
 
-    def __init__(self, a2a_agent: Any) -> None:
+    def __init__(self, a2a_agent: Any, *, on_task_completed: Any = None) -> None:
         """Accept an A2AAgent instance (composition wrapper around Agent).
 
         The A2AAgent provides: .run(), .subscribe_events(), .unsubscribe_events(),
         .card, .task_store, and all delegated Agent attributes.
+
+        Args:
+            on_task_completed: Optional async callback(event_dict) invoked when
+                a webhook callback (tasks/pushNotification) completes a task.
+                Used by CLI to display results.
         """
         self.agent_core = a2a_agent
         self.card = a2a_agent.card
         self.task_store = a2a_agent.task_store
+        self._on_task_completed = on_task_completed
 
     async def start(self, host: str = DEFAULT_SERVER_HOST, port: int = DEFAULT_SERVER_PORT) -> None:
         app = web.Application()
@@ -269,11 +275,17 @@ class A2AServer:
         self.task_store.put(task)
         logger.info("A2A server: pushNotification received for task '%s' (state=%s)", task.id, task.status.state)
         # Push event so CLI and subscribers see the result
-        self.agent_core._push_event({
+        event = {
             "type": "task_completed",
             "task_id": task.id,
             "content": self._extract_text(task.status.message) if task.status.message else "",
-        })
+        }
+        self.agent_core._push_event(event)
+        if self._on_task_completed:
+            try:
+                await self._on_task_completed(event)
+            except Exception:
+                pass
         return task
 
     @staticmethod

@@ -56,6 +56,21 @@ class InprocTransport:
             if agent_node is None:
                 return self._error_task(target, f"Agent '{target}' not found in registry")
 
+        # Human agent: async mode — return input_required, don't block
+        from qd_evolve.agent.human_agent import HumanAgent
+        if isinstance(agent_node, HumanAgent):
+            task_text = self._extract_text(message)
+            task = make_task_with_text(task_text)
+            callback_url = ""
+            if message.metadata:
+                callback_url = message.metadata.get("callback_url", "")
+            agent_node.receive_task(
+                task_id=task.id,
+                content=task_text,
+                callback_url=callback_url,
+            )
+            return agent_node.task_store.get(task.id) or task
+
         task_text = self._extract_text(message)
         task = make_task_with_text(task_text)
         task.status.state = TaskState.working
@@ -89,6 +104,24 @@ class InprocTransport:
 
         # First event: Task
         yield StreamResponse(task=task)
+
+        # Human agent: return input_required immediately, no blocking run
+        from qd_evolve.agent.human_agent import HumanAgent
+        if isinstance(agent_node, HumanAgent):
+            callback_url = ""
+            if message.metadata:
+                callback_url = message.metadata.get("callback_url", "")
+            agent_node.receive_task(task_id=task.id, content=task_text, callback_url=callback_url)
+            stored = agent_node.task_store.get(task.id)
+            if stored:
+                task = stored
+            yield StreamResponse(statusUpdate=TaskStatusUpdateEvent(
+                task_id=task.id,
+                context_id=task.session_id,
+                status=TaskStatus(state=TaskState.input_required, message=make_text_message("agent", "Waiting for human input")),
+                final=True,
+            ))
+            return
 
         # Subscribe to agent events
         event_queue = agent_node.subscribe_events()
@@ -255,10 +288,12 @@ class HttpTransport:
         return self._registry
 
     def _get_callback_url(self) -> str:
-        """Return this agent's own server URL for webhook callbacks."""
-        registry = self._get_registry()
-        if registry.current_agent:
-            return registry.get_url(registry.current_agent)
+        """Return the CLI's own server URL for webhook callbacks."""
+        from qd_evolve.core.config import load_settings
+        settings = load_settings()
+        a2a_cli = settings.agents_config.a2a_cli
+        if a2a_cli.server.port:
+            return f"http://localhost:{a2a_cli.server.port}"
         return ""
 
     async def send_task(self, target: str, message: Message) -> Task:
