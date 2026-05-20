@@ -437,6 +437,7 @@ async def _async_chat_loop(
             continue
 
         # Chat — direct agent.run() with Live display
+        agent_core.touch_heartbeat()
         agent_core.set_status_callback(_on_status)
         agent_core.set_print_callback(_on_print)
         iteration_lines.clear()

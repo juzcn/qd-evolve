@@ -128,15 +128,27 @@ class Agent:
         if seconds <= 0:
             return
 
+        self._hb_idle_seconds = seconds
+        self._hb_event = asyncio.Event()
+
         async def _loop() -> None:
             while True:
-                await asyncio.sleep(seconds)
                 try:
-                    await asyncio.to_thread(self.heartbeat_check, seconds)
+                    await asyncio.wait_for(self._hb_event.wait(), timeout=self._hb_idle_seconds)
+                except asyncio.TimeoutError:
+                    pass
+                self._hb_event.clear()
+                try:
+                    await asyncio.to_thread(self.heartbeat_check, self._hb_idle_seconds)
                 except Exception as e:
                     logger.debug("Heartbeat loop error: %s", e)
 
         self._hb_task = asyncio.ensure_future(_loop())
+
+    def touch_heartbeat(self) -> None:
+        """Reset the heartbeat idle timer. Call whenever user activity occurs."""
+        if hasattr(self, '_hb_event'):
+            self._hb_event.set()
 
     def stop_heartbeat_loop(self) -> None:
         if self._hb_task and not self._hb_task.done():
