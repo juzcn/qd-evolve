@@ -1,4 +1,4 @@
-"""Tests for qd_evolve.tools.a2a — delegate_to, send_task, get_task, cancel_task."""
+"""Tests for qd_evolve.agent.a2a_tools — delegate_to, send_task, get_task, cancel_task."""
 
 import json
 from unittest.mock import MagicMock, patch
@@ -10,8 +10,8 @@ from qd_evolve.agent.a2a import Task, TaskState, TaskStatus, make_text_message
 
 class TestGetTask:
     def test_existing_task(self):
-        from qd_evolve.tools.a2a import _get_task
-        from qd_evolve.tools import a2a as a2a_module
+        from qd_evolve.agent.a2a_tools import _get_task
+        from qd_evolve.agent import a2a_tools as a2a_module
         a2a_module._task_store["t1"] = {"target": "helper", "state": "completed", "result": "done"}
 
         result = _get_task("t1")
@@ -25,7 +25,7 @@ class TestGetTask:
         a2a_module._task_store.clear()
 
     def test_not_found(self):
-        from qd_evolve.tools.a2a import _get_task
+        from qd_evolve.agent.a2a_tools import _get_task
         result = _get_task("nonexistent")
         data = json.loads(result)
         assert "error" in data
@@ -33,8 +33,8 @@ class TestGetTask:
 
 class TestCancelTask:
     def test_cancel_existing(self):
-        from qd_evolve.tools.a2a import _cancel_task
-        from qd_evolve.tools import a2a as a2a_module
+        from qd_evolve.agent.a2a_tools import _cancel_task
+        from qd_evolve.agent import a2a_tools as a2a_module
         a2a_module._task_store["t1"] = {"target": "helper", "state": "submitted", "result": None}
 
         result = _cancel_task("t1")
@@ -46,7 +46,7 @@ class TestCancelTask:
         a2a_module._task_store.clear()
 
     def test_cancel_not_found(self):
-        from qd_evolve.tools.a2a import _cancel_task
+        from qd_evolve.agent.a2a_tools import _cancel_task
         result = _cancel_task("nonexistent")
         data = json.loads(result)
         assert "error" in data
@@ -54,7 +54,7 @@ class TestCancelTask:
 
 class TestExtractResultText:
     def test_with_text(self):
-        from qd_evolve.tools.a2a import _extract_result_text
+        from qd_evolve.agent.a2a_tools import _extract_result_text
         task = Task(
             status=TaskStatus(
                 state=TaskState.completed,
@@ -64,12 +64,12 @@ class TestExtractResultText:
         assert _extract_result_text(task) == "result text"
 
     def test_empty_message(self):
-        from qd_evolve.tools.a2a import _extract_result_text
+        from qd_evolve.agent.a2a_tools import _extract_result_text
         task = Task(status=TaskStatus(state=TaskState.completed))
         assert _extract_result_text(task) == ""
 
     def test_no_parts(self):
-        from qd_evolve.tools.a2a import _extract_result_text
+        from qd_evolve.agent.a2a_tools import _extract_result_text
         from qd_evolve.agent.a2a import Message
         task = Task(
             status=TaskStatus(
@@ -82,15 +82,15 @@ class TestExtractResultText:
 
 class TestSetTransport:
     def test_set_and_get(self):
-        from qd_evolve.tools.a2a import set_transport, _get_transport
+        from qd_evolve.agent.a2a_tools import set_transport, _get_transport
         mock_transport = MagicMock()
         set_transport(mock_transport)
         assert _get_transport() == mock_transport
 
     def test_not_initialized_raises(self):
-        from qd_evolve.tools.a2a import _get_transport
+        from qd_evolve.agent.a2a_tools import _get_transport
         # Reset transport to None
-        from qd_evolve.tools import a2a as a2a_module
+        from qd_evolve.agent import a2a_tools as a2a_module
         a2a_module._transport = None
         with pytest.raises(RuntimeError, match="transport not initialized"):
             _get_transport()
@@ -98,8 +98,8 @@ class TestSetTransport:
 
 class TestSendTask:
     def test_send_task_returns_task_id(self):
-        from qd_evolve.tools.a2a import _send_task, set_transport
-        from qd_evolve.tools import a2a as a2a_module
+        from qd_evolve.agent.a2a_tools import _send_task, set_transport
+        from qd_evolve.agent import a2a_tools as a2a_module
 
         mock_transport = MagicMock()
         async def mock_send(agent, msg):

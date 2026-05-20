@@ -658,7 +658,7 @@ def serve(
         agent_reg.register(agent_core)
         set_agent_registry(agent_reg)
 
-        from qd_evolve.tools.a2a import set_transport
+        from qd_evolve.agent.a2a_tools import set_transport
         set_transport(router)
 
     # 5. Start MQTT agent

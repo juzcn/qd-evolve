@@ -74,7 +74,7 @@ class A2AAgent:
 
         Returns a formatted string of completed task results, or empty string.
         """
-        from qd_evolve.tools.a2a import _task_store
+        from qd_evolve.agent.a2a_tools import _task_store
         completed_items = []
         for task_id, entry in list(_task_store.items()):
             if entry.get("state") in ("completed", "failed", "canceled") and entry.get("result"):

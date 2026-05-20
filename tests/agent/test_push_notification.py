@@ -25,8 +25,8 @@ from qd_evolve.agent.server import TaskStore
 
 class TestOnPushNotification:
     def test_updates_existing_entry(self):
-        from qd_evolve.tools.a2a import on_push_notification
-        from qd_evolve.tools import a2a as a2a_module
+        from qd_evolve.agent.a2a_tools import on_push_notification
+        from qd_evolve.agent import a2a_tools as a2a_module
 
         a2a_module._task_store["t1"] = {"target": "human", "state": "input_required", "result": None}
         on_push_notification("t1", "completed", "我很好，谢谢")
@@ -36,15 +36,15 @@ class TestOnPushNotification:
         a2a_module._task_store.clear()
 
     def test_ignores_unknown_task_id(self):
-        from qd_evolve.tools.a2a import on_push_notification
-        from qd_evolve.tools import a2a as a2a_module
+        from qd_evolve.agent.a2a_tools import on_push_notification
+        from qd_evolve.agent import a2a_tools as a2a_module
 
         on_push_notification("nonexistent", "completed", "result")
         assert "nonexistent" not in a2a_module._task_store
 
     def test_updates_failed_state(self):
-        from qd_evolve.tools.a2a import on_push_notification
-        from qd_evolve.tools import a2a as a2a_module
+        from qd_evolve.agent.a2a_tools import on_push_notification
+        from qd_evolve.agent import a2a_tools as a2a_module
 
         a2a_module._task_store["t2"] = {"target": "helper", "state": "submitted", "result": None}
         on_push_notification("t2", "failed", "timeout")
@@ -58,7 +58,7 @@ class TestOnPushNotification:
 
 class TestCheckPendingTaskResults:
     def test_finds_completed_tasks(self):
-        from qd_evolve.tools import a2a as a2a_module
+        from qd_evolve.agent import a2a_tools as a2a_module
         from qd_evolve.agent.a2a_agent import A2AAgent
         from qd_evolve.agent.agent import Agent
 
@@ -77,7 +77,7 @@ class TestCheckPendingTaskResults:
         a2a_module._task_store.clear()
 
     def test_empty_when_no_completed(self):
-        from qd_evolve.tools import a2a as a2a_module
+        from qd_evolve.agent import a2a_tools as a2a_module
         from qd_evolve.agent.a2a_agent import A2AAgent
         from qd_evolve.agent.agent import Agent
 
@@ -91,7 +91,7 @@ class TestCheckPendingTaskResults:
         a2a_module._task_store.clear()
 
     def test_includes_failed_and_canceled(self):
-        from qd_evolve.tools import a2a as a2a_module
+        from qd_evolve.agent import a2a_tools as a2a_module
         from qd_evolve.agent.a2a_agent import A2AAgent
         from qd_evolve.agent.agent import Agent
 
@@ -111,7 +111,7 @@ class TestCheckPendingTaskResults:
 
 class TestA2AHeartbeatCheck:
     def test_uses_a2a_heartbeat_template(self):
-        from qd_evolve.tools import a2a as a2a_module
+        from qd_evolve.agent import a2a_tools as a2a_module
         from qd_evolve.agent.agent import Agent
 
         a2a_module._task_store.clear()
@@ -131,7 +131,7 @@ class TestA2AHeartbeatCheck:
         assert call_args[0][0] == "a2a-heartbeat"
 
     def test_injects_pending_results_into_template(self):
-        from qd_evolve.tools import a2a as a2a_module
+        from qd_evolve.agent import a2a_tools as a2a_module
         from qd_evolve.agent.agent import Agent
 
         a2a_module._task_store["t1"] = {"target": "human", "state": "completed", "result": "reply"}
@@ -192,8 +192,8 @@ class TestA2AHeartbeatLoop:
 
 class TestDelegateToHumanRejection:
     def test_rejects_human_agent_inproc(self):
-        from qd_evolve.tools.a2a import _delegate_to, set_transport
-        from qd_evolve.tools import a2a as a2a_module
+        from qd_evolve.agent.a2a_tools import _delegate_to, set_transport
+        from qd_evolve.agent import a2a_tools as a2a_module
         from qd_evolve.agent.human_agent import HumanAgent
         from qd_evolve.agent.transport import InprocTransport, HttpTransport, TransportRouter
 
@@ -220,8 +220,8 @@ class TestDelegateToHumanRejection:
         a2a_module._transport = None
 
     def test_rejects_input_required_http(self):
-        from qd_evolve.tools.a2a import _delegate_to, set_transport
-        from qd_evolve.tools import a2a as a2a_module
+        from qd_evolve.agent.a2a_tools import _delegate_to, set_transport
+        from qd_evolve.agent import a2a_tools as a2a_module
         from qd_evolve.agent.transport import InprocTransport, HttpTransport, TransportRouter
 
         mock_inproc = MagicMock(spec=InprocTransport)
@@ -252,8 +252,8 @@ class TestDelegateToHumanRejection:
 
 class TestSendTaskMetadata:
     def test_sets_callback_url_and_from_agent(self):
-        from qd_evolve.tools.a2a import _send_task, set_transport
-        from qd_evolve.tools import a2a as a2a_module
+        from qd_evolve.agent.a2a_tools import _send_task, set_transport
+        from qd_evolve.agent import a2a_tools as a2a_module
 
         captured_message = None
 
@@ -271,8 +271,8 @@ class TestSendTaskMetadata:
         set_transport(mock_transport)
 
         # Mock registry to provide callback_url and agent name
-        with patch("qd_evolve.tools.a2a._get_own_callback_url", return_value="http://localhost:8002"), \
-             patch("qd_evolve.tools.a2a._get_current_agent_name", return_value="jack"):
+        with patch("qd_evolve.agent.a2a_tools._get_own_callback_url", return_value="http://localhost:8002"), \
+             patch("qd_evolve.agent.a2a_tools._get_current_agent_name", return_value="jack"):
             result = _send_task("human", "hello")
 
         data = json.loads(result)
@@ -295,8 +295,8 @@ class TestSendTaskMetadata:
 
 class TestRemoteTaskIdMapping:
     def test_maps_remote_task_id_to_same_entry(self):
-        from qd_evolve.tools.a2a import _send_task, set_transport, on_push_notification
-        from qd_evolve.tools import a2a as a2a_module
+        from qd_evolve.agent.a2a_tools import _send_task, set_transport, on_push_notification
+        from qd_evolve.agent import a2a_tools as a2a_module
 
         mock_transport = MagicMock()
 
@@ -313,8 +313,8 @@ class TestRemoteTaskIdMapping:
         mock_transport.send_task = mock_send
         set_transport(mock_transport)
 
-        with patch("qd_evolve.tools.a2a._get_own_callback_url", return_value=""), \
-             patch("qd_evolve.tools.a2a._get_current_agent_name", return_value=""):
+        with patch("qd_evolve.agent.a2a_tools._get_own_callback_url", return_value=""), \
+             patch("qd_evolve.agent.a2a_tools._get_current_agent_name", return_value=""):
             result = _send_task("human", "hello")
 
         data = json.loads(result)
@@ -398,7 +398,7 @@ class TestFriendlyNameLookup:
 class TestServerPushNotification:
     @pytest.mark.asyncio
     async def test_push_notification_updates_task_store(self):
-        from qd_evolve.tools import a2a as a2a_module
+        from qd_evolve.agent import a2a_tools as a2a_module
         from qd_evolve.agent.server import A2AServer
 
         # Pre-populate _task_store so on_push_notification can find it

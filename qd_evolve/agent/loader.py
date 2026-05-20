@@ -164,7 +164,7 @@ def create_agent(name: str, settings: Settings, *, need_a2a: bool | None = None,
 
     # A2A tools: only register when running as A2A agent
     if a2a_on:
-        from qd_evolve.tools.a2a import register_a2a_tools
+        from qd_evolve.agent.a2a_tools import register_a2a_tools
         register_a2a_tools()
         logger.debug("Agent [%s]: A2A tools registered (delegate_to, send_task, get_task, cancel_task)", name)
 

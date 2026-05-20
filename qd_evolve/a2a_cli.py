@@ -655,7 +655,7 @@ def serve(
         agent_reg.register(agent_core)
         set_agent_registry(agent_reg)
 
-        from qd_evolve.tools.a2a import set_transport
+        from qd_evolve.agent.a2a_tools import set_transport
         set_transport(router)
 
     # 5. Start A2A server — bind 0.0.0.0 to accept all interfaces, display connect address
@@ -748,7 +748,7 @@ def chat(
     agent_reg = AgentRegistry(topology, current_agent=chat_agent_name)
     set_agent_registry(agent_reg)
 
-    from qd_evolve.tools.a2a import set_transport
+    from qd_evolve.agent.a2a_tools import set_transport
     set_transport(router)
 
     # 5. Minimal A2A server for webhook callbacks — no agent needed

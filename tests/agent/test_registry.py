@@ -114,7 +114,7 @@ class TestModuleSingleton:
 
     def test_get_creates_default(self):
         from qd_evolve.agent.registry import get_agent_registry, _registry
-        from qd_evolve.tools import a2a as a2a_module
+        from qd_evolve.agent import a2a_tools as a2a_module
         # Reset to None
         import qd_evolve.agent.registry as mod
         mod._registry = None
