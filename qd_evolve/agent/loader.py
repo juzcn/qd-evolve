@@ -73,10 +73,6 @@ def init_process(settings: Settings) -> None:
     from qd_evolve.tools.cli_loader import set_cli_registry
     set_cli_registry(_cli_registry)
 
-    # A2A tools (delegate_to, send_task, etc.)
-    from qd_evolve.tools.a2a import register_a2a_tools
-    register_a2a_tools()
-
     # Bridges
     from tools.bridge import BridgeManager
     _bridges = BridgeManager.connect_all(settings)
@@ -166,11 +162,11 @@ def create_agent(name: str, settings: Settings, *, need_a2a: bool | None = None,
     apply_to_cli_registry(cli_registry, loaded_cli_names, agent_name=name)
     apply_to_skill_registry(skill_registry, loaded_skill_names, agent_name=name)
 
-    # A2A tools (delegate_to, send_task, etc.): only enabled in A2A mode
-    a2a_tool_names = {"delegate_to", "send_task", "get_task", "cancel_task"}
-    for td in registry.list_tools():
-        if td.name in a2a_tool_names:
-            td.enabled = a2a_on
+    # A2A tools: only register when running as A2A agent
+    if a2a_on:
+        from qd_evolve.tools.a2a import register_a2a_tools
+        register_a2a_tools()
+        logger.debug("Agent [%s]: A2A tools registered (delegate_to, send_task, get_task, cancel_task)", name)
 
     from qd_evolve.tools.tool_loader import set_preload_tools
     set_preload_tools(loaded_tool_names)
