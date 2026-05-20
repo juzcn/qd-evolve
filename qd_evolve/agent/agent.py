@@ -171,6 +171,7 @@ class Agent:
         if not self._model:
             self._model = self.settings.default_model
         system_prompt = system or self.default_system_prompt
+        self.touch_heartbeat()
         self.messages.append({"role": "user", "content": user_input})
         self.iteration = 0
         self._log_limit = self.settings.log.truncation
