@@ -20,10 +20,12 @@ class _CombinedLoader(BaseLoader):
         for d in [self._primary, self._fallback] if self._fallback else [self._primary]:
             if d is None:
                 continue
-            p = d / template
-            if p.is_file():
-                source = p.read_text(encoding="utf-8")
-                return source, str(p), lambda: p.stat().st_mtime == p.stat().st_mtime
+            # Try with .j2 suffix first (for extends/include), then as-is
+            for name in [f"{template}.j2", template]:
+                p = d / name
+                if p.is_file():
+                    source = p.read_text(encoding="utf-8")
+                    return source, str(p), lambda: p.stat().st_mtime == p.stat().st_mtime
         raise TemplateNotFound(template)
 
 

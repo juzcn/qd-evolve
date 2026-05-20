@@ -105,6 +105,22 @@ class ToolboxDefaults(BaseModel):
     timeout: int = 60
 
 
+class MqttConfig(BaseModel):
+    """Per-agent MQTT transport configuration."""
+    broker_host: str = "127.0.0.1"
+    broker_port: int = 1883
+    enabled: bool = False
+    username: str = ""
+    password: str = ""
+    keepalive: int = 60
+
+
+class MqttBrokerConfig(BaseModel):
+    """Embedded MQTT broker configuration."""
+    host: str = "0.0.0.0"
+    port: int = 1883
+
+
 class AgentEntry(BaseModel):
     name: str
     friendly_name: str = ""
@@ -115,6 +131,7 @@ class AgentEntry(BaseModel):
     memory_db: str | None = DEFAULT_MEMORY_DB
     server: ServerConfig = ServerConfig()
     toolbox: ToolboxSection = ToolboxSection()
+    mqtt: MqttConfig = MqttConfig()
 
     @property
     def is_human(self) -> bool:
@@ -145,6 +162,7 @@ class AgentsConfig(BaseModel):
     agents: list[AgentEntry] = []
     topology: TopologyConfig = TopologyConfig()
     a2a_cli: A2ACLIConfig = A2ACLIConfig()
+    mqtt_broker: MqttBrokerConfig = MqttBrokerConfig()
 
     @model_validator(mode="after")
     def _validate_ports(self) -> "AgentsConfig":

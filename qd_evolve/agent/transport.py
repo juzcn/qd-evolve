@@ -472,11 +472,12 @@ class HttpTransport:
 
 
 class TransportRouter:
-    """Route A2A calls to inproc or http transport based on topology config."""
+    """Route A2A calls to inproc, mqtt, or http transport based on topology config."""
 
-    def __init__(self, inproc: InprocTransport | None, http: HttpTransport) -> None:
+    def __init__(self, inproc: InprocTransport | None, http: HttpTransport, mqtt: MqttTransport | None = None) -> None:
         self._inproc = inproc
         self._http = http
+        self._mqtt = mqtt
         self._registry: Any = None
 
     def _get_registry(self) -> Any:
@@ -485,13 +486,27 @@ class TransportRouter:
             self._registry = get_agent_registry()
         return self._registry
 
-    def _pick(self, target: str) -> InprocTransport | HttpTransport:
-        if self._inproc is None:
-            return self._http
-        # If the agent is registered locally (in-process), use inproc; otherwise http
-        if self._get_registry().get(target) is not None:
-            return self._inproc
+    def _pick(self, target: str) -> InprocTransport | HttpTransport | MqttTransport:
+        if self._inproc is not None:
+            # If the agent is registered locally (in-process), use inproc
+            if self._get_registry().get(target) is not None:
+                return self._inproc
+        # If MQTT is available and target has MQTT enabled, use MQTT
+        if self._mqtt is not None and self._is_mqtt_target(target):
+            return self._mqtt
         return self._http
+
+    def _is_mqtt_target(self, target: str) -> bool:
+        """Check if target agent has MQTT enabled in config."""
+        try:
+            from qd_evolve.core.config import load_settings
+            settings = load_settings()
+            for a in settings.agents_config.agents:
+                if a.name == target or a.effective_friendly_name() == target:
+                    return a.mqtt.enabled
+        except Exception:
+            pass
+        return False
 
     async def send_task(self, target: str, message: Message) -> Task:
         return await self._pick(target).send_task(target, message)
@@ -519,6 +534,9 @@ class TransportRouter:
             yield sr
 
     async def is_online(self, target: str) -> bool:
+        transport = self._pick(target)
+        if hasattr(transport, "is_online"):
+            return await transport.is_online(target)
         return await self._http.is_online(target)
 
 

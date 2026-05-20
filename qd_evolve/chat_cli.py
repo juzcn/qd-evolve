@@ -570,5 +570,8 @@ if __name__ == "__main__":
 from qd_evolve.a2a_cli import a2a_app
 app.add_typer(a2a_app, name="a2a")
 
+from qd_evolve.mqtt_cli import mqtt_app
+app.add_typer(mqtt_app, name="mqtt")
+
 from qd_evolve.toolbox_tui import toolbox_app
 app.add_typer(toolbox_app, name="toolbox")

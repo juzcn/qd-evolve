@@ -113,8 +113,8 @@ def _lookup_friendly(settings: Settings, name: str) -> str:
 
 # ── Per-agent factory ──────────────────────────────────────────────
 
-def create_agent(name: str, settings: Settings, *, need_a2a: bool | None = None) -> Any:
-    """Create a fully initialized Agent (or A2AAgent) from name + settings.
+def create_agent(name: str, settings: Settings, *, need_a2a: bool | None = None, need_mqtt: bool = False) -> Any:
+    """Create a fully initialized Agent (or A2AAgent / MqttAgent) from name + settings.
 
     Resolves entry, registries, and providers internally.
     Handles: memory creation, system prompt rendering, preload execution,
@@ -125,6 +125,7 @@ def create_agent(name: str, settings: Settings, *, need_a2a: bool | None = None)
         settings: Settings instance.
         need_a2a: If True, always wrap with A2AAgent. If None, auto-detect
                   from agent count. If False, never wrap.
+        need_mqtt: If True, wrap with MqttAgent (which wraps A2AAgent).
     """
     from qd_evolve.agent.agent import Agent
 
@@ -212,7 +213,17 @@ def create_agent(name: str, settings: Settings, *, need_a2a: bool | None = None)
     template_mgr = PromptTemplateManager()
     template_name = entry.system_prompt_template or "default"
 
-    if a2a_on:
+    # MQTT mode: prefer mqtt-{template} over a2a-{template}
+    mqtt_on = need_mqtt or (entry.mqtt.enabled and a2a_on)
+    if mqtt_on:
+        mqtt_prefixed = f"mqtt-{template_name}"
+        if template_mgr.has_template(mqtt_prefixed):
+            template_name = mqtt_prefixed
+        elif a2a_on:
+            prefixed = f"a2a-{template_name}"
+            if template_mgr.has_template(prefixed):
+                template_name = prefixed
+    elif a2a_on:
         prefixed = f"a2a-{template_name}"
         if template_mgr.has_template(prefixed):
             template_name = prefixed
@@ -272,6 +283,13 @@ def create_agent(name: str, settings: Settings, *, need_a2a: bool | None = None)
             capabilities=AgentCapabilities(streaming=True),
         )
         a2a_agent = A2AAgent(agent, card, TaskStore())
+
+        # ── Wrap with MqttAgent if needed ──────────────────────────
+        if mqtt_on:
+            from qd_evolve.agent.mqtt_agent import MqttAgent
+            mqtt_agent = MqttAgent(a2a_agent, entry.mqtt)
+            return mqtt_agent
+
         return a2a_agent
 
     return agent
