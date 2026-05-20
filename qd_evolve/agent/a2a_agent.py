@@ -96,26 +96,22 @@ class A2AAgent:
         if seconds <= 0:
             return
 
-        self._hb_idle_seconds = seconds
-        self._hb_event = asyncio.Event()
+        self.agent._hb_idle_seconds = seconds
+        self.agent._hb_event = asyncio.Event()
 
         async def _loop() -> None:
             while True:
                 try:
-                    await asyncio.wait_for(self._hb_event.wait(), timeout=self._hb_idle_seconds)
+                    await asyncio.wait_for(self.agent._hb_event.wait(), timeout=self.agent._hb_idle_seconds)
                 except asyncio.TimeoutError:
                     pass
-                self._hb_event.clear()
+                self.agent._hb_event.clear()
                 try:
-                    await asyncio.to_thread(self.heartbeat_check, self._hb_idle_seconds)
+                    await asyncio.to_thread(self.heartbeat_check, self.agent._hb_idle_seconds)
                 except Exception as e:
                     logger.debug("A2A Heartbeat loop error: %s", e)
 
         self.agent._hb_task = asyncio.ensure_future(_loop())
-
-    def touch_heartbeat(self) -> None:
-        if hasattr(self, '_hb_event'):
-            self._hb_event.set()
 
     def stop_heartbeat_loop(self) -> None:
         self.agent.stop_heartbeat_loop()
