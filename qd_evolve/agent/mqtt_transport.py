@@ -126,9 +126,17 @@ class MqttTransport:
                 pass
             self._listener_task = None
 
+        # Clear pending futures before disconnect
+        for f in self._pending.values():
+            if not f.done():
+                f.cancel()
+        self._pending.clear()
+
         if self._client is not None:
+            # Prevent aiomqtt's _on_unsubscribe KeyError traceback during paho cleanup
+            self._client._client.on_unsubscribe = None  # noqa: SLF001
             try:
-                await self._client.disconnect()
+                await self._client.__aexit__(None, None, None)
             except Exception:
                 pass
             self._client = None

@@ -5,7 +5,6 @@ from pathlib import Path
 from unittest.mock import MagicMock
 from typing import Any
 
-import numpy as np
 import pytest
 
 from qd_evolve.core.config import (
@@ -112,6 +111,7 @@ def providers(minimal_settings: Settings) -> ProviderRegistry:
 @pytest.fixture
 def mock_embedder() -> MagicMock:
     """Fixed-vector embedder — no model loading, returns zeros."""
+    import numpy as np
     embedder = MagicMock()
     embedder.encode.return_value = np.zeros(384, dtype=np.float32)
     return embedder

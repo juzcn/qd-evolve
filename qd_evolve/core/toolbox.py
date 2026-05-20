@@ -5,6 +5,7 @@ Every operation requires an agent_name (defaults to "default").
 """
 
 import json
+from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
@@ -25,8 +26,8 @@ def _load(agent_name: str | None = None) -> dict[str, Any]:
         agents = data.get("agents_config", {}).get("agents", [])
         for agent in agents:
             if agent.get("name") == name:
-                return agent.get("toolbox", dict(_EMPTY))
-    return dict(_EMPTY)
+                return agent.get("toolbox", deepcopy(_EMPTY))
+    return deepcopy(_EMPTY)
 
 
 def _save(section_data: dict[str, Any], agent_name: str | None = None) -> None:

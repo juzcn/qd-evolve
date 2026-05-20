@@ -9,6 +9,9 @@ from qd_evolve.core.config import MqttBrokerConfig
 
 logger = logging.getLogger(__name__)
 
+# Enable amqtt diagnostic logging
+logging.getLogger("amqtt").setLevel(logging.DEBUG)
+
 _broker_instance: MqttBroker | None = None
 
 
@@ -43,6 +46,7 @@ class MqttBroker:
                 }
             },
             "plugins": {
+                "amqtt.plugins.authentication.AnonymousAuthPlugin": {"allow_anonymous": True},
                 "amqtt.plugins.sys.broker.BrokerSysPlugin": {"sys_interval": 0},
             },
         }
