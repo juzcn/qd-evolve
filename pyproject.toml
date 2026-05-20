@@ -25,6 +25,7 @@ dependencies = [
     "markdown-pdf",
     "coding-open-agent-tools>=0.14.1",
     "defusedxml>=0.7.1", # implicit dependency of coding-open-agent-tools
+    "importlib-metadata>=6.0,<8.8.0", # implicit dependency of opentelemetry (via transformers)
     "tomlkit>=0.15.0",
     "aiohttp>=3.13.5",
 ]

@@ -198,13 +198,25 @@ class MCPToolBridge:
 
         logger.info("MCP: connecting to %s via StreamableHTTP (%s)", self.config.name, url)
 
-        self._transport_ctx = streamablehttp_client(
-            url, headers=headers,
-            timeout=self.config.timeout,
-            sse_read_timeout=self.config.sse_read_timeout,
-            terminate_on_close=self.config.terminate_on_close,
-        )
-        self._read_stream, self._write_stream, _ = await self._transport_ctx.__aenter__()
+        last_err: BaseException | None = None
+        for attempt in range(3):
+            try:
+                self._transport_ctx = streamablehttp_client(
+                    url, headers=headers,
+                    timeout=self.config.timeout,
+                    sse_read_timeout=self.config.sse_read_timeout,
+                    terminate_on_close=self.config.terminate_on_close,
+                )
+                self._read_stream, self._write_stream, _ = await self._transport_ctx.__aenter__()
+                return
+            except BaseException as e:
+                last_err = e
+                if attempt < 2:
+                    logger.warning("MCP: %s StreamableHTTP attempt %d failed: %s, retrying...",
+                                   self.config.name, attempt + 1, e)
+                    import asyncio as _aio
+                    await _aio.sleep(1 * (attempt + 1))
+        raise last_err  # type: ignore[misc]
 
     async def _connect_websocket(self) -> None:
         from mcp.client.websocket import websocket_client
