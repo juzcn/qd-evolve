@@ -451,20 +451,33 @@ class MqttTransport:
 
         online_topic = _topic(target, "agent/online")
         try:
-            # Subscribe and check for retained message
             await self._client.subscribe(online_topic, qos=QOS_EVENT)
-            # Wait briefly for retained message
-            try:
+            # Wait for retained message with short timeout
+            found = False
+            async def _check() -> None:
+                nonlocal found
                 async for message in self._client.messages:
                     topic = str(message.topic)
                     if topic == online_topic:
-                        await self._client.unsubscribe(online_topic)
-                        return True
-                    # If we get other messages, keep waiting briefly
+                        found = True
+                        return
+
+            task = asyncio.ensure_future(_check())
+            try:
+                await asyncio.wait_for(task, timeout=2.0)
             except asyncio.TimeoutError:
                 pass
-            await self._client.unsubscribe(online_topic)
-            return False
+            finally:
+                task.cancel()
+                try:
+                    await task
+                except (asyncio.CancelledError, Exception):
+                    pass
+            try:
+                await self._client.unsubscribe(online_topic)
+            except Exception:
+                pass
+            return found
         except Exception:
             return False
 
