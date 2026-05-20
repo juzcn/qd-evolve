@@ -99,7 +99,8 @@ class MqttTransport:
             keepalive=self._config.keepalive,
             identifier=client_id,
         )
-        await self._client.connect()
+        # aiomqtt.Client is an async context manager — enter it to connect
+        await self._client.__aenter__()
         self._connected = True
         logger.info("MqttTransport: connected to %s:%s as %s",
                      self._config.broker_host, self._config.broker_port, client_id)

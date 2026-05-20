@@ -317,7 +317,9 @@ class MqttAgent:
             keepalive=self._config.keepalive,
             identifier=client_id,
         )
-        await self._client.connect()
+        # aiomqtt.Client is an async context manager — enter it to connect
+        # aiomqtt.Client is an async context manager — enter it to connect
+        await self._client.__aenter__()
         self._connected = True
 
         # Subscribe to all request topics for this agent

@@ -17,6 +17,12 @@ import typer
 mqtt_app = typer.Typer(help="MQTT — A2A over MQTT client/server/broker")
 
 
+def _use_selector_loop() -> None:
+    """Switch to SelectorEventLoop on Windows (amqtt requires add_reader/add_writer)."""
+    if sys.platform == "win32":
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
+
 @mqtt_app.callback(invoke_without_command=True)
 def chat(
     ctx: typer.Context,
@@ -27,12 +33,16 @@ def chat(
     if ctx.invoked_subcommand is not None:
         return
 
-    from qd_evolve.core.config import load_settings
+    _use_selector_loop()
+
+    from qd_evolve.core.config import load_settings, LOG_DIR as LOG_DIR_PATH
+    from qd_evolve.core.logger import setup_logging
     from qd_evolve.agent.loader import init_process, create_agent
     from qd_evolve.agent.mqtt_transport import MqttTransport
     from qd_evolve.agent.mqtt_broker import ensure_broker
 
     settings = load_settings()
+    setup_logging(settings.log.level, log_dir=LOG_DIR_PATH)
     init_process(settings)
 
     # Auto-start embedded broker if configured
@@ -44,6 +54,11 @@ def chat(
 
     # Determine chat agent
     chat_agent_name = settings.agents_config.chat_agent
+    if not any(a.name == chat_agent_name for a in settings.agents_config.agents):
+        available = [a.name for a in settings.agents_config.agents]
+        typer.echo(f"Error: Chat agent '{chat_agent_name}' not found. Available: {', '.join(available)}", err=True)
+        raise SystemExit(1)
+
     agent = create_agent(chat_agent_name, settings, need_a2a=True, need_mqtt=True)
 
     # Connect MQTT transport
@@ -70,7 +85,7 @@ def chat(
 
 async def _mqtt_chat_loop(
     agent: object,
-    transport: MqttTransport,
+    transport: object,
     settings: object,
     replay: str | None,
     output: str | None,
@@ -81,8 +96,6 @@ async def _mqtt_chat_loop(
 
     assert isinstance(transport, MT)
 
-    # For now, use a simple synchronous chat loop
-    # (full Rich Live display integration follows the same pattern as a2a_cli.py)
     typer.echo("MQTT chat ready. Type your message (Ctrl+C to quit).")
 
     replay_lines = []
@@ -114,7 +127,6 @@ async def _mqtt_chat_loop(
         if user_input.strip().lower() in ("/quit", "/exit"):
             break
 
-        # Send via MQTT transport to the chat agent
         try:
             message = make_text_message("user", user_input)
             result = await transport.send_task(agent.card.name, message)
@@ -138,12 +150,22 @@ def serve(
     agent: str = typer.Option(..., "--agent", help="Agent name from config.json"),
 ) -> None:
     """Start an agent as an MQTT-accessible server."""
-    from qd_evolve.core.config import load_settings
+    _use_selector_loop()
+
+    from qd_evolve.core.config import load_settings, LOG_DIR as LOG_DIR_PATH
+    from qd_evolve.core.logger import setup_logging
     from qd_evolve.agent.loader import init_process, create_agent
     from qd_evolve.agent.mqtt_broker import ensure_broker
 
     settings = load_settings()
+    setup_logging(settings.log.level, log_dir=LOG_DIR_PATH)
     init_process(settings)
+
+    # Validate agent name
+    if not any(a.name == agent for a in settings.agents_config.agents):
+        available = [a.name for a in settings.agents_config.agents]
+        typer.echo(f"Error: Agent '{agent}' not found. Available: {', '.join(available)}", err=True)
+        raise SystemExit(1)
 
     # Auto-start embedded broker if configured
     broker_cfg = settings.agents_config.mqtt_broker
@@ -159,7 +181,6 @@ def serve(
         await mqtt_agent.start()
         typer.echo(f"MQTT agent '{agent}' running. Press Ctrl+C to stop.")
         try:
-            # Block until cancelled
             while True:
                 await asyncio.sleep(1)
         except asyncio.CancelledError:
@@ -176,10 +197,14 @@ def serve(
 @mqtt_app.command()
 def broker() -> None:
     """Start embedded MQTT broker."""
-    from qd_evolve.core.config import load_settings
+    _use_selector_loop()
+
+    from qd_evolve.core.config import load_settings, LOG_DIR as LOG_DIR_PATH
+    from qd_evolve.core.logger import setup_logging
     from qd_evolve.agent.mqtt_broker import ensure_broker, shutdown_broker
 
     settings = load_settings()
+    setup_logging(settings.log.level, log_dir=LOG_DIR_PATH)
     broker_cfg = settings.agents_config.mqtt_broker
 
     async def _run() -> None:

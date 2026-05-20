@@ -41,11 +41,15 @@ class MqttBroker:
                     "bind": f"{host}:{port}",
                 }
             },
-            "sys_interval": 0,
+            "plugins": {
+                "amqtt.plugins.sys.broker.BrokerSysPlugin": {"sys_interval": 0},
+            },
         }
 
         self._broker = Broker(config=broker_config)
         self._task = asyncio.create_task(self._broker.start())
+        # Give the broker a moment to bind the port
+        await asyncio.sleep(0.1)
         logger.info("MQTT broker started on %s:%s", host, port)
 
     async def stop(self) -> None:
