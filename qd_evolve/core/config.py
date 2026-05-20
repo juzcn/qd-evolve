@@ -115,6 +115,7 @@ class MqttConfig(BaseModel):
 
 class MqttBrokerConfig(BaseModel):
     """MQTT broker configuration. host/port are where clients connect."""
+    type: str = "mosquitto"
     host: str = "127.0.0.1"
     port: int = 1883
 

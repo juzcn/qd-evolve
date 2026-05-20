@@ -698,7 +698,7 @@ def serve(
 
 @mqtt_app.command()
 def broker() -> None:
-    """Start embedded MQTT broker."""
+    """Start embedded MQTT broker (type=embedded in config.json)."""
     _use_selector_loop()
 
     from qd_evolve.core.config import load_settings, LOG_DIR as LOG_DIR_PATH
@@ -709,10 +709,16 @@ def broker() -> None:
     setup_logging(settings.log.level, log_dir=LOG_DIR_PATH)
     broker_cfg = settings.agents_config.mqtt_broker
 
+    if broker_cfg.type != "embedded":
+        console.print(f"[yellow]Broker type is '{broker_cfg.type}', not 'embedded'.[/yellow]")
+        console.print(f"[dim]To use embedded broker, set mqtt_broker.type='embedded' in config.json.[/dim]")
+        console.print(f"[dim]For mosquitto, run: mosquitto -p {broker_cfg.port} -v[/dim]")
+        raise SystemExit(0)
+
     async def _run() -> None:
         try:
             b = await ensure_broker(broker_cfg)
-            typer.echo(f"MQTT broker running on {broker_cfg.host}:{broker_cfg.port}. Press Ctrl+C to stop.")
+            typer.echo(f"Embedded MQTT broker running on {broker_cfg.host}:{broker_cfg.port}. Press Ctrl+C to stop.")
             try:
                 while True:
                     await asyncio.sleep(1)
@@ -727,7 +733,7 @@ def broker() -> None:
     try:
         asyncio.run(_run())
     except KeyboardInterrupt:
-        typer.echo("\nMQTT broker stopped.")
+        typer.echo("\nEmbedded MQTT broker stopped.")
 
 
 # ── mqtt chat (default command) ────────────────────────────────────────────

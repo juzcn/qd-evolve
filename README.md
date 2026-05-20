@@ -1,6 +1,6 @@
 # QD-Evolve
 
-Multi-agent AI system with A2A protocol, human agents, push notifications, dual transport, tool use, skills, MCP integration, and CLI interface.
+Multi-agent AI system with A2A protocol, MQTT transport, human agents, push notifications, dual transport, tool use, skills, MCP integration, and CLI interface.
 
 ## Quick Start
 
@@ -18,6 +18,9 @@ Create `config.json` in your working directory (copy from `config.json.example`,
 qd-evolve                     # start chat (in-process)
 qd-evolve a2a                  # start A2A chat client+server (remote agents)
 qd-evolve a2a serve --agent test  # run agent as standalone A2A HTTP server
+qd-evolve mqtt                 # start MQTT chat client (pure client, no agent loading)
+qd-evolve mqtt serve --agent test  # run agent as MQTT-accessible server
+qd-evolve mqtt broker          # start embedded MQTT broker (type="embedded" in config)
 qd-evolve toolbox             # interactive tool manager (Textual TUI)
 qd-evolve toolbox --agent test   # per-agent tool management
 qd-evolve --replay in.txt     # replay inputs (automated testing)
@@ -153,9 +156,62 @@ CLI uses `send_task` (non-blocking) for human agents because humans may leave; u
 
 - **InprocTransport** — Direct `AgentCore.run()` via `asyncio.to_thread`. Zero latency for same-machine agents.
 - **HttpTransport** — aiohttp JSON-RPC client for cross-machine agents. Standard A2A protocol.
+- **MqttTransport** — aiomqtt pub/sub for A2A over MQTT broker. Topic-based communication.
 - **TransportRouter** — Auto-selects: local registry → inproc, otherwise → http.
 
 `send_task` includes `callback_url` and `from_agent` in message metadata so push notifications route back to the sender's own A2A server (not the CLI's).
+
+### MQTT Transport
+
+MQTT provides an alternative transport layer using a message broker. All agents and the CLI connect to the same MQTT broker.
+
+**Broker config** in `config.json` under `agents_config.mqtt_broker`:
+
+```json
+{
+  "agents_config": {
+    "mqtt_broker": {
+      "type": "mosquitto",
+      "host": "127.0.0.1",
+      "port": 1883
+    }
+  }
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `type` | `"mosquitto"` (default, external) or `"embedded"` (amqtt, dev only) |
+| `host` | Broker connect address (default: `127.0.0.1`) |
+| `port` | Broker port (default: `1883`) |
+
+**Per-agent MQTT credentials** on each agent entry:
+
+```json
+{
+  "name": "default",
+  "mqtt": {
+    "username": "",
+    "password": "",
+    "keepalive": 60
+  }
+}
+```
+
+**Topic structure:**
+
+| Topic | Direction | Description |
+|-------|-----------|-------------|
+| `qd/agents/{name}/online` | Agent → Broker | Retained presence message |
+| `qd/agents/{name}/tasks/{id}/request` | Client → Agent | Task submission |
+| `qd/agents/{name}/tasks/{id}/response` | Agent → Client | Task result |
+| `qd/agents/{name}/events` | Agent → Client | Streaming events |
+
+**MQTT CLI** is a pure client — no tools, skills, or agent loading. It connects via MqttTransport and provides the same interactive experience as the A2A CLI (prompt_toolkit, slash commands, heartbeat, streaming, token stats).
+
+**Broker types:**
+- **mosquitto** (recommended) — Install [Eclipse Mosquitto](https://mosquitto.org/) and start it before running MQTT commands. Production-ready, works on Windows.
+- **embedded** — `qd-evolve mqtt broker` starts an amqtt broker in-process. Convenient for development but has known issues on Windows.
 
 ### Event Stream
 
@@ -321,6 +377,12 @@ All config via `config.json`. Key fields:
 | `agents_config.agents[].server.host` | Connect address (default: `127.0.0.1`) |
 | `agents_config.agents[].friendly_name` | Display name (falls back to `name`) |
 | `agents_config.agents[].memory_db` | Per-agent SQLite file; `""`/`null` disables |
+| `agents_config.mqtt_broker.type` | `"mosquitto"` (default) or `"embedded"` |
+| `agents_config.mqtt_broker.host` | MQTT broker connect address (default: `127.0.0.1`) |
+| `agents_config.mqtt_broker.port` | MQTT broker port (default: `1883`) |
+| `agents_config.agents[].mqtt.username` | Per-agent MQTT username |
+| `agents_config.agents[].mqtt.password` | Per-agent MQTT password |
+| `agents_config.agents[].mqtt.keepalive` | MQTT keepalive interval in seconds (default: 60) |
 | `toolbox_defaults.timeout` | Default tool timeout in seconds |
 
 ## Project Structure
@@ -339,6 +401,9 @@ qd_evolve/
     agent.py               — AgentCore loop (openai_completion, openai_response, anthropic)
     a2a.py                 — A2A v1.0 data models
     transport.py           — InprocTransport, HttpTransport, TransportRouter
+    mqtt_transport.py      — MqttTransport (aiomqtt pub/sub)
+    mqtt_agent.py          — MqttAgent wrapper (subscribes, runs, publishes)
+    mqtt_broker.py         — Embedded amqtt broker
     server.py              — A2A HTTP server (aiohttp JSON-RPC)
     registry.py            — AgentRegistry + Topology
     loader.py              — init_process, create_agent_core
@@ -362,6 +427,7 @@ qd_evolve/
   skills.py                — SkillRegistry, SKILL.md discovery
   cli_tools.py             — CLIRegistry, YAML definitions
   cli.py                   — typer CLI, slash commands, event-driven display
+  mqtt_cli.py              — MQTT CLI (pure client, interactive chat)
   toolbox_tui.py           — Textual TUI for tool management
 
 tools/                       # Project root tool directories
@@ -382,6 +448,7 @@ tools/                       # Project root tool directories
 |---------|---------|
 | LLM API | anthropic + openai |
 | A2A Protocol | aiohttp (JSON-RPC + SSE) |
+| MQTT Transport | aiomqtt (pub/sub over MQTT broker) |
 | Config | JSON + pydantic |
 | Templates | Jinja2 |
 | CLI | typer + rich + prompt-toolkit + textual |
