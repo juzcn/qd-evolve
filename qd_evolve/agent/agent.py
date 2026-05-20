@@ -135,13 +135,15 @@ class Agent:
             while True:
                 try:
                     await asyncio.wait_for(self._hb_event.wait(), timeout=self._hb_idle_seconds)
+                    # touch_heartbeat() set the event — reset idle timer, don't fire
+                    self._hb_event.clear()
                 except asyncio.TimeoutError:
-                    pass
-                self._hb_event.clear()
-                try:
-                    await asyncio.to_thread(self.heartbeat_check, self._hb_idle_seconds)
-                except Exception as e:
-                    logger.debug("Heartbeat loop error: %s", e)
+                    # No touch for idle_seconds — fire heartbeat
+                    self._hb_event.clear()
+                    try:
+                        await asyncio.to_thread(self.heartbeat_check, self._hb_idle_seconds)
+                    except Exception as e:
+                        logger.debug("Heartbeat loop error: %s", e)
 
         self._hb_task = asyncio.ensure_future(_loop())
 
