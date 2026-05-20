@@ -33,21 +33,26 @@ class MqttBroker:
 
         host = self._config.host
         port = self._config.port
-        listener = f"{host}:{port}"
 
-        self._broker = Broker(
-            config=None,  # use amqtt defaults
-            plugin_namespace="amqtt.broker.plugins",
-        )
-        # amqtt Broker.start() takes a list of listener URIs
-        self._task = asyncio.create_task(self._broker.start([f"mqtt://{listener}"]))
-        logger.info("MQTT broker started on %s", listener)
+        broker_config = {
+            "listeners": {
+                "default": {
+                    "type": "tcp",
+                    "bind": f"{host}:{port}",
+                }
+            },
+            "sys_interval": 0,
+        }
+
+        self._broker = Broker(config=broker_config)
+        self._task = asyncio.create_task(self._broker.start())
+        logger.info("MQTT broker started on %s:%s", host, port)
 
     async def stop(self) -> None:
         """Gracefully shut down the broker."""
         if self._broker is None:
             return
-        self._broker.shutdown()
+        await self._broker.shutdown()
         if self._task is not None:
             self._task.cancel()
             try:
