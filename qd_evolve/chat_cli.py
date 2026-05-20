@@ -528,7 +528,7 @@ def chat(
         console.print(f"[red]Error:[/red] Agent '{chat_agent_name}' not found. Available: {', '.join(available)}")
         raise SystemExit(1)
 
-    agent_core = create_agent(chat_agent_name, settings=settings)
+    agent_core = create_agent(chat_agent_name, settings=settings, need_a2a=False)
 
     # 4. Startup panel
     prov_name = chat_agent_entry.effective_provider(settings)
