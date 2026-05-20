@@ -40,8 +40,10 @@ class MqttAgent:
     Implements AgentProtocol so it can be registered in AgentRegistry.
     """
 
-    def __init__(self, a2a_agent: A2AAgent, mqtt_config: MqttConfig) -> None:
+    def __init__(self, a2a_agent: A2AAgent, broker_host: str, broker_port: int, mqtt_config: MqttConfig) -> None:
         self.agent = a2a_agent
+        self._broker_host = broker_host
+        self._broker_port = broker_port
         self._config = mqtt_config
         self._client: Any = None  # aiomqtt.Client
         self._connected = False
@@ -97,16 +99,16 @@ class MqttAgent:
                                                    now=datetime.now(),
                                                    agent_name=self.card.name,
                                                    friendly_name="",
-                                                   mqtt_broker_host=self._config.broker_host,
-                                                   mqtt_broker_port=self._config.broker_port,
+                                                   mqtt_broker_host=self._broker_host,
+                                                   mqtt_broker_port=self._broker_port,
                                                    pending_results=pending_results)
         else:
-            msg = f"[MQTT Heartbeat: idle {idle_seconds}s. Broker: {self._config.broker_host}:{self._config.broker_port}.]"
+            msg = f"[MQTT Heartbeat: idle {idle_seconds}s. Broker: {self._broker_host}:{self._broker_port}.]"
             if pending_results:
                 msg += "\n" + pending_results
 
         logger.debug("MQTT Heartbeat: idle %ss, broker %s:%s", idle_seconds,
-                      self._config.broker_host, self._config.broker_port)
+                      self._broker_host, self._broker_port)
         try:
             response = self.agent.run(msg)
         except Exception as e:
@@ -310,8 +312,8 @@ class MqttAgent:
         client_id = f"qd-evolve-agent-{agent_name}-{uuid4().hex[:8]}"
 
         self._client = aiomqtt.Client(
-            hostname=self._config.broker_host,
-            port=self._config.broker_port,
+            hostname=self._broker_host,
+            port=self._broker_port,
             username=self._config.username or None,
             password=self._config.password or None,
             keepalive=self._config.keepalive,
@@ -342,7 +344,7 @@ class MqttAgent:
         self._event_pusher_task = asyncio.create_task(self._push_events())
 
         logger.info("MqttAgent: '%s' connected to %s:%s, subscribed to %s",
-                     agent_name, self._config.broker_host, self._config.broker_port, request_topic)
+                     agent_name, self._broker_host, self._broker_port, request_topic)
 
     async def stop(self) -> None:
         """Disconnect from MQTT broker and clean up."""

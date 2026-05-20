@@ -31,14 +31,15 @@ class MqttBroker:
         if self._broker is not None:
             return
 
-        host = self._config.host
         port = self._config.port
+        # Always bind 0.0.0.0 so the embedded broker accepts connections
+        # from all interfaces. Config host is the advertised connect address.
 
         broker_config = {
             "listeners": {
                 "default": {
                     "type": "tcp",
-                    "bind": f"{host}:{port}",
+                    "bind": f"0.0.0.0:{port}",
                 }
             },
             "plugins": {
@@ -50,7 +51,7 @@ class MqttBroker:
         self._task = asyncio.create_task(self._broker.start())
         # Give the broker a moment to bind the port
         await asyncio.sleep(0.1)
-        logger.info("MQTT broker started on %s:%s", host, port)
+        logger.info("MQTT broker started on 0.0.0.0:%s (connect via %s:%s)", port, self._config.host, port)
 
     async def stop(self) -> None:
         """Gracefully shut down the broker."""

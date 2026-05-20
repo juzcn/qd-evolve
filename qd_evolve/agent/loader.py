@@ -248,8 +248,8 @@ def create_agent(name: str, settings: Settings, *, need_a2a: bool | None = None,
         ) if settings.agents_config.topology.relations else "",
         has_human_agent=any(a.is_human for a in settings.agents_config.agents),
         human_agent_names=", ".join(a.effective_friendly_name() for a in settings.agents_config.agents if a.is_human),
-        mqtt_broker_host=entry.mqtt.broker_host,
-        mqtt_broker_port=entry.mqtt.broker_port,
+        mqtt_broker_host=settings.agents_config.mqtt_broker.host,
+        mqtt_broker_port=settings.agents_config.mqtt_broker.port,
     )
     logger.debug("Agent [%s]: system prompt assembled (%d chars), template=%s\n%s", name, len(system_prompt), template_name, system_prompt)
 
@@ -289,7 +289,7 @@ def create_agent(name: str, settings: Settings, *, need_a2a: bool | None = None,
         # ── Wrap with MqttAgent if needed ──────────────────────────
         if mqtt_on:
             from qd_evolve.agent.mqtt_agent import MqttAgent
-            mqtt_agent = MqttAgent(a2a_agent, entry.mqtt)
+            mqtt_agent = MqttAgent(a2a_agent, settings.agents_config.mqtt_broker.host, settings.agents_config.mqtt_broker.port, entry.mqtt)
             return mqtt_agent
 
         return a2a_agent

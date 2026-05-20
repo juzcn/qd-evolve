@@ -107,8 +107,6 @@ class ToolboxDefaults(BaseModel):
 
 class MqttConfig(BaseModel):
     """Per-agent MQTT transport configuration."""
-    broker_host: str = "127.0.0.1"
-    broker_port: int = 1883
     enabled: bool = False
     username: str = ""
     password: str = ""
@@ -116,8 +114,8 @@ class MqttConfig(BaseModel):
 
 
 class MqttBrokerConfig(BaseModel):
-    """Embedded MQTT broker configuration."""
-    host: str = "0.0.0.0"
+    """MQTT broker configuration. host/port are where clients connect."""
+    host: str = "127.0.0.1"
     port: int = 1883
 
 

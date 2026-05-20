@@ -64,7 +64,9 @@ class MqttTransport:
     the response arrives on a2a/{self_name}/response/{req_id}.
     """
 
-    def __init__(self, mqtt_config: MqttConfig, client_name: str = "") -> None:
+    def __init__(self, broker_host: str, broker_port: int, mqtt_config: MqttConfig, client_name: str = "") -> None:
+        self._broker_host = broker_host
+        self._broker_port = broker_port
         self._config = mqtt_config
         self._client_name = client_name
         self._client: Any = None  # aiomqtt.Client
@@ -79,7 +81,7 @@ class MqttTransport:
             self._registry = get_agent_registry()
         return self._registry
 
-    async def connect(self) -> None:
+    async def connect(self, timeout: float = 10.0) -> None:
         """Connect to MQTT broker and start listener."""
         try:
             import aiomqtt
@@ -92,18 +94,24 @@ class MqttTransport:
 
         client_id = f"qd-evolve-{self._client_name or 'transport'}-{uuid4().hex[:8]}"
         self._client = aiomqtt.Client(
-            hostname=self._config.broker_host,
-            port=self._config.broker_port,
+            hostname=self._broker_host,
+            port=self._broker_port,
             username=self._config.username or None,
             password=self._config.password or None,
             keepalive=self._config.keepalive,
             identifier=client_id,
         )
         # aiomqtt.Client is an async context manager — enter it to connect
-        await self._client.__aenter__()
+        try:
+            await asyncio.wait_for(self._client.__aenter__(), timeout=timeout)
+        except asyncio.TimeoutError:
+            raise TimeoutError(
+                f"Connection to MQTT broker at {self._broker_host}:{self._broker_port} timed out. "
+                f"Is the broker running? Start it with: qd-evolve mqtt broker"
+            )
         self._connected = True
         logger.info("MqttTransport: connected to %s:%s as %s",
-                     self._config.broker_host, self._config.broker_port, client_id)
+                     self._broker_host, self._broker_port, client_id)
 
         # Start listener for responses
         self._listener_task = asyncio.create_task(self._listen_responses())
