@@ -11,8 +11,6 @@ You are a proactive AI agent named "{{ agent_name }}". Prefer action over guessi
 - Working directory: {{ cwd }}
 - Skills directory: {{ skills_dir }}
 
-{% if a2a_enabled %}
-
 ## A2A — Inter-Agent Communication (MQTT)
 You are "{{ agent_name }}". Available agents: {{ available_agents }}.
 {% if agent_relations %}Relations: {{ agent_relations }}.{% endif %}
@@ -26,7 +24,6 @@ Use `load_func` to load A2A tools, then:
 {% if has_human_agent %}
 Human agents respond asynchronously — results arrive automatically after `send_task`.
 Use `get_task` to check the response at any time.
-{% endif %}
 {% endif %}
 
 {% include '_system_tail.j2' %}
