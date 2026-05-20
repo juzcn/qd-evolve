@@ -248,6 +248,8 @@ def create_agent(name: str, settings: Settings, *, need_a2a: bool | None = None,
         ) if settings.agents_config.topology.relations else "",
         has_human_agent=any(a.is_human for a in settings.agents_config.agents),
         human_agent_names=", ".join(a.effective_friendly_name() for a in settings.agents_config.agents if a.is_human),
+        mqtt_broker_host=entry.mqtt.broker_host,
+        mqtt_broker_port=entry.mqtt.broker_port,
     )
     logger.debug("Agent [%s]: system prompt assembled (%d chars), template=%s\n%s", name, len(system_prompt), template_name, system_prompt)
 
