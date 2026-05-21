@@ -340,59 +340,6 @@ class TestRemoteTaskIdMapping:
         a2a_module._transport = None
 
 
-# ── Friendly name lookup in AgentRegistry ──────────────────────────
-
-class TestFriendlyNameLookup:
-    def test_get_by_friendly_name(self):
-        from qd_evolve.agent.registry import AgentRegistry, Topology
-        from qd_evolve.core.config import AgentEntry, AgentsConfig, ServerConfig, Settings, TopologyConfig
-
-        settings = Settings(
-            max_iterations=5,
-            tool_output_limit=2000,
-            providers=[],
-            default_provider="test",
-            default_model="test-model",
-            agents_config=AgentsConfig(
-                chat_agent="human",
-                agents=[
-                    AgentEntry(name="human", friendly_name="Jun", server=ServerConfig(port=8002)),
-                ],
-            ),
-        )
-        topo = Topology(settings)
-        reg = AgentRegistry(topology=topo)
-
-        # Register an agent by real name
-        mock_agent = type("MockAgent", (), {"card": AgentCard(name="human", description="Human")})()
-        reg.register(mock_agent)
-
-        # Lookup by friendly name should work
-        assert reg.get("Jun") is mock_agent
-
-    def test_get_url_by_friendly_name(self):
-        from qd_evolve.agent.registry import AgentRegistry, Topology
-        from qd_evolve.core.config import AgentEntry, AgentsConfig, ServerConfig, Settings, TopologyConfig
-
-        settings = Settings(
-            max_iterations=5,
-            tool_output_limit=2000,
-            providers=[],
-            default_provider="test",
-            default_model="test-model",
-            agents_config=AgentsConfig(
-                chat_agent="human",
-                agents=[
-                    AgentEntry(name="human", friendly_name="Jun", server=ServerConfig(port=8003)),
-                ],
-            ),
-        )
-        topo = Topology(settings)
-        reg = AgentRegistry(topology=topo)
-
-        assert reg.get_url("Jun") == "http://localhost:8003"
-
-
 # ── A2AServer._tasks_push_notification calls on_push_notification ──
 
 class TestServerPushNotification:

@@ -98,7 +98,6 @@ class MqttAgent:
                                                    idle_seconds=idle_seconds,
                                                    now=datetime.now(),
                                                    agent_name=self.card.name,
-                                                   friendly_name="",
                                                    mqtt_broker_host=self._broker_host,
                                                    mqtt_broker_port=self._broker_port,
                                                    pending_results=pending_results)

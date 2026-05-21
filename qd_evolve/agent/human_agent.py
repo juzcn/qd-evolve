@@ -42,7 +42,6 @@ class HumanAgent:
         self,
         name: str,
         description: str = "",
-        friendly_name: str = "",
     ) -> None:
         self.card = AgentCard(
             name=name,
@@ -53,7 +52,6 @@ class HumanAgent:
             ),
         )
         self.task_store = TaskStore()
-        self._friendly_name = friendly_name or name
         self._event_subscribers: list[asyncio.Queue] = []
         self._hb_task: asyncio.Task | None = None
 

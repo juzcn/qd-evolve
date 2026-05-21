@@ -29,12 +29,6 @@ a2a_app = typer.Typer(help="A2A — remote agent HTTP client/server", invoke_wit
 console = Console()
 
 
-def _friendly_name(settings: Settings, name: str) -> str:
-    """Resolve friendly_name for an agent, falling back to name."""
-    entry = next((a for a in settings.agents_config.agents if a.name == name), None)
-    return entry.effective_friendly_name() if entry else name
-
-
 class ReplayInput:
     """Feeds pre-recorded inputs instead of reading from prompt_toolkit."""
 
@@ -236,9 +230,7 @@ async def _handle_slash_command(
         if not agent_list:
             return "  (no agents configured in config.json)"
         table = Table(title="Available Agents", show_header=True)
-        table.add_column("#", style="dim")
-        table.add_column("Agent", style="bold cyan")
-        table.add_column("Name", style="bold green")
+        table.add_column("Agent", style="cyan")
         table.add_column("Provider/Model", style="bold")
         table.add_column("Server", style="dim")
         current = settings.agents_config.chat_agent
@@ -249,7 +241,7 @@ async def _handle_slash_command(
                 prov_mdl = "human"
             else:
                 prov_mdl = f"{a.effective_provider(settings)}/{a.effective_model(settings)}"
-            table.add_row(str(i), a.name + marker, a.effective_friendly_name(), prov_mdl, srv)
+            table.add_row(a.name + marker, prov_mdl, srv)
         console.print(table)
         try:
             from prompt_toolkit import PromptSession
@@ -293,9 +285,8 @@ async def _async_chat_loop(
         return next((a for a in settings.agents_config.agents if a.name == name), None)
 
     all_agent_names = [a.name for a in settings.agents_config.agents]
-    all_friendly_names = {a.name: a.effective_friendly_name() for a in settings.agents_config.agents}
     hb_idle = settings.heartbeat_idle_seconds
-    hb_counts: dict[str, int] = {all_friendly_names[name]: 0 for name in all_agent_names}
+    hb_counts: dict[str, int] = {name: 0 for name in all_agent_names}
 
     def _agent_color(name: str) -> str:
         idx = all_agent_names.index(name) if name in all_agent_names else 0
@@ -307,13 +298,13 @@ async def _async_chat_loop(
         ok = await router.is_online(a.name)
         online_status[a.name] = ok
         status_str = "online" if ok else "offline"
-        console.print(f"  [dim]{_friendly_name(settings, a.name)} ({a.name}) HTTP :{a.server.port} — {status_str}[/dim]")
+        console.print(f"  [dim]{a.name} HTTP :{a.server.port} — {status_str}[/dim]")
         if not ok:
             logger.warning("Agent '%s' (HTTP :%s) is offline", a.name, a.server.port)
 
     chat_name = _current_agent_name()
     if not online_status.get(chat_name, False):
-        console.print(f"[bold yellow]Warning:[/bold yellow] {_friendly_name(settings, chat_name)} is offline. Use [bold]/agents[/bold] to switch.")
+        console.print(f"[bold yellow]Warning:[/bold yellow] {chat_name} is offline. Use [bold]/agents[/bold] to switch.")
 
     def _is_current_agent_online() -> bool:
         return online_status.get(_current_agent_name(), False)
@@ -382,7 +373,7 @@ async def _async_chat_loop(
                     agent_name, event = event_wait.result()
                 except Exception:
                     continue
-                fn = all_friendly_names.get(agent_name, agent_name)
+                fn = agent_name
                 etype = event.get("type", "")
                 if etype == "heartbeat":
                     hb_counts[fn] = 0
@@ -459,7 +450,7 @@ async def _async_chat_loop(
             try:
                 task = await router.send_task(_current_agent_name(), msg)
                 if task.status.state == TaskState.input_required:
-                    console.print(f"[dim]Task sent to {_friendly_name(settings, _current_agent_name())}. Waiting for response...[/dim]")
+                    console.print(f"[dim]Task sent to {_current_agent_name()}. Waiting for response...[/dim]")
                     # Wait for webhook callback via event queue
                     pending_task_id = task.id
                     while True:
@@ -533,7 +524,7 @@ async def _async_chat_loop(
                     else:
                         response = f"[red]Error:[/red] {e}"
 
-        console.print(f"[bold {_agent_color(_current_agent_name())}]{_friendly_name(settings, _current_agent_name())}>[/bold {_agent_color(_current_agent_name())}] {response}")
+        console.print(f"[bold {_agent_color(_current_agent_name())}]{_current_agent_name()}>[/bold {_agent_color(_current_agent_name())}] {response}")
 
         # Token stats from SSE event
         if last_tokens_event:
@@ -572,14 +563,14 @@ async def _async_chat_loop(
 
 # ── Human terminal loop ────────────────────────────────────────────────────
 
-async def _human_terminal_loop(agent_core: Any, friendly_name: str, settings: Any = None) -> None:
+async def _human_terminal_loop(agent_core: Any, settings: Any = None) -> None:
     """Interactive loop: receive tasks, prompt human, submit responses."""
     queue = agent_core.subscribe_events()
-    # Build friendly name lookup from config
-    agent_friendly: dict[str, str] = {}
+    # Build name lookup from config
+    agent_names: dict[str, str] = {}
     if settings:
         for a in settings.agents_config.agents:
-            agent_friendly[a.name] = a.effective_friendly_name()
+            agent_names[a.name] = a.name
     try:
         while True:
             event = await queue.get()
@@ -588,7 +579,7 @@ async def _human_terminal_loop(agent_core: Any, friendly_name: str, settings: An
                 task_id = event.get("task_id", "")
                 task_content = event.get("content", "")
                 from_agent = event.get("from_agent", "")
-                label = agent_friendly.get(from_agent, from_agent) if from_agent else task_id[:8]
+                label = agent_names.get(from_agent, from_agent) if from_agent else task_id[:8]
                 console.print(f"\n[bold yellow]{label}:[/bold yellow] {task_content}")
                 console.print("[bold cyan]Your response:[/bold cyan] ", end="")
                 response = await asyncio.to_thread(input)
@@ -664,7 +655,7 @@ def serve(
     bind_host = DEFAULT_BIND_HOST
     connect_host = entry.server.host if entry else DEFAULT_SERVER_HOST
     port = entry.server.port if entry else DEFAULT_SERVER_PORT
-    fn = _friendly_name(settings, agent)
+    fn = agent
     if is_human:
         console.print(Panel(
             f"Human agent [bold]{fn} ({agent})[/bold] on {bind_host}:{port} (connect: {connect_host}:{port})\nWaiting for tasks...",
@@ -772,13 +763,13 @@ def chat(
 
     # 6. Startup panel
     agents = settings.agents_config.agents
-    fn = _friendly_name(settings, chat_agent_name)
+    fn = chat_agent_name
 
     if len(agents) > 1:
-        max_name_len = max(len(a.effective_friendly_name()) for a in agents)
+        max_name_len = max(len(a.name) for a in agents)
         agent_lines = []
         for a in agents:
-            a_fn = a.effective_friendly_name()
+            a_fn = a.name
             name_col = f"{a_fn:<{max_name_len}}"
             if a.is_human:
                 info = "human"

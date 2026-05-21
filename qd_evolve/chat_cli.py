@@ -23,12 +23,6 @@ app = typer.Typer(help="qd-evolve AI agent")
 console = Console()
 
 
-def _friendly_name(settings: Settings, name: str) -> str:
-    """Resolve friendly_name for an agent, falling back to name."""
-    entry = next((a for a in settings.agents_config.agents if a.name == name), None)
-    return entry.effective_friendly_name() if entry else name
-
-
 class ReplayInput:
     """Feeds pre-recorded inputs instead of reading from prompt_toolkit."""
 
@@ -264,9 +258,7 @@ async def _handle_slash_command(
         if not agent_list:
             return "  (no agents configured in config.json)"
         table = Table(title="Available Agents", show_header=True)
-        table.add_column("#", style="dim")
-        table.add_column("Agent", style="bold cyan")
-        table.add_column("Name", style="bold green")
+        table.add_column("Agent", style="cyan")
         table.add_column("Provider/Model", style="bold")
         table.add_column("Server", style="dim")
         current = settings.agents_config.chat_agent
@@ -277,7 +269,7 @@ async def _handle_slash_command(
                 prov_mdl = "human"
             else:
                 prov_mdl = f"{a.effective_provider(settings)}/{a.effective_model(settings)}"
-            table.add_row(str(i), a.name + marker, a.effective_friendly_name(), prov_mdl, srv)
+            table.add_row(a.name + marker, prov_mdl, srv)
         console.print(table)
         try:
             from prompt_toolkit import PromptSession
@@ -393,7 +385,7 @@ async def _async_chat_loop(
                     _app = getattr(input_session, "app", None)
                     if _app and _app.is_running:
                         _app.renderer.erase()
-                    console.print(f"[bold #ff6b6b]{_friendly_name(settings, agent_name)}>[/bold #ff6b6b] {event.get('content', '')}")
+                    console.print(f"[bold #ff6b6b]{agent_name}>[/bold #ff6b6b] {event.get('content', '')}")
                     if _app and _app.is_running:
                         _app.invalidate()
                     input_task.cancel()
@@ -448,7 +440,7 @@ async def _async_chat_loop(
             except Exception as e:
                 response = f"[red]Error:[/red] {e}"
 
-        console.print(f"[bold #ff6b6b]{_friendly_name(settings, agent_name)}>[/bold #ff6b6b] {response}")
+        console.print(f"[bold #ff6b6b]{agent_name}>[/bold #ff6b6b] {response}")
 
         # Token stats
         try:
@@ -535,7 +527,7 @@ def chat(
     model_name = chat_agent_entry.effective_model(settings)
     console.print(Panel(
         f"qd-evolve v{__version__}\n\n"
-        f"[bold]Agent:[/bold]     {_friendly_name(settings, chat_agent_name)} ({chat_agent_name})\n"
+        f"[bold]Agent:[/bold]     {chat_agent_name}\n"
         f"[bold]Provider:[/bold]  {prov_name}/{model_name}\n"
         f"[bold]Transport:[/bold] inproc (chat mode)\n\n"
         f"/help for commands, /quit to leave",

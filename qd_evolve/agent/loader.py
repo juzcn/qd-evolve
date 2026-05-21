@@ -100,13 +100,6 @@ def _a2a_enabled(settings: Settings) -> bool:
     return len(settings.agents_config.agents) > 1
 
 
-def _lookup_friendly(settings: Settings, name: str) -> str:
-    for a in settings.agents_config.agents:
-        if a.name == name:
-            return a.effective_friendly_name()
-    return name
-
-
 # ── Per-agent factory ──────────────────────────────────────────────
 
 def create_agent(name: str, settings: Settings, *, need_a2a: bool | None = None, need_mqtt: bool = False) -> Any:
@@ -136,7 +129,6 @@ def create_agent(name: str, settings: Settings, *, need_a2a: bool | None = None,
         return HumanAgent(
             name=entry.name,
             description=entry.description,
-            friendly_name=entry.effective_friendly_name(),
         )
 
     # Resolve process-level singletons
@@ -235,14 +227,14 @@ def create_agent(name: str, settings: Settings, *, need_a2a: bool | None = None,
         python_cmd="python",
         cwd=str(Path.cwd()),
         skills_dir=SKILLS_DIR,
-        agent_name=entry.effective_friendly_name(),
-        available_agents=", ".join(a.effective_friendly_name() for a in settings.agents_config.agents),
+        agent_name=entry.name,
+        available_agents=", ".join(a.name for a in settings.agents_config.agents),
         agent_relations=", ".join(
-            f"{_lookup_friendly(settings, r['from'])}→{_lookup_friendly(settings, r['to'])} ({r.get('mode', 'peer')})"
+            f"{r['from']}→{r['to']} ({r.get('mode', 'peer')})"
             for r in settings.agents_config.topology.relations
         ) if settings.agents_config.topology.relations else "",
         has_human_agent=any(a.is_human for a in settings.agents_config.agents),
-        human_agent_names=", ".join(a.effective_friendly_name() for a in settings.agents_config.agents if a.is_human),
+        human_agent_names=", ".join(a.name for a in settings.agents_config.agents if a.is_human),
         mqtt_broker_host=settings.agents_config.mqtt_broker.host,
         mqtt_broker_port=settings.agents_config.mqtt_broker.port,
     )

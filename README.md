@@ -70,7 +70,6 @@ All agent config in `config.json` under `agents_config`:
       },
       {
         "name": "human",
-        "friendly_name": "You",
         "description": "Human operator",
         "provider": "human",
         "server": {"host": "127.0.0.1", "port": 8004}
@@ -87,7 +86,6 @@ All agent config in `config.json` under `agents_config`:
 ```
 
 - `provider`/`model`: empty = use global defaults; `"human"` = human agent
-- `friendly_name`: display name in CLI prompts and heartbeat (falls back to `name`)
 - `memory_db`: independent SQLite per agent; `""` or `null` disables memory
 - `server.host`: connect address (default `127.0.0.1`); server binds `0.0.0.0` to accept all interfaces
 - `a2a_cli.server.port`: CLI's own A2A server port (for webhook callbacks)
@@ -382,7 +380,6 @@ All config via `config.json`. Key fields:
 | `memory_search.embeddings_backend` | Name of embeddings backend |
 | `agents_config.chat_agent` | Currently active agent |
 | `agents_config.agents[].server.host` | Connect address (default: `127.0.0.1`) |
-| `agents_config.agents[].friendly_name` | Display name (falls back to `name`) |
 | `agents_config.agents[].memory_db` | Per-agent SQLite file; `""`/`null` disables |
 | `agents_config.mqtt_broker.type` | `"mosquitto"` (default) or `"embedded"` |
 | `agents_config.mqtt_broker.host` | MQTT broker connect address (default: `127.0.0.1`) |

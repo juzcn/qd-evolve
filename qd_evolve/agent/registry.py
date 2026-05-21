@@ -1,95 +1,96 @@
-"""Agent registry — manages known agents and their topology."""
+"""Agent registry — local in-process agent lookup."""
 
 from __future__ import annotations
 
-from typing import Any
+from qd_evolve.agent.a2a_agent import A2AAgent
+from qd_evolve.agent.human_agent import HumanAgent
 
-from qd_evolve.agent.a2a import AgentCard, AgentCapabilities
-from qd_evolve.core.config import DEFAULT_SERVER_PORT, Settings, load_settings
-from qd_evolve.core.logger import logger
+DEFAULT_SERVER_PORT = 8000
 
-
-class Topology:
-    """Agent topology — relationships between agents."""
-
-    def __init__(self, settings: Settings | None = None) -> None:
-        settings = settings or load_settings()
-        self.relations: list[dict[str, str]] = settings.agents_config.topology.relations
-        # Build agents map: name → {url}
-        self.agents: dict[str, dict[str, Any]] = {}
-        # Also map friendly_name → name for lookup by display name
-        self._friendly_to_name: dict[str, str] = {}
-        for entry in settings.agents_config.agents:
-            self.agents[entry.name] = {
-                "url": f"http://localhost:{entry.server.port}",
-            }
-            fn = entry.effective_friendly_name()
-            if fn and fn != entry.name:
-                self._friendly_to_name[fn] = entry.name
-
-    def get_relation(self, from_agent: str, to_agent: str) -> str:
-        """Get relationship mode between two agents. Default: peer."""
-        for r in self.relations:
-            if r["from"] == from_agent and r["to"] == to_agent:
-                return r.get("mode", "peer")
-        return "peer"
-
-
-class AgentRegistry:
-    """Registry of all Agent instances — manages identity, URLs, and topology."""
-
-    def __init__(self, topology: Topology | None = None, current_agent: str = "") -> None:
-        self._agents: dict[str, Any] = {}
-        self.topology = topology or Topology()
-        self.current_agent = current_agent
-
-    def register(self, agent: Any) -> None:
-        """Register an Agent instance."""
-        self._agents[agent.card.name] = agent
-        logger.debug("Registry: registered agent '%s'", agent.card.name)
-
-    def get(self, name: str) -> Any | None:
-        """Get an Agent by name or friendly_name."""
-        agent = self._agents.get(name)
-        if agent is not None:
-            return agent
-        # Try friendly_name lookup
-        real_name = self.topology._friendly_to_name.get(name)
-        if real_name:
-            return self._agents.get(real_name)
-        return None
-
-    def list_names(self) -> list[str]:
-        """List all registered agent names."""
-        return list(self._agents.keys())
-
-    def get_url(self, name: str) -> str:
-        """Get URL for an agent from topology. Supports both name and friendly_name."""
-        url = self.topology.agents.get(name, {}).get("url")
-        if url:
-            return url
-        # Try friendly_name lookup
-        real_name = self.topology._friendly_to_name.get(name)
-        if real_name:
-            return self.topology.agents.get(real_name, {}).get("url", f"http://localhost:{DEFAULT_SERVER_PORT}")
-        return f"http://localhost:{DEFAULT_SERVER_PORT}"
-
-    def get_card(self, name: str) -> AgentCard | None:
-        """Get AgentCard for a named agent."""
-        a = self.get(name)
-        return a.card if a else None
-
-
-# Module-level singleton
+# ── Singleton ──────────────────────────────────────────────────────
 _registry: AgentRegistry | None = None
 
 
-def set_agent_registry(registry: AgentRegistry) -> None:
+def set_agent_registry(reg: AgentRegistry) -> None:
     global _registry
-    _registry = registry
+    _registry = reg
 
 
 def get_agent_registry() -> AgentRegistry:
     if _registry is None:
-        set_agent_registry(AgentRegistry())
+        raise RuntimeError("AgentRegistry not initialized")
     return _registry
+
+
+class Topology:
+    """Agent relationship topology."""
+
+    def __init__(self, settings=None):
+        if settings is not None:
+            self.relations = [
+                dict(r) for r in settings.agents_config.topology.relations
+            ]
+            self.agents: dict[str, dict] = {}
+            for a in settings.agents_config.agents:
+                self.agents[a.name] = {
+                    "name": a.name,
+                    "description": a.description,
+                    "url": f"{a.server.host}:{a.server.port}",
+                }
+        else:
+            self.relations = []
+            self.agents = {}
+
+    def get(self, name: str) -> dict | None:
+        """Get relation by agent name."""
+        for r in self.relations:
+            if r["from"] == name or r["to"] == name:
+                return r
+        return None
+
+
+class AgentRegistry:
+    """Registry of local in-process agents."""
+
+    def __init__(self, topology: Topology | None = None, current_agent: str = "") -> None:
+        self._agents: dict[str, A2AAgent | HumanAgent] = {}
+        self.topology = topology or Topology()
+        self._current_agent = current_agent
+
+    def register(self, agent: A2AAgent | HumanAgent) -> None:
+        """Register a local agent."""
+        name = agent.card.name
+        self._agents[name] = agent
+
+    def get(self, name: str) -> A2AAgent | HumanAgent | None:
+        """Look up agent by name in local registry."""
+        return self._agents.get(name)
+
+    def get_url(self, name: str) -> str | None:
+        """Look up agent URL by name in local registry."""
+        agent = self._agents.get(name)
+        if agent is not None and hasattr(agent, "card"):
+            return f"http://{agent.card.url}"
+        # Try topology
+        info = self.topology.agents.get(name)
+        if info:
+            return f"http://{info['url']}"
+        return None
+
+    @property
+    def current_agent(self) -> str:
+        return self._current_agent
+
+    @current_agent.setter
+    def current_agent(self, name: str) -> None:
+        self._current_agent = name
+
+    @property
+    def agents(self) -> dict[str, A2AAgent | HumanAgent]:
+        return self._agents
+
+    def __contains__(self, name: str) -> bool:
+        return name in self._agents
+
+    def __len__(self) -> int:
+        return len(self._agents)

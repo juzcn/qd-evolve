@@ -121,7 +121,6 @@ class MqttBrokerConfig(BaseModel):
 
 class AgentEntry(BaseModel):
     name: str
-    friendly_name: str = ""
     description: str = ""
     provider: str = ""
     model: str = ""
@@ -141,8 +140,6 @@ class AgentEntry(BaseModel):
     def effective_model(self, settings: Settings) -> str:
         return self.model or settings.default_model
 
-    def effective_friendly_name(self) -> str:
-        return self.friendly_name or self.name
 
 
 class TopologyConfig(BaseModel):
