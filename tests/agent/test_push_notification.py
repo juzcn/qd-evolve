@@ -2,7 +2,6 @@
 A2AAgent.heartbeat_check, _delegate_to human rejection, _send_task callback_url,
 remote task_id mapping, friendly name lookup."""
 
-import asyncio
 import json
 from unittest.mock import MagicMock, patch
 
@@ -19,6 +18,17 @@ from qd_evolve.agent.a2a import (
 )
 from qd_evolve.agent.a2a_agent import A2AAgent
 from qd_evolve.agent.server import TaskStore
+
+
+@pytest.fixture(autouse=True)
+def _clean_a2a_state():
+    """Ensure a2a_tools module-level state is clean between tests."""
+    from qd_evolve.agent import a2a_tools as a2a_module
+    a2a_module._task_store.clear()
+    a2a_module._transport = None
+    yield
+    a2a_module._task_store.clear()
+    a2a_module._transport = None
 
 
 # ── on_push_notification ───────────────────────────────────────────
@@ -279,10 +289,7 @@ class TestSendTaskMetadata:
         assert data["state"] == "submitted"
         assert data["agent"] == "human"
 
-        # _watch() runs async — give it a moment
-        import time
-        time.sleep(0.1)
-
+        # _watch() runs synchronously via asyncio.run() when no loop exists
         assert captured_message is not None
         assert captured_message.metadata.get("callback_url") == "http://localhost:8002"
         assert captured_message.metadata.get("from_agent") == "jack"
@@ -320,11 +327,7 @@ class TestRemoteTaskIdMapping:
         data = json.loads(result)
         local_task_id = data["task_id"]
 
-        # Wait for _watch() to complete
-        import time
-        time.sleep(0.2)
-
-        # Both local and remote task_id should map to same entry
+        # _watch() runs synchronously via asyncio.run() when no loop exists
         assert local_task_id in a2a_module._task_store
         assert "remote-abc" in a2a_module._task_store
         assert a2a_module._task_store[local_task_id] is a2a_module._task_store["remote-abc"]

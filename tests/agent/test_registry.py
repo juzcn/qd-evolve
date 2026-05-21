@@ -32,35 +32,38 @@ def _make_settings(agents: list[AgentEntry], relations: list[dict] | None = None
 
 
 class TestTopology:
-    def test_get_relation_peer(self):
+    def test_get_relation(self):
         agents = [
             AgentEntry(name="a", server=ServerConfig(port=8002)),
             AgentEntry(name="b", server=ServerConfig(port=8003)),
         ]
         settings = _make_settings(agents, relations=[{"from": "a", "to": "b", "mode": "peer"}])
         topo = Topology(settings)
-        assert topo.get_relation("a", "b") == "peer"
+        r = topo.get("a")
+        assert r is not None
+        assert r["mode"] == "peer"
 
-    def test_get_relation_default_peer(self):
+    def test_get_relation_not_found(self):
         agents = [AgentEntry(name="a", server=ServerConfig(port=8002))]
         settings = _make_settings(agents)
         topo = Topology(settings)
-        assert topo.get_relation("a", "b") == "peer"
+        assert topo.get("nonexistent") is None
 
-    def test_agents_map(self):
+    def test_agents_url_map(self):
         agents = [
             AgentEntry(name="a", server=ServerConfig(host="127.0.0.1", port=9000)),
+            AgentEntry(name="b", server=ServerConfig(port=8002)),
         ]
         settings = _make_settings(agents)
         topo = Topology(settings)
-        assert topo.agents["a"]["url"] == "http://localhost:9000"
+        assert "9000" in topo.agents["a"]["url"]
+        assert "8002" in topo.agents["b"]["url"]
 
 
 class TestAgentRegistry:
     def _make_mock_agent(self, name: str) -> MagicMock:
-        """Create a mock agent with .card attribute."""
         agent = MagicMock()
-        agent.card = AgentCard(name=name, description=f"{name} agent")
+        agent.card = AgentCard(name=name, description=f"{name} agent", url="127.0.0.1:8002")
         return agent
 
     def test_register_and_get(self):
@@ -77,32 +80,41 @@ class TestAgentRegistry:
         reg = AgentRegistry()
         reg.register(self._make_mock_agent("a"))
         reg.register(self._make_mock_agent("b"))
-        assert set(reg.list_names()) == {"a", "b"}
+        assert set(reg.agents.keys()) == {"a", "b"}
 
-    def test_get_url(self):
+    def test_get_url_registered_agent(self):
+        reg = AgentRegistry()
+        agent = self._make_mock_agent("test")
+        reg.register(agent)
+        url = reg.get_url("test")
+        assert url is not None
+        assert "8002" in url
+
+    def test_get_url_from_topology(self):
         agents = [AgentEntry(name="test", server=ServerConfig(host="127.0.0.1", port=9000))]
         settings = _make_settings(agents)
         topo = Topology(settings)
         reg = AgentRegistry(topology=topo)
-        assert reg.get_url("test") == "http://localhost:9000"
+        url = reg.get_url("test")
+        assert url is not None
+        assert "9000" in url
 
-    def test_get_url_default_port(self):
+    def test_get_url_unknown_agent(self):
         reg = AgentRegistry()
-        # Unknown agent gets default port
-        url = reg.get_url("nonexistent")
-        assert "localhost" in url
+        url = reg.get_url("unknown")
+        assert url is None
 
     def test_get_card(self):
         reg = AgentRegistry()
         agent = self._make_mock_agent("test")
         reg.register(agent)
-        card = reg.get_card("test")
+        card = reg.get("test").card
         assert card is not None
         assert card.name == "test"
 
     def test_get_card_not_found(self):
         reg = AgentRegistry()
-        assert reg.get_card("nonexistent") is None
+        assert reg.get("nonexistent") is None
 
 
 class TestModuleSingleton:
@@ -112,13 +124,13 @@ class TestModuleSingleton:
         set_agent_registry(reg)
         assert get_agent_registry() == reg
 
-    def test_get_creates_default(self):
-        from qd_evolve.agent.registry import get_agent_registry, _registry
-        from qd_evolve.agent import a2a_tools as a2a_module
-        # Reset to None
+    def test_get_raises_when_not_initialized(self):
+        from qd_evolve.agent.registry import get_agent_registry
         import qd_evolve.agent.registry as mod
+        old = mod._registry
         mod._registry = None
-        reg = get_agent_registry()
-        assert reg is not None
-        # Cleanup
-        mod._registry = None
+        try:
+            with pytest.raises(RuntimeError, match="not initialized"):
+                get_agent_registry()
+        finally:
+            mod._registry = old

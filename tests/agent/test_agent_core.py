@@ -1,6 +1,6 @@
 """Tests for qd_evolve.agent.agent — Agent logic (compress, inject, activate, events)."""
 
-import asyncio
+from unittest.mock import patch
 
 import pytest
 
@@ -179,11 +179,16 @@ class TestCompressMessages:
         agent_core._compress_messages()
         assert len(agent_core.messages) < 40
 
-    def test_no_compress_zero_context_window(self, agent_core, minimal_settings, registry_with_echo, providers):
-        # Provider with context_window=0 means no compression
+    def test_no_compress_zero_context_window(self, agent_core):
+        # Mock the Provider to return context_window=0 — compression skipped
+        from unittest.mock import MagicMock
+        mock_prov = MagicMock()
+        mock_prov.get_context_window.return_value = 0
         agent_core.last_input_tokens = 999999
-        agent_core._compress_messages()
-        # Should not crash
+        count_before = len(agent_core.messages)
+        with patch.object(agent_core.providers, "get", return_value=mock_prov):
+            agent_core._compress_messages()
+        assert len(agent_core.messages) == count_before
 
 
 class TestExtractText:

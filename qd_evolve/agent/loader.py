@@ -126,10 +126,15 @@ def create_agent(name: str, settings: Settings, *, need_a2a: bool | None = None,
     # ── Human agent: short-circuit ────────────────────────────
     if entry.is_human:
         from qd_evolve.agent.human_agent import HumanAgent
-        return HumanAgent(
+        human = HumanAgent(
             name=entry.name,
             description=entry.description,
         )
+        if need_mqtt:
+            from qd_evolve.agent.mqtt_human_agent import MqttHumanAgent
+            broker = settings.agents_config.mqtt_broker
+            return MqttHumanAgent(human, broker.host, broker.port, entry.mqtt)
+        return human
 
     # Resolve process-level singletons
     registry = get_registry()

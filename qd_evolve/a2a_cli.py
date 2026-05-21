@@ -230,6 +230,7 @@ async def _handle_slash_command(
         if not agent_list:
             return "  (no agents configured in config.json)"
         table = Table(title="Available Agents", show_header=True)
+        table.add_column("#", style="dim", justify="right")
         table.add_column("Agent", style="cyan")
         table.add_column("Provider/Model", style="bold")
         table.add_column("Server", style="dim")
@@ -241,7 +242,7 @@ async def _handle_slash_command(
                 prov_mdl = "human"
             else:
                 prov_mdl = f"{a.effective_provider(settings)}/{a.effective_model(settings)}"
-            table.add_row(a.name + marker, prov_mdl, srv)
+            table.add_row(str(i), a.name + marker, prov_mdl, srv)
         console.print(table)
         try:
             from prompt_toolkit import PromptSession
@@ -676,7 +677,7 @@ def serve(
             return
         if is_human:
             agent_core.start_heartbeat_loop(settings.heartbeat_idle_seconds)
-            await _human_terminal_loop(agent_core, fn, settings)
+            await _human_terminal_loop(agent_core, settings)
         else:
             agent_core.start_heartbeat_loop()
             # Block until Ctrl+C

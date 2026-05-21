@@ -36,8 +36,19 @@ class TestParseFrontmatter:
         result = _parse_frontmatter(content)
         assert result == {}
 
+    def test_invalid_yaml(self):
+        content = "---\n: invalid yaml : [\n---\nContent"
+        fm = _parse_frontmatter(content)
+        assert fm == {}
+
 
 class TestSkillInfo:
+    def test_defaults(self):
+        si = SkillInfo(name="test", content="content")
+        assert si.summary == ""
+        assert si.version == ""
+        assert si.active is False
+
     def test_format_for_prompt_with_summary(self):
         info = SkillInfo(name="find-tools", content="full content", summary="Search tools")
         assert info.format_for_prompt() == "- find-tools: Search tools"
@@ -87,6 +98,18 @@ class TestSkillRegistry:
         reg.discover_skills(skill_dir)
         assert len(reg.get_all_skills()) == 0
 
+    def test_discover_empty_dir(self, tmp_path):
+        skills_dir = tmp_path / "empty_skills"
+        skills_dir.mkdir()
+        reg = SkillRegistry()
+        reg.discover_skills(str(skills_dir))
+        assert reg.get_all_skills() == []
+
+    def test_discover_nonexistent_dir(self, tmp_path):
+        reg = SkillRegistry()
+        reg.discover_skills(str(tmp_path / "nonexistent"))
+        assert reg.get_all_skills() == []
+
     def test_get_detail(self, tmp_path):
         skill_dir = tmp_path / "skills"
         skill_dir.mkdir()
@@ -104,6 +127,23 @@ class TestSkillRegistry:
     def test_get_detail_not_found(self):
         reg = SkillRegistry()
         assert reg.get_detail("nonexistent") is None
+
+    def test_get_skill(self, tmp_path):
+        skills_dir = tmp_path / "skills"
+        skill_dir = skills_dir / "test-skill"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text(
+            "---\nname: test-skill\ndescription: Test\n---\nContent", encoding="utf-8",
+        )
+        reg = SkillRegistry()
+        reg.discover_skills(str(skills_dir))
+        skill = reg.get_skill("test-skill")
+        assert skill is not None
+        assert skill.name == "test-skill"
+
+    def test_get_skill_not_found(self):
+        reg = SkillRegistry()
+        assert reg.get_skill("nonexistent") is None
 
     def test_add_skill(self):
         reg = SkillRegistry()
@@ -132,6 +172,18 @@ class TestSkillRegistry:
         result = reg.format_for_prompt()
         assert result == ""
 
+    def test_format_for_prompt_excludes_loaded(self, tmp_path):
+        skills_dir = tmp_path / "skills"
+        skill_dir = skills_dir / "test-skill"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text(
+            "---\nname: test-skill\ndescription: Test skill\n---\nContent", encoding="utf-8",
+        )
+        reg = SkillRegistry()
+        reg.discover_skills(str(skills_dir))
+        prompt = reg.format_for_prompt(loaded={"test-skill"})
+        assert "- test-skill" not in prompt
+
     def test_disabled_skill(self, tmp_path):
         skill_dir = tmp_path / "skills"
         skill_dir.mkdir()
@@ -145,6 +197,8 @@ class TestSkillRegistry:
         reg._disabled.add("my-skill")
         skills = reg.get_all_skills()
         assert len(skills) == 0
+        assert reg.get_skill("my-skill") is None
+        assert reg.get_detail("my-skill") is None
 
     def test_format_for_prompt_excludes_disabled(self, tmp_path):
         skill_dir = tmp_path / "skills"
@@ -159,6 +213,19 @@ class TestSkillRegistry:
         reg._disabled.add("my-skill")
         result = reg.format_for_prompt()
         assert "my-skill" not in result
+
+    def test_preload_skills(self, tmp_path):
+        skills_dir = tmp_path / "skills"
+        skill_dir = skills_dir / "test-skill"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text(
+            "---\nname: test-skill\ndescription: Test\n---\nContent", encoding="utf-8",
+        )
+        reg = SkillRegistry()
+        reg.discover_skills(str(skills_dir), preload_skills=["test-skill"])
+        skills = reg.get_all_skills()
+        assert len(skills) == 1
+        assert skills[0].active is True
 
     def test_reload(self, tmp_path):
         skill_dir = tmp_path / "skills"
@@ -179,20 +246,3 @@ class TestSkillRegistry:
         )
         reg.reload()
         assert len(reg.get_all_skills()) == 2
-
-    def test_get_skill_disabled(self, tmp_path):
-        skill_dir = tmp_path / "skills"
-        skill_dir.mkdir()
-        (skill_dir / "my-skill").mkdir()
-        (skill_dir / "my-skill" / "SKILL.md").write_text(
-            "---\nname: my-skill\ndescription: My skill\n---\nContent", encoding="utf-8"
-        )
-
-        reg = SkillRegistry()
-        reg.discover_skills(skill_dir)
-        reg._disabled.add("my-skill")
-        assert reg.get_skill("my-skill") is None
-
-    def test_get_skill_not_found(self):
-        reg = SkillRegistry()
-        assert reg.get_skill("nonexistent") is None

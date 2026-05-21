@@ -54,36 +54,33 @@ class TestHttpTransportPureFunctions:
 
 class TestTransportRouter:
     def test_pick_inproc(self):
+        from unittest.mock import patch, MagicMock
         inproc = InprocTransport()
         http = HttpTransport()
         router = TransportRouter(inproc, http)
 
-        # Mock the registry — agent found locally → inproc
-        from unittest.mock import MagicMock
         mock_reg = MagicMock()
         mock_reg.get.return_value = MagicMock()  # agent exists in registry
-        router._registry = mock_reg
-
-        transport = router._pick("helper")
-        assert transport is inproc
+        with patch("qd_evolve.agent.registry.get_agent_registry", return_value=mock_reg):
+            transport = router._pick("helper")
+            assert transport is inproc
 
     def test_pick_http(self):
+        from unittest.mock import patch, MagicMock
         inproc = InprocTransport()
         http = HttpTransport()
         router = TransportRouter(inproc, http)
 
-        from unittest.mock import MagicMock
         mock_reg = MagicMock()
         mock_reg.get.return_value = None  # agent not in local registry → http
-        router._registry = mock_reg
-
-        transport = router._pick("remote")
-        assert transport is http
+        with patch("qd_evolve.agent.registry.get_agent_registry", return_value=mock_reg):
+            transport = router._pick("remote")
+            assert transport is http
 
     @pytest.mark.asyncio
     async def test_get_extended_agent_card_inproc(self):
         from unittest.mock import MagicMock
-        from qd_evolve.agent.server import A2AServer, TaskStore
+        from qd_evolve.agent.server import TaskStore
 
         mock_agent = MagicMock()
         mock_agent.card = AgentCard(name="helper", description="Helper")
@@ -103,11 +100,9 @@ class TestTransportRouter:
         inproc = InprocTransport()
         inproc._registry = mock_reg
         http = HttpTransport()
-        http._registry = mock_reg
         router = TransportRouter(inproc, http)
-        router._registry = mock_reg
 
-        card = await router.get_extended_agent_card("helper")
+        card = await inproc.get_extended_agent_card("helper")
         assert card.capabilities.extended_agent_card is True
         assert len(card.extensions) == 1
         assert card.extensions[0].uri == "x-qd-evolve-status"

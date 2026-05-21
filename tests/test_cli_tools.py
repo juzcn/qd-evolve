@@ -15,6 +15,20 @@ class TestCLIToolDef:
         assert tool.help_summary == ""
         assert tool.examples == []
 
+    def test_defaults(self):
+        ctd = CLIToolDef(name="git", command="git")
+        assert ctd.description == ""
+        assert ctd.help_summary == ""
+        assert ctd.examples == []
+
+    def test_with_all_fields(self):
+        ctd = CLIToolDef(
+            name="git", command="git", description="Git version control",
+            help_summary="Git CLI tool", examples=["git status", "git log"],
+        )
+        assert ctd.description == "Git version control"
+        assert len(ctd.examples) == 2
+
 
 class TestCLIRegistry:
     def test_discover_finds_yaml(self, tmp_path):

@@ -8,6 +8,17 @@ import pytest
 from qd_evolve.agent.a2a import Task, TaskState, TaskStatus, make_text_message
 
 
+@pytest.fixture(autouse=True)
+def _clean_a2a_state():
+    """Ensure a2a_tools module-level state is clean between tests."""
+    from qd_evolve.agent import a2a_tools as a2a_module
+    a2a_module._task_store.clear()
+    a2a_module._transport = None
+    yield
+    a2a_module._task_store.clear()
+    a2a_module._transport = None
+
+
 class TestGetTask:
     def test_existing_task(self):
         from qd_evolve.agent.a2a_tools import _get_task

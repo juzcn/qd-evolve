@@ -150,11 +150,9 @@ class TestMemoryStore:
         assert len(entries) == 0
 
     def test_recall_with_keywords(self, memory_store):
-        # Save in session 1, then switch session and recall
         memory_store.save("python programming", "use python for coding")
-        import time
-        time.sleep(1.1)
-        memory_store.new_session()
+        with patch("qd_evolve.core.memory.datetime", _ControllableDatetime()):
+            memory_store.new_session()
         entries = memory_store.recall(keywords=["python"], limit=5)
         assert len(entries) >= 1
 
@@ -163,19 +161,16 @@ class TestParseTimeRange:
     """Test time_range filtering via recall()."""
 
     def test_today(self, memory_store):
-        # Save in session 1, then switch session and recall with today filter
         memory_store.save("today q", "today a")
-        import time
-        time.sleep(1.1)
-        memory_store.new_session()
+        with patch("qd_evolve.core.memory.datetime", _ControllableDatetime()):
+            memory_store.new_session()
         entries = memory_store.recall(keywords=["today"], time_range="today", limit=5)
         assert len(entries) >= 1
 
     def test_yesterday(self, memory_store):
         memory_store.save("yesterday q", "yesterday a")
         entries = memory_store.recall(keywords=["yesterday"], time_range="yesterday", limit=5)
-        # Saved today, so "yesterday" filter should return 0
-        assert isinstance(entries, list)
+        assert len(entries) == 0
 
     def test_empty_time_range(self, memory_store):
         memory_store.save("q", "a")
@@ -183,5 +178,7 @@ class TestParseTimeRange:
         assert isinstance(entries, list)
 
     def test_invalid_time_range(self, memory_store):
-        entries = memory_store.recall(keywords=["q"], time_range="invalid_format", limit=5)
+        memory_store.save("x query", "x answer")
+        entries = memory_store.recall(keywords=["x"], time_range="invalid_format", limit=5)
+        # Invalid format is logged but handled gracefully — returns empty list
         assert isinstance(entries, list)
