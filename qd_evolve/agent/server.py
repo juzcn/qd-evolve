@@ -136,6 +136,7 @@ class A2AServer:
             elif method == "agent/getExtendedAgentCard":
                 result = self._get_extended_agent_card()
             else:
+                logger.warning("A2A server: unknown RPC method '%s'", method)
                 return web.json_response(self._error(-32601, "Method not found", req_id))
 
         except Exception as e:
@@ -151,11 +152,14 @@ class A2AServer:
         human responds asynchronously via complete_task().
         """
         if self.agent_core is None:
+            logger.warning("A2A server: message/send — CLI stub, not supported")
             return Task(status=TaskStatus(state=TaskState.failed, message=make_text_message("agent", "CLI stub: message/send not supported")))
 
         message_data = params.get("message", {})
         message = Message.model_validate(message_data) if message_data else make_text_message("user", "")
         task_text = self._extract_text(message)
+        logger.info("A2A server: message/send — text=%s chars, from=%s",
+                     len(task_text), message.metadata.get("from_agent", "") if message.metadata else "")
 
         # Human agent: async mode — return input_required, don't block
         from qd_evolve.agent.human_agent import HumanAgent
@@ -172,6 +176,7 @@ class A2AServer:
                 callback_url=callback_url,
                 from_agent=from_agent,
             )
+            logger.info("A2A server: message/send -> human agent, task=%s, state=input_required", task.id[:8])
             # receive_task stores the task; retrieve it
             return self.task_store.get(task.id) or task
 
@@ -182,12 +187,13 @@ class A2AServer:
 
         try:
             result = await asyncio.to_thread(self.agent_core.run, task_text)
+            logger.info("A2A server: message/send completed — result=%s chars", len(result))
             task.status = TaskStatus(
                 state=TaskState.completed,
                 message=make_text_message("agent", result),
             )
         except Exception as e:
-            logger.exception("A2A server: agent run failed: %s", e)
+            logger.exception("A2A server: message/send failed: %s", e)
             task.status = TaskStatus(
                 state=TaskState.failed,
                 message=make_text_message("agent", f"{type(e).__name__}: {e}"),
@@ -198,6 +204,7 @@ class A2AServer:
     async def _message_stream(self, params: dict, request: web.Request, req_id: Any) -> web.StreamResponse:
         """SSE stream: send message, stream TaskStatusUpdateEvent with intermediate events in metadata."""
         if self.agent_core is None:
+            logger.warning("A2A server: message/stream — CLI stub, not supported")
             task = Task(status=TaskStatus(state=TaskState.failed, message=make_text_message("agent", "CLI stub: message/stream not supported")))
             sr = StreamResponse(statusUpdate=TaskStatusUpdateEvent(task_id="", context_id="", status=task.status, final=True))
             resp = web.StreamResponse()
@@ -211,6 +218,8 @@ class A2AServer:
         message_data = params.get("message", {})
         message = Message.model_validate(message_data) if message_data else make_text_message("user", "")
         task_text = self._extract_text(message)
+        logger.info("A2A server: message/stream — text=%s chars, from=%s",
+                     len(task_text), message.metadata.get("from_agent", "") if message.metadata else "")
 
         task = make_task_with_text(task_text)
         self.task_store.put(task)
@@ -233,6 +242,7 @@ class A2AServer:
                 callback_url = message.metadata.get("callback_url", "")
                 from_agent = message.metadata.get("from_agent", "")
             self.agent_core.receive_task(task_id=task.id, content=task_text, callback_url=callback_url, from_agent=from_agent)
+            logger.info("A2A server: message/stream -> human agent, task=%s, state=input_required", task.id[:8])
             task = self.task_store.get(task.id) or task
             sr = StreamResponse(statusUpdate=TaskStatusUpdateEvent(
                 task_id=task.id,
@@ -250,10 +260,12 @@ class A2AServer:
         # Background execution
         run_task = asyncio.ensure_future(asyncio.to_thread(self.agent_core.run, task_text))
 
+        event_count = 0
         try:
             while not run_task.done():
                 try:
                     event = await asyncio.wait_for(event_queue.get(), timeout=30)
+                    event_count += 1
                     # Push intermediate events as TaskStatusUpdateEvent with metadata
                     sr = StreamResponse(statusUpdate=TaskStatusUpdateEvent(
                         task_id=task.id,
@@ -271,11 +283,13 @@ class A2AServer:
         try:
             result = run_task.result()
         except Exception as e:
-            logger.exception("A2A server: agent run failed: %s", e)
+            logger.exception("A2A server: message/stream failed: %s", e)
             result = f"{type(e).__name__}: {e}"
 
         # Final event: completed TaskStatusUpdateEvent
         final_state = TaskState.completed if not run_task.exception() else TaskState.failed
+        logger.info("A2A server: message/stream done — result=%s chars, events=%d, state=%s",
+                     len(result), event_count, final_state.value)
         sr = StreamResponse(statusUpdate=TaskStatusUpdateEvent(
             task_id=task.id,
             context_id=task.session_id,
@@ -295,11 +309,14 @@ class A2AServer:
         task_id = params.get("id", "")
         task = self.task_store.get(task_id)
         if task is None:
+            logger.debug("A2A server: tasks/get — task '%s' not found", task_id[:8])
             return Task(status=TaskStatus(state=TaskState.failed, message=make_text_message("agent", f"Task '{task_id}' not found")))
+        logger.debug("A2A server: tasks/get — task '%s', state=%s", task_id[:8], task.status.state)
         return task
 
     async def _tasks_cancel(self, params: dict) -> Task:
         task_id = params.get("id", "")
+        logger.info("A2A server: tasks/cancel — task '%s'", task_id[:8])
         task = self.task_store.update_state(task_id, TaskState.canceled)
         if task is None:
             return Task(status=TaskStatus(state=TaskState.failed, message=make_text_message("agent", f"Task '{task_id}' not found")))
@@ -348,6 +365,7 @@ class A2AServer:
         """SSE stream: subscribe to agent events for an existing or new task."""
         task_id = params.get("taskId", params.get("id", ""))
         task = self.task_store.get(task_id) if task_id else None
+        logger.info("A2A server: tasks/resubscribe — task=%s", task_id[:8] if task_id else "new")
 
         resp = web.StreamResponse()
         resp.content_type = "text/event-stream"

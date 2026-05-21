@@ -87,8 +87,10 @@ class MqttTransport:
 
         # Event subscriber registry: agent_name → list of queues
         self._event_subscribers: dict[str, list[asyncio.Queue[dict]]] = {}
-        # Online subscriber registry: agent_name → list of futures
+        # Online one-shot subscriber registry: agent_name → list of futures (is_online)
         self._online_subscribers: dict[str, list[asyncio.Future[bool]]] = {}
+        # Online persistent subscriber registry: agent_name → list of queues (push notifications)
+        self._online_event_queues: dict[str, list[asyncio.Queue[bool]]] = {}
 
     def _get_registry(self) -> Any:
         if self._registry is None:
@@ -162,6 +164,7 @@ class MqttTransport:
                 if not f.done():
                     f.cancel()
         self._online_subscribers.clear()
+        self._online_event_queues.clear()
 
         if self._client is not None:
             # Prevent aiomqtt's _on_unsubscribe KeyError traceback during paho cleanup
@@ -219,10 +222,16 @@ class MqttTransport:
                 elif (len(parts) == 4 and parts[0] == "a2a"
                       and parts[2] == "agent" and parts[3] == "online"):
                     agent_name = parts[1]
+                    is_online = data.get("status") == "online"
+                    # Resolve one-shot futures (is_online)
                     futures = self._online_subscribers.pop(agent_name, [])
                     for f in futures:
                         if not f.done():
-                            f.set_result(True)
+                            f.set_result(is_online)
+                    # Push to persistent queues (presence monitoring)
+                    queues = self._online_event_queues.get(agent_name, [])
+                    for q in queues:
+                        await q.put(is_online)
 
         except asyncio.CancelledError:
             pass
@@ -247,6 +256,41 @@ class MqttTransport:
                 pass
             if not queues:
                 self._event_subscribers.pop(agent_name, None)
+
+    # ── Online presence subscriber registry ──────────────────────────
+
+    async def subscribe_online_updates(self, agent_name: str) -> asyncio.Queue[bool]:
+        """Subscribe to agent/online topic and return a persistent queue for status changes.
+
+        The queue receives bool values on every retained message update:
+        True = agent came online, False = agent went offline.
+        """
+        if self._client is None:
+            queue: asyncio.Queue[bool] = asyncio.Queue()
+            return queue
+        online_topic = _topic(agent_name, "agent/online")
+        await self._client.subscribe(online_topic, qos=QOS_EVENT)
+        queue: asyncio.Queue[bool] = asyncio.Queue()
+        self._online_event_queues.setdefault(agent_name, []).append(queue)
+        return queue
+
+    async def unsubscribe_online_updates(self, agent_name: str, queue: asyncio.Queue[bool]) -> None:
+        """Unregister an online status subscriber queue and unsubscribe topic."""
+        queues = self._online_event_queues.get(agent_name)
+        if queues is not None:
+            try:
+                queues.remove(queue)
+            except ValueError:
+                pass
+            if not queues:
+                self._online_event_queues.pop(agent_name, None)
+                # Unsubscribe MQTT topic when no more subscribers
+                if self._client is not None:
+                    online_topic = _topic(agent_name, "agent/online")
+                    try:
+                        await self._client.unsubscribe(online_topic)
+                    except Exception:
+                        pass
 
     # ── MQTT subscribe/unsubscribe helpers ─────────────────────────
 
@@ -277,8 +321,12 @@ class MqttTransport:
 
     async def send_task(self, target: str, message: Message) -> Task:
         """Blocking: publish message/send, await response on response topic."""
+        task_text = self._extract_text(message)
+        logger.info("MqttTransport: send_task to '%s' — %s chars", target, len(task_text))
+
         # Quick online check — fail fast if agent is offline
         if not await self.is_online(target):
+            logger.warning("MqttTransport: send_task to '%s' — agent is offline", target)
             return self._error_task(target, f"Agent '{target}' is offline")
 
         req_id = _new_req_id()
@@ -294,7 +342,9 @@ class MqttTransport:
             try:
                 result = await asyncio.wait_for(future, timeout=120)
             except asyncio.TimeoutError:
+                logger.error("MqttTransport: send_task to '%s' — timeout (120s)", target)
                 return self._error_task(target, f"Timeout waiting for response from '{target}'")
+            logger.info("MqttTransport: send_task to '%s' done — state=%s", target, result.status.state)
             return result
         finally:
             self._pending.pop(req_id, None)
@@ -306,8 +356,12 @@ class MqttTransport:
             yield StreamResponse(task=self._error_task(target, "MqttTransport not connected"))
             return
 
+        task_text = self._extract_text(message)
+        logger.info("MqttTransport: send_stream to '%s' — %s chars", target, len(task_text))
+
         # Quick online check — fail fast if agent is offline
         if not await self.is_online(target):
+            logger.warning("MqttTransport: send_stream to '%s' — agent is offline", target)
             yield StreamResponse(task=self._error_task(target, f"Agent '{target}' is offline"))
             return
 
@@ -421,6 +475,7 @@ class MqttTransport:
 
     async def get_task(self, target: str, task_id: str) -> Task:
         """Query task status via MQTT request/response."""
+        logger.debug("MqttTransport: get_task from '%s', task=%s", target, task_id[:8])
         req_id = _new_req_id()
         payload = {"id": task_id}
 
@@ -433,6 +488,7 @@ class MqttTransport:
             try:
                 result = await asyncio.wait_for(future, timeout=30)
             except asyncio.TimeoutError:
+                logger.error("MqttTransport: get_task from '%s' — timeout (30s)", target)
                 return self._error_task(target, f"Timeout querying task '{task_id}' from '{target}'")
             return result
         finally:
@@ -441,6 +497,7 @@ class MqttTransport:
 
     async def cancel_task(self, target: str, task_id: str) -> Task:
         """Cancel task via MQTT request/response."""
+        logger.info("MqttTransport: cancel_task on '%s', task=%s", target, task_id[:8])
         req_id = _new_req_id()
         payload = {"id": task_id}
 
@@ -453,6 +510,7 @@ class MqttTransport:
             try:
                 result = await asyncio.wait_for(future, timeout=30)
             except asyncio.TimeoutError:
+                logger.error("MqttTransport: cancel_task on '%s' — timeout (30s)", target)
                 return self._error_task(target, f"Timeout canceling task '{task_id}' on '{target}'")
             return result
         finally:
@@ -461,6 +519,7 @@ class MqttTransport:
 
     async def get_agent_card(self, target: str) -> AgentCard:
         """Discover remote agent's capabilities via MQTT request/response."""
+        logger.debug("MqttTransport: get_agent_card from '%s'", target)
         req_id = _new_req_id()
         payload = {}
 
@@ -473,6 +532,7 @@ class MqttTransport:
             try:
                 result_task = await asyncio.wait_for(future, timeout=10)
             except asyncio.TimeoutError:
+                logger.debug("MqttTransport: get_agent_card from '%s' — timeout (10s)", target)
                 return AgentCard(name=target, description=f"Agent '{target}' timeout")
 
             card_data = result_task.metadata.get("agent_card", {})
@@ -547,6 +607,7 @@ class MqttTransport:
 
         online_topic = _topic(target, "agent/online")
         await self._client.subscribe(online_topic, qos=QOS_EVENT)
+        logger.debug("MqttTransport: is_online '%s' — subscribed to %s", target, online_topic)
 
         # Register a one-shot subscriber for the online topic
         future: asyncio.Future[bool] = asyncio.get_running_loop().create_future()
@@ -555,9 +616,10 @@ class MqttTransport:
         try:
             try:
                 await asyncio.wait_for(future, timeout=2.0)
-                result = True
+                result = future.result()
             except asyncio.TimeoutError:
                 result = False
+            logger.debug("MqttTransport: is_online '%s' -> %s", target, result)
             return result
         finally:
             # Clean up subscriber

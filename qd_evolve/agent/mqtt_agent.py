@@ -458,9 +458,9 @@ class MqttAgent:
             elif method == "agent/card":
                 await self._on_agent_card(data, req_id, from_agent)
             else:
-                logger.debug("MqttAgent: unknown method '%s'", method)
+                logger.warning("MqttAgent: unknown method '%s' from '%s'", method, from_agent)
         except Exception as e:
-            logger.exception("MqttAgent: error handling '%s': %s", method, e)
+            logger.exception("MqttAgent: error handling '%s' from '%s': %s", method, from_agent, e)
             if req_id and from_agent:
                 await self._publish_error(from_agent, req_id, str(e))
 
@@ -471,6 +471,7 @@ class MqttAgent:
         message_data = data.get("message", {})
         message = Message.model_validate(message_data) if message_data else make_text_message("user", "")
         task_text = self._extract_text(message)
+        logger.info("MqttAgent: message/send from '%s' — %s chars", from_agent, len(task_text))
 
         task = make_task_with_text(task_text)
         task.status.state = TaskState.working
@@ -478,11 +479,13 @@ class MqttAgent:
 
         try:
             result = await asyncio.to_thread(self.agent.run, task_text)
+            logger.info("MqttAgent: message/send from '%s' done — %s chars", from_agent, len(result))
             task.status = TaskStatus(
                 state=TaskState.completed,
                 message=make_text_message("agent", result),
             )
         except Exception as e:
+            logger.exception("MqttAgent: message/send from '%s' failed: %s", from_agent, e)
             task.status = TaskStatus(
                 state=TaskState.failed,
                 message=make_text_message("agent", f"{type(e).__name__}: {e}"),
@@ -497,6 +500,7 @@ class MqttAgent:
         message_data = data.get("message", {})
         message = Message.model_validate(message_data) if message_data else make_text_message("user", "")
         task_text = self._extract_text(message)
+        logger.info("MqttAgent: message/stream from '%s' — %s chars", from_agent, len(task_text))
 
         task = make_task_with_text(task_text)
         task.status.state = TaskState.working
@@ -507,9 +511,12 @@ class MqttAgent:
             result = await asyncio.to_thread(self.agent.run, task_text)
             final_state = TaskState.completed
         except Exception as e:
+            logger.exception("MqttAgent: message/stream from '%s' failed: %s", from_agent, e)
             result = f"{type(e).__name__}: {e}"
             final_state = TaskState.failed
 
+        logger.info("MqttAgent: message/stream from '%s' done — %s chars, state=%s",
+                     from_agent, len(result), final_state.value)
         # Push final event
         agent_name = self.card.name
         events_topic = f"a2a/{agent_name}/events"

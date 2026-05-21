@@ -382,6 +382,7 @@ async def _async_chat_loop(
                 etype = event.get("type", "")
                 if etype == "heartbeat":
                     hb[0] = 0
+                    logger.info("Chat: heartbeat fired for '%s' (%s chars)", agent_name, len(event.get('content', '')))
                     _app = getattr(input_session, "app", None)
                     if _app and _app.is_running:
                         _app.renderer.erase()
@@ -422,9 +423,11 @@ async def _async_chat_loop(
             agent_entry = next((a for a in settings.agents_config.agents if a.name == agent_name), None)
             result = await _handle_slash_command(user_input, agent_core, settings, agent_core.memory, agent_entry=agent_entry)
             if result is None:
+                logger.info("Chat session: /quit received, exiting")
                 console.print("[dim]Goodbye![/dim]")
                 break
             if result:
+                logger.debug("Chat: slash command '%s' executed", user_input)
                 console.print(result)
             continue
 
@@ -433,13 +436,16 @@ async def _async_chat_loop(
         agent_core.set_print_callback(_on_print)
         iteration_lines.clear()
         output_lines.clear()
+        logger.info("Chat: user message -> '%s' (%s chars)", user_input[:80], len(user_input))
         spinner = Spinner("dots", text=Text("Thinking...", style="bold green"))
         with Live(Group(spinner), console=console, refresh_per_second=10) as live:
             try:
                 response = await asyncio.to_thread(agent_core.run, user_input)
             except Exception as e:
+                logger.warning("Chat: agent.run failed: %s", e)
                 response = f"[red]Error:[/red] {e}"
 
+        logger.info("Chat: agent response (%s chars)", len(response))
         console.print(f"[bold #ff6b6b]{agent_name}>[/bold #ff6b6b] {response}")
 
         # Token stats
@@ -471,6 +477,7 @@ async def _async_chat_loop(
         agent_core.stop_heartbeat_loop()
         console.print("\n[dim]Goodbye![/dim]")
 
+    logger.info("Chat session: shutting down (bridges=%d)", len(bridges))
     for b in bridges:
         try:
             b.disconnect(shutdown=True)
@@ -525,6 +532,8 @@ def chat(
     # 4. Startup panel
     prov_name = chat_agent_entry.effective_provider(settings)
     model_name = chat_agent_entry.effective_model(settings)
+    logger.info("Chat session: starting for agent '%s' (%s/%s), transport=inproc",
+                chat_agent_name, prov_name, model_name)
     console.print(Panel(
         f"qd-evolve v{__version__}\n\n"
         f"[bold]Agent:[/bold]     {chat_agent_name}\n"

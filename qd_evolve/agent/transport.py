@@ -54,6 +54,7 @@ class InprocTransport:
             # Try to lazy-load the agent from config
             agent_node = self._lazy_load(target, registry)
             if agent_node is None:
+                logger.error("InprocTransport: send_task to '%s' — agent not found", target)
                 return self._error_task(target, f"Agent '{target}' not found in registry")
 
         # Human agent: async mode — return input_required, don't block
@@ -69,19 +70,24 @@ class InprocTransport:
                 content=task_text,
                 callback_url=callback_url,
             )
+            logger.debug("InprocTransport: send_task to '%s' (human) — task=%s, input_required",
+                         target, task.id[:8])
             return agent_node.task_store.get(task.id) or task
 
         task_text = self._extract_text(message)
+        logger.info("InprocTransport: send_task to '%s' — %s chars", target, len(task_text))
         task = make_task_with_text(task_text)
         task.status.state = TaskState.working
 
         try:
             result = await asyncio.to_thread(agent_node.run, task_text)
+            logger.info("InprocTransport: send_task to '%s' done — %s chars", target, len(result))
             task.status = TaskStatus(
                 state=TaskState.completed,
                 message=make_text_message("agent", result),
             )
         except Exception as e:
+            logger.error("InprocTransport: send_task to '%s' failed: %s", target, e)
             task.status = TaskStatus(
                 state=TaskState.failed,
                 message=make_text_message("agent", f"{type(e).__name__}: {e}"),
@@ -95,10 +101,12 @@ class InprocTransport:
         if agent_node is None:
             agent_node = self._lazy_load(target, registry)
             if agent_node is None:
+                logger.error("InprocTransport: send_stream to '%s' — agent not found", target)
                 yield StreamResponse(task=self._error_task(target, f"Agent '{target}' not found in registry"))
                 return
 
         task_text = self._extract_text(message)
+        logger.info("InprocTransport: send_stream to '%s' — %s chars", target, len(task_text))
         task = make_task_with_text(task_text)
         task.status.state = TaskState.working
 
@@ -112,6 +120,8 @@ class InprocTransport:
             if message.metadata:
                 callback_url = message.metadata.get("callback_url", "")
             agent_node.receive_task(task_id=task.id, content=task_text, callback_url=callback_url)
+            logger.debug("InprocTransport: send_stream to '%s' (human) — task=%s, input_required",
+                         target, task.id[:8])
             stored = agent_node.task_store.get(task.id)
             if stored:
                 task = stored
@@ -129,10 +139,12 @@ class InprocTransport:
         # Background execution
         run_task = asyncio.ensure_future(asyncio.to_thread(agent_node.run, task_text))
 
+        event_count = 0
         try:
             while not run_task.done():
                 try:
                     event = await asyncio.wait_for(event_queue.get(), timeout=30)
+                    event_count += 1
                     from qd_evolve.agent.a2a import TaskStatusUpdateEvent
                     yield StreamResponse(statusUpdate=TaskStatusUpdateEvent(
                         task_id=task.id,
@@ -159,7 +171,10 @@ class InprocTransport:
         except Exception as e:
             result = f"{type(e).__name__}: {e}"
             final_state = TaskState.failed
+            logger.error("InprocTransport: send_stream to '%s' failed: %s", target, e)
 
+        logger.info("InprocTransport: send_stream to '%s' done — %s chars, events=%d, state=%s",
+                     target, len(result), event_count, final_state.value)
         from qd_evolve.agent.a2a import TaskStatusUpdateEvent
         yield StreamResponse(statusUpdate=TaskStatusUpdateEvent(
             task_id=task.id,
@@ -309,9 +324,10 @@ class HttpTransport:
         """Blocking: HTTP POST message/send."""
         import aiohttp
 
+        url = self._get_registry().get_url(target)
+        task_text = self._extract_text(message)
+        logger.info("HttpTransport: send_task to '%s' — %s chars, url=%s", target, len(task_text), url)
         try:
-            url = self._get_registry().get_url(target)
-            # Include callback_url so remote agent can push results via webhook
             msg_dict = message.model_dump()
             callback_url = self._get_callback_url()
             if "metadata" not in msg_dict or msg_dict["metadata"] is None:
@@ -325,7 +341,9 @@ class HttpTransport:
             async with aiohttp.ClientSession() as session:
                 resp = await session.post(url, json=payload)
                 data = await resp.json()
-            return Task.model_validate(data.get("result", {}))
+            task = Task.model_validate(data.get("result", {}))
+            logger.info("HttpTransport: send_task to '%s' done — state=%s", target, task.status.state)
+            return task
         except Exception as e:
             logger.error("HttpTransport: send_task to '%s' failed: %s", target, e)
             return self._error_task(target, f"{type(e).__name__}: {e}")
@@ -334,8 +352,10 @@ class HttpTransport:
         """SSE stream: HTTP POST message/stream, parse StreamResponse."""
         import aiohttp
 
+        url = self._get_registry().get_url(target)
+        task_text = self._extract_text(message)
+        logger.info("HttpTransport: send_stream to '%s' — %s chars, url=%s", target, len(task_text), url)
         try:
-            url = self._get_registry().get_url(target)
             msg_dict = message.model_dump()
             callback_url = self._get_callback_url()
             if "metadata" not in msg_dict or msg_dict["metadata"] is None:
@@ -348,14 +368,17 @@ class HttpTransport:
             payload = self._rpc("message/stream", {"message": msg_dict})
             async with aiohttp.ClientSession() as session:
                 async with session.post(url, json=payload) as resp:
+                    event_count = 0
                     async for line in resp.content:
                         if line.startswith(b"data:"):
                             try:
                                 rpc_data = json.loads(line[5:].strip())
                                 result = rpc_data.get("result", {})
+                                event_count += 1
                                 yield StreamResponse.model_validate(result)
                             except (json.JSONDecodeError, Exception):
                                 pass
+                    logger.debug("HttpTransport: send_stream to '%s' — %d SSE events received", target, event_count)
         except Exception as e:
             logger.error("HttpTransport: send_stream to '%s' failed: %s", target, e)
             yield StreamResponse(task=self._error_task(target, f"{type(e).__name__}: {e}"))
@@ -494,11 +517,13 @@ class TransportRouter:
                 from qd_evolve.agent.registry import get_agent_registry
                 reg = get_agent_registry()
                 if reg and reg.get(target):
+                    logger.debug("TransportRouter: '%s' -> inproc", target)
                     return self._inproc
             except Exception:
                 pass
 
         # 2. Remote transport (HTTP or MQTT — never mixed)
+        logger.debug("TransportRouter: '%s' -> remote (%s)", target, type(self._remote).__name__)
         return self._remote
 
     async def send_task(self, target: str, message: Message) -> Task:
