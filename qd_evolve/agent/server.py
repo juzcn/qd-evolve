@@ -377,6 +377,16 @@ class A2AServer:
             sr = StreamResponse(task=task)
             await resp.write(f"data: {json.dumps({'jsonrpc': '2.0', 'result': sr.model_dump(), 'id': req_id}, ensure_ascii=False)}\n\n".encode())
 
+        # Push an immediate "subscribed" status event so the client knows
+        # the agent is online without waiting for the next heartbeat/iteration.
+        connected_event = StreamResponse(statusUpdate=TaskStatusUpdateEvent(
+            task_id=task_id or "",
+            context_id=(task.session_id if task else ""),
+            status=TaskStatus(state=TaskState.working),
+            metadata={"type": "status", "text": "Connected"},
+        ))
+        await resp.write(f"data: {json.dumps({'jsonrpc': '2.0', 'result': connected_event.model_dump(), 'id': req_id}, ensure_ascii=False)}\n\n".encode())
+
         # Subscribe to agent events
         queue = self.agent_core.subscribe_events()
         try:

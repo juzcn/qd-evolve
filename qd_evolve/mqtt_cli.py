@@ -150,7 +150,6 @@ async def _handle_slash_command(
     settings: Settings,
     transport: Any,
     agent_entry: Any = None,
-    online_status: dict[str, bool | None] | None = None,
 ) -> str | None:
     from qd_evolve.agent import get_skill_registry, get_cli_registry
     from qd_evolve.core.registry import get_registry
@@ -237,6 +236,20 @@ async def _handle_slash_command(
         agent_list = settings.agents_config.agents
         if not agent_list:
             return "  (no agents configured in config.json)"
+
+        # Check online status for all agents in parallel (on demand)
+        async def _check_one(a: Any) -> tuple[str, bool]:
+            try:
+                ok = await transport.is_online(a.name)
+            except Exception:
+                ok = False
+            return a.name, ok
+
+        import asyncio as _asyncio
+        tasks = [_check_one(a) for a in agent_list]
+        pairs = await _asyncio.gather(*tasks)
+        results: dict[str, bool] = dict(pairs)
+
         table = Table(title="Available Agents", show_header=True)
         table.add_column("#", style="dim", justify="right")
         table.add_column("Agent", style="cyan")
@@ -252,14 +265,11 @@ async def _handle_slash_command(
                 prov_mdl = "human"
             else:
                 prov_mdl = f"{a.effective_provider(settings)}/{a.effective_model(settings)}"
-            if online_status is not None:
-                stat = online_status.get(a.name)
-                if stat is True:
-                    status_str = "[green]online[/green]"
-                elif stat is False:
-                    status_str = "[red]offline[/red]"
-                else:
-                    status_str = "[dim]probing...[/dim]"
+            stat = results.get(a.name)
+            if stat is True:
+                status_str = "[green]online[/green]"
+            elif stat is False:
+                status_str = "[red]offline[/red]"
             else:
                 status_str = "[dim]unknown[/dim]"
             table.add_row(str(i), a.name + marker, prov_mdl, mqtt_info, status_str)
@@ -274,10 +284,12 @@ async def _handle_slash_command(
             target = agent_list[int(choice) - 1]
             settings.agents_config.chat_agent = target.name
             save_json(settings.model_dump(), CONFIG_PATH)
-            prov = target.effective_provider(settings)
-            mdl = target.effective_model(settings)
-            logger.info("CLI: switched to agent '%s' (%s/%s)", target.name, prov, mdl)
-            return f"  Switched to agent '{target.name}' ({prov}/{mdl})"
+            if target.is_human:
+                info = "human"
+            else:
+                info = f"{target.effective_provider(settings)}/{target.effective_model(settings)}"
+            logger.info("CLI: switched to agent '%s' (%s)", target.name, info)
+            return f"  Switched to agent '{target.name}' ({info})"
         return "  Cancelled."
     return None
 
@@ -313,113 +325,91 @@ async def _async_chat_loop(
         idx = all_agent_names.index(name) if name in all_agent_names else 0
         return AGENT_COLORS[idx % len(AGENT_COLORS)]
 
-    # Agent presence detected dynamically via event workers.
-    # MQTT resubscribe + retained online topic together signal presence.
-    # None = unknown/probing, True = confirmed online, False = confirmed offline.
-    broker_cfg = settings.agents_config.mqtt_broker
-    online_status: dict[str, bool | None] = {}
-    for a in settings.agents_config.agents:
-        online_status[a.name] = None
-        console.print(f"  [dim]{a.name} MQTT {broker_cfg.host}:{broker_cfg.port} — probing...[/dim]")
-
-    chat_name = _current_agent_name()
-    console.print(f"  [dim]Waiting for presence confirmation from event workers...[/dim]")
-
-    def _is_current_agent_online() -> bool:
-        return online_status.get(_current_agent_name()) is True
-
-    # Event workers for presence detection + event streaming via transport.resubscribe
+    # Event queue — heartbeats, presence, task_completed events.
     event_queue: asyncio.Queue[tuple[str, dict]] = asyncio.Queue()
     event_workers: list[asyncio.Task] = []
     resubscribe_retry_seconds = 15
 
-    async def _remote_event_worker(name: str) -> None:
-        """Monitor agent presence via retained topic push + event stream.
-        Re-subscribes on every state change so retained messages are always delivered."""
-        retry_delay = resubscribe_retry_seconds
+    async def _presence_worker(name: str) -> None:
+        """Monitor a2a/{name}/agent/online for presence changes.
+
+        Subscribes ONCE — no re-subscription dance.  The non-retained
+        publish in MqttAgent.start() guarantees every transition is
+        delivered to existing subscribers.
+        """
         was_online = False
-        online_queue: asyncio.Queue[bool] | None = None
-        event_task: asyncio.Task | None = None
-
-        async def _listen_events() -> None:
-            """Subscribe to agent event stream (resubscribe) — retries on disconnect."""
-            nonlocal retry_delay
-            while True:
-                try:
-                    async for sr in transport.resubscribe(name):
-                        if sr.statusUpdate and sr.statusUpdate.metadata:
-                            await event_queue.put((name, sr.statusUpdate.metadata))
-                        retry_delay = resubscribe_retry_seconds
-                except asyncio.CancelledError:
-                    return
-                except Exception:
-                    logger.debug("Event worker for '%s': event stream lost, retrying in %ds", name, retry_delay)
-                    await asyncio.sleep(retry_delay)
-                    retry_delay = min(retry_delay * 2, 60)
-
-        async def _subscribe_presence() -> asyncio.Queue[bool]:
-            """Subscribe fresh to agent/online topic so retained message is delivered."""
-            nonlocal online_queue
-            if online_queue is not None:
-                await transport.unsubscribe_online_updates(name, online_queue)
-            return await transport.subscribe_online_updates(name)
-
+        online_queue = await transport.subscribe_online_updates(name)
+        logger.debug("Presence worker '%s': subscribed", name)
         try:
-            # Get initial state
-            initial = await transport.is_online(name)
-            if initial:
-                await event_queue.put(("system", {"type": "agent_online", "name": name}))
-                was_online = True
-                if event_task is None or event_task.done():
-                    event_task = asyncio.ensure_future(_listen_events())
-
-            # Subscribe for push updates
-            online_queue = await _subscribe_presence()
-
             while True:
                 is_online_now = await online_queue.get()
-
+                logger.debug("Presence worker '%s': got %s (was=%s)", name, is_online_now, was_online)
                 if is_online_now == was_online:
                     continue
-
+                was_online = is_online_now
                 if is_online_now:
-                    # Agent came online — re-subscribe for next change
-                    online_queue = await _subscribe_presence()
                     await event_queue.put(("system", {"type": "agent_online", "name": name}))
-                    was_online = True
-                    if event_task is None or event_task.done():
-                        event_task = asyncio.ensure_future(_listen_events())
                 else:
-                    # Agent went offline — re-subscribe for next change
-                    online_queue = await _subscribe_presence()
                     await event_queue.put(("system", {"type": "agent_offline", "name": name}))
-                    was_online = False
-                    if event_task and not event_task.done():
-                        event_task.cancel()
-                        try:
-                            await event_task
-                        except (asyncio.CancelledError, Exception):
-                            pass
-                        event_task = None
-
         except asyncio.CancelledError:
-            if was_online:
-                await event_queue.put(("system", {"type": "agent_offline", "name": name}))
-            if event_task and not event_task.done():
-                event_task.cancel()
-                try:
-                    await event_task
-                except (asyncio.CancelledError, Exception):
-                    pass
+            pass
+        except Exception:
+            logger.exception("Presence worker '%s': crashed", name)
         finally:
-            if online_queue is not None:
-                await transport.unsubscribe_online_updates(name, online_queue)
+            await transport.unsubscribe_online_updates(name, online_queue)
 
-    # Always start workers — presence detection + event streaming (heartbeat when hb_idle > 0)
-    logger.info("MQTT CLI: starting event workers for %d agents", len(all_agent_names))
+    async def _event_stream_worker(name: str) -> None:
+        """Stream agent events (heartbeat, iteration, tokens) via resubscribe.
+
+        Does NOT monitor online/offline presence — that is checked on demand
+        via transport.is_online().  This worker purely handles event streaming
+        and retries automatically on disconnect.
+
+        Uses fast (2s) initial retry so events flow quickly after an agent
+        starts, then exponential backoff up to 30s.
+        """
+        retry_delay = 2
+        while True:
+            try:
+                async for sr in transport.resubscribe(name):
+                    if sr.statusUpdate and sr.statusUpdate.metadata:
+                        await event_queue.put((name, sr.statusUpdate.metadata))
+                    retry_delay = 2
+            except asyncio.CancelledError:
+                return
+            except Exception:
+                logger.debug("Event stream worker '%s': lost, retrying in %ds", name, retry_delay)
+                await asyncio.sleep(retry_delay)
+                retry_delay = min(retry_delay * 2, 30)
+
+    async def _check_online(target: str) -> bool:
+        """Check if an agent is online via MQTT retained message (on demand)."""
+        try:
+            return await transport.is_online(target)
+        except Exception:
+            return False
+
+    # Check all agents at startup (parallel, on demand)
+    async def _check_all_online() -> None:
+        async def _check_one(a: Any) -> tuple[str, bool]:
+            ok = await _check_online(a.name)
+            return a.name, ok
+
+        tasks = [_check_one(a) for a in settings.agents_config.agents]
+        pairs = await asyncio.gather(*tasks)
+        broker_info = f"{settings.agents_config.mqtt_broker.host}:{settings.agents_config.mqtt_broker.port}"
+        for name, ok in pairs:
+            status = "[green]online[/green]" if ok else "[red]offline[/red]"
+            console.print(f"  {name} MQTT {broker_info} — {status}")
+
+    await _check_all_online()
+
+    # Start presence + event stream workers for all agents.
+    logger.info("MQTT CLI: starting workers for %d agents", len(all_agent_names))
     for name in all_agent_names:
-        event_workers.append(asyncio.ensure_future(_remote_event_worker(name)))
-        logger.debug("MQTT CLI: event worker started for '%s'", name)
+        event_workers.append(asyncio.ensure_future(_presence_worker(name)))
+        event_workers.append(asyncio.ensure_future(_event_stream_worker(name)))
+        logger.debug("MQTT CLI: workers started for '%s'", name)
 
     input_task = None
     quitting = False
@@ -453,10 +443,9 @@ async def _async_chat_loop(
                     continue
                 etype = event.get("type", "")
 
-                # ── Presence events (always processed) ──
+                # ── Presence events ──
                 if etype == "agent_online":
                     target = event.get("name", agent_name)
-                    online_status[target] = True
                     logger.info("MQTT CLI: agent '%s' is now online", target)
                     _app = getattr(input_session, "app", None)
                     if _app and _app.is_running:
@@ -467,7 +456,6 @@ async def _async_chat_loop(
                     continue
                 elif etype == "agent_offline":
                     target = event.get("name", agent_name)
-                    online_status[target] = False
                     logger.info("MQTT CLI: agent '%s' is now offline", target)
                     _app = getattr(input_session, "app", None)
                     if _app and _app.is_running:
@@ -482,24 +470,23 @@ async def _async_chat_loop(
                     fn = agent_name
                     if etype == "heartbeat":
                         hb_counts[fn] = 0
-                        color = _agent_color(agent_name)
-                        _app = getattr(input_session, "app", None)
-                        if _app and _app.is_running:
-                            _app.renderer.erase()
-                        console.print(f"[bold {color}]{fn}>[/bold {color}] {event.get('content', '')}")
-                        if _app and _app.is_running:
-                            _app.invalidate()
-                        if agent_name == _current_agent_name():
+                        is_current = agent_name == _current_agent_name()
+                        if is_current:
                             input_task.cancel()
                             try:
                                 await input_task
                             except (CancelledError, EOFError, KeyboardInterrupt):
                                 pass
+                        # Cancel input first, then use console.print for color.
+                        # Don't touch _app renderer — that causes the double prompt.
+                        color = _agent_color(agent_name)
+                        console.print(f"[bold {color}]{fn}>[/bold {color}] {event.get('content', '')}")
+                        if is_current:
                             user_input = None
                             break
                     elif etype == "heartbeat_silent":
                         hb_counts[fn] += 1
-                continue
+                    continue
 
             # User input arrived
             for k in hb_counts:
@@ -521,26 +508,21 @@ async def _async_chat_loop(
         if not user_input:
             continue
         if user_input.startswith("/"):
-            result = await _handle_slash_command(user_input, settings, transport, agent_entry=_current_agent_entry(), online_status=online_status)
+            result = await _handle_slash_command(user_input, settings, transport, agent_entry=_current_agent_entry())
             if result is None:
                 console.print("[dim]Goodbye![/dim]")
                 quitting = True
+                if input_task and not input_task.done():
+                    input_task.cancel()
                 break
             if result:
                 console.print(result)
             continue
 
-        # Check if current agent is online (three-state: None=probing, True=online, False=offline)
+        # Check agent online on demand before sending
         cur_name = _current_agent_name()
-        cur_entry = _current_agent_entry()
-        if cur_entry and online_status.get(cur_name) is None:
-            # Status unknown — probe once
-            ok = await transport.is_online(cur_name)
-            online_status[cur_name] = ok
-            if not ok:
-                console.print(f"  [dim]Agent '{cur_name}' — probing... (not yet reachable)[/dim]")
-        if online_status.get(cur_name) is False:
-            console.print(f"[bold red]Agent '{cur_name}' is offline.[/bold red] Use [bold]/agents[/bold] to switch to an online agent.")
+        if not await _check_online(cur_name):
+            console.print(f"[bold red]Agent '{cur_name}' is offline.[/bold red] Use [bold]/agents[/bold] to switch.")
             continue
 
         # Chat via MQTT transport
@@ -662,6 +644,10 @@ async def _async_chat_loop(
     for t in event_workers:
         if not t.done():
             t.cancel()
+    # Await all workers so their finally blocks (unsubscribe etc.) complete
+    # before the transport disconnects.
+    if event_workers:
+        await asyncio.gather(*event_workers, return_exceptions=True)
     if output_file:
         output_file.close()
 
@@ -903,11 +889,12 @@ def chat(
     mqtt_config = _get_mqtt_config(settings, chat_agent_name)
     transport = MqttTransport(broker_cfg.host, broker_cfg.port, mqtt_config, client_name="cli")
 
+    agents = settings.agents_config.agents
+
     logger.info("MQTT CLI: %d agents configured, chat='%s', broker=%s:%s",
                 len(agents), chat_agent_name, broker_cfg.host, broker_cfg.port)
 
     # 4. Startup panel
-    agents = settings.agents_config.agents
     fn = chat_agent_name
 
     if len(agents) > 1:

@@ -170,8 +170,8 @@ class MqttTransport:
             # Prevent aiomqtt's _on_unsubscribe KeyError traceback during paho cleanup
             self._client._client.on_unsubscribe = None  # noqa: SLF001
             try:
-                await self._client.__aexit__(None, None, None)
-            except Exception:
+                await asyncio.wait_for(self._client.__aexit__(None, None, None), timeout=3.0)
+            except (Exception, asyncio.TimeoutError):
                 pass
             self._client = None
         self._connected = False
@@ -223,6 +223,8 @@ class MqttTransport:
                       and parts[2] == "agent" and parts[3] == "online"):
                     agent_name = parts[1]
                     is_online = data.get("status") == "online"
+                    logger.debug("MqttTransport: _listen_all online topic '%s' status=%s -> is_online=%s",
+                                 agent_name, data.get("status"), is_online)
                     # Resolve one-shot futures (is_online)
                     futures = self._online_subscribers.pop(agent_name, [])
                     for f in futures:
@@ -230,6 +232,8 @@ class MqttTransport:
                             f.set_result(is_online)
                     # Push to persistent queues (presence monitoring)
                     queues = self._online_event_queues.get(agent_name, [])
+                    logger.debug("MqttTransport: _listen_all dispatching to %d online_event_queues for '%s'",
+                                 len(queues), agent_name)
                     for q in queues:
                         await q.put(is_online)
 
@@ -269,9 +273,15 @@ class MqttTransport:
             queue: asyncio.Queue[bool] = asyncio.Queue()
             return queue
         online_topic = _topic(agent_name, "agent/online")
-        await self._client.subscribe(online_topic, qos=QOS_EVENT)
+        # Register queue BEFORE subscribing — retained message may be
+        # delivered immediately on subscribe, and _listen_all dispatches
+        # synchronously relative to the event loop.
         queue: asyncio.Queue[bool] = asyncio.Queue()
         self._online_event_queues.setdefault(agent_name, []).append(queue)
+        logger.debug("MqttTransport: subscribe_online_updates '%s' — registered queue, subscribing to %s",
+                     agent_name, online_topic)
+        await self._client.subscribe(online_topic, qos=QOS_EVENT)
+        logger.debug("MqttTransport: subscribe_online_updates '%s' — subscribed", agent_name)
         return queue
 
     async def unsubscribe_online_updates(self, agent_name: str, queue: asyncio.Queue[bool]) -> None:
@@ -287,6 +297,8 @@ class MqttTransport:
                 # Unsubscribe MQTT topic when no more subscribers
                 if self._client is not None:
                     online_topic = _topic(agent_name, "agent/online")
+                    logger.debug("MqttTransport: unsubscribe_online_updates '%s' — unsubscribing %s",
+                                 agent_name, online_topic)
                     try:
                         await self._client.unsubscribe(online_topic)
                     except Exception:
@@ -458,8 +470,10 @@ class MqttTransport:
                         ))
                         final_received = True
                         break
-        except (asyncio.CancelledError, GeneratorExit):
+        except GeneratorExit:
             pass
+        except asyncio.CancelledError:
+            raise
         finally:
             self.unsubscribe_agent_events(target, event_queue)
             # Only unsubscribe MQTT events topic if no other subscribers remain
@@ -591,8 +605,10 @@ class MqttTransport:
                     status=TaskStatus(state=TaskState.working),
                     metadata=event,
                 ))
-        except (asyncio.CancelledError, GeneratorExit):
+        except GeneratorExit:
             pass
+        except asyncio.CancelledError:
+            raise  # propagate so the event stream worker exits
         finally:
             self.unsubscribe_agent_events(target, event_queue)
             try:
@@ -606,12 +622,15 @@ class MqttTransport:
             return False
 
         online_topic = _topic(target, "agent/online")
-        await self._client.subscribe(online_topic, qos=QOS_EVENT)
-        logger.debug("MqttTransport: is_online '%s' — subscribed to %s", target, online_topic)
 
-        # Register a one-shot subscriber for the online topic
+        # Register the future BEFORE subscribing — retained message may be
+        # delivered immediately on subscribe, and _listen_all dispatches
+        # synchronously relative to the event loop.
         future: asyncio.Future[bool] = asyncio.get_running_loop().create_future()
         self._online_subscribers.setdefault(target, []).append(future)
+
+        await self._client.subscribe(online_topic, qos=QOS_EVENT)
+        logger.debug("MqttTransport: is_online '%s' — subscribed to %s", target, online_topic)
 
         try:
             try:

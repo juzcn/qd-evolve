@@ -311,13 +311,18 @@ class HttpTransport:
         registry = self._get_registry()
         current = registry.current_agent
         if current:
-            return registry.get_url(current)
+            url = registry.get_url(current)
+            logger.debug("HttpTransport: callback_url from registry.current_agent='%s' → %s", current, url)
+            if url:
+                return url
         # Fallback: CLI mode — use a2a_cli server config
         from qd_evolve.core.config import load_settings
         settings = load_settings()
         a2a_cli = settings.agents_config.a2a_cli
         if a2a_cli.server.port:
-            return f"http://localhost:{a2a_cli.server.port}"
+            url = f"http://localhost:{a2a_cli.server.port}"
+            logger.debug("HttpTransport: callback_url from a2a_cli fallback → %s", url)
+            return url
         return ""
 
     async def send_task(self, target: str, message: Message) -> Task:
@@ -473,6 +478,13 @@ class HttpTransport:
                                 pass
         except Exception as e:
             logger.debug("HttpTransport: resubscribe for '%s' failed: %s", target, e)
+
+    @staticmethod
+    def _extract_text(message: Message) -> str:
+        for part in message.parts:
+            if part.type == "text" and part.text:
+                return part.text
+        return ""
 
     @staticmethod
     def _error_task(target: str, error: str) -> Task:

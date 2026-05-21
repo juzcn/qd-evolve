@@ -266,10 +266,12 @@ async def _handle_slash_command(
             target = agent_list[int(choice) - 1]
             settings.agents_config.chat_agent = target.name
             save_json(settings.model_dump(), CONFIG_PATH)
-            prov = target.effective_provider(settings)
-            mdl = target.effective_model(settings)
-            logger.info("CLI: switched to agent '%s' (%s/%s)", target.name, prov, mdl)
-            return f"  Switched to agent '{target.name}' ({prov}/{mdl})"
+            if target.is_human:
+                info = "human"
+            else:
+                info = f"{target.effective_provider(settings)}/{target.effective_model(settings)}"
+            logger.info("CLI: switched to agent '%s' (%s)", target.name, info)
+            return f"  Switched to agent '{target.name}' ({info})"
         return "  Cancelled."
     return None
 
@@ -305,16 +307,29 @@ async def _async_chat_loop(
         idx = all_agent_names.index(name) if name in all_agent_names else 0
         return AGENT_COLORS[idx % len(AGENT_COLORS)]
 
-    # Agent presence detected dynamically via event workers.
-    # SSE connection state IS presence: connected = online, disconnected = offline.
-    # None = unknown/probing, True = confirmed online, False = confirmed offline.
+    # Agent presence: check all agents on demand at startup, then event workers
+    # keep the status updated in real time via SSE connection state.
     online_status: dict[str, bool | None] = {}
-    for a in settings.agents_config.agents:
-        online_status[a.name] = None
-        console.print(f"  [dim]{a.name} HTTP :{a.server.port} — probing...[/dim]")
 
+    async def _check_all_online() -> None:
+        async def _check_one(a: Any) -> tuple[str, bool]:
+            try:
+                ok = await router.is_online(a.name)
+            except Exception:
+                ok = False
+            return a.name, ok
+
+        tasks = [_check_one(a) for a in settings.agents_config.agents]
+        pairs = await asyncio.gather(*tasks)
+        for name, ok in pairs:
+            online_status[name] = ok
+            status = "[green]online[/green]" if ok else "[red]offline[/red]"
+            agent = next((a for a in settings.agents_config.agents if a.name == name), None)
+            port_info = f":{agent.server.port}" if agent else ""
+            console.print(f"  {name} HTTP {port_info} — {status}")
+
+    await _check_all_online()
     chat_name = _current_agent_name()
-    console.print(f"  [dim]Waiting for presence confirmation from event workers...[/dim]")
 
     def _is_current_agent_online() -> bool:
         return online_status.get(_current_agent_name()) is True
@@ -325,9 +340,14 @@ async def _async_chat_loop(
 
     async def _remote_event_worker(name: str) -> None:
         """Subscribe to a remote agent's events via router.resubscribe.
-        Connection state IS presence: connected = online, disconnected = offline."""
-        retry_delay = settings.agents_config.a2a_cli.resubscribe_retry_seconds
-        was_online = False
+        Connection state IS presence: connected = online, disconnected = offline.
+
+        Uses fast (2s) initial retry so a newly started agent is detected
+        quickly, then exponential backoff up to 30s to avoid hammering
+        a genuinely dead server.
+        """
+        retry_delay = 2  # start fast — detect newly started agents within 2s
+        was_online = online_status.get(name, False) is True
         while True:
             try:
                 async for sr in router.resubscribe(name):
@@ -336,7 +356,7 @@ async def _async_chat_loop(
                         was_online = True
                     if sr.statusUpdate and sr.statusUpdate.metadata:
                         await event_queue.put((name, sr.statusUpdate.metadata))
-                    retry_delay = settings.agents_config.a2a_cli.resubscribe_retry_seconds
+                    retry_delay = 2  # reset on successful connection
             except asyncio.CancelledError:
                 if was_online:
                     await event_queue.put(("system", {"type": "agent_offline", "name": name}))
@@ -347,7 +367,7 @@ async def _async_chat_loop(
                     was_online = False
                 logger.debug("Event worker for '%s': offline, retrying in %ds", name, retry_delay)
                 await asyncio.sleep(retry_delay)
-                retry_delay = min(retry_delay * 2, 60)
+                retry_delay = min(retry_delay * 2, 30)
 
     # Always start workers — presence detection + event streaming (heartbeat when hb_idle > 0)
     logger.info("A2A CLI: starting event workers for %d agents", len(all_agent_names))
@@ -401,6 +421,13 @@ async def _async_chat_loop(
                     continue
                 elif etype == "agent_offline":
                     target = event.get("name", agent_name)
+                    # Verify with a real probe before showing offline —
+                    # the SSE stream may drop transiently even though the agent is still up.
+                    still_online = await router.is_online(target)
+                    if still_online:
+                        logger.debug("A2A CLI: event worker reported '%s' offline, but is_online says online — ignoring", target)
+                        online_status[target] = True
+                        continue
                     online_status[target] = False
                     logger.info("A2A CLI: agent '%s' is now offline", target)
                     _app = getattr(input_session, "app", None)
@@ -411,29 +438,48 @@ async def _async_chat_loop(
                         _app.invalidate()
                     continue
 
-                # ── Heartbeat events (only when hb_idle > 0) ──
-                if hb_idle > 0:
-                    fn = agent_name
-                    if etype == "heartbeat":
-                        hb_counts[fn] = 0
-                        color = _agent_color(agent_name)
-                        _app = getattr(input_session, "app", None)
-                        if _app and _app.is_running:
-                            _app.renderer.erase()
-                        console.print(f"[bold {color}]{fn}>[/bold {color}] {event.get('content', '')}")
-                        if _app and _app.is_running:
-                            _app.invalidate()
-                        if agent_name == _current_agent_name():
+                # ── Task completed events (push notification from remote agent) ──
+                # Can arrive via SSE (agent_name="Jack") or direct webhook (agent_name="webhook")
+                if etype == "task_completed":
+                    content = event.get("content", "")
+                    if content:
+                        # Arrived via webhook to CLI's own server — display as the remote agent
+                        display_name = _current_agent_name() if agent_name == "webhook" else agent_name
+                        if display_name == _current_agent_name():
+                            logger.debug("A2A CLI: task_completed received (from=%s, task=%s)", agent_name, event.get("task_id", ""))
                             input_task.cancel()
                             try:
                                 await input_task
                             except (CancelledError, EOFError, KeyboardInterrupt):
                                 pass
+                            color = _agent_color(display_name)
+                            console.print(f"[bold {color}]{display_name}>[/bold {color}] {content}")
+                            user_input = None
+                            break
+                    continue
+
+                # ── Heartbeat events (only when hb_idle > 0) ──
+                if hb_idle > 0:
+                    fn = agent_name
+                    if etype == "heartbeat":
+                        hb_counts[fn] = 0
+                        is_current = agent_name == _current_agent_name()
+                        if is_current:
+                            input_task.cancel()
+                            try:
+                                await input_task
+                            except (CancelledError, EOFError, KeyboardInterrupt):
+                                pass
+                        # Cancel input first, then use console.print for color.
+                        # Don't touch _app renderer — that causes the double prompt.
+                        color = _agent_color(agent_name)
+                        console.print(f"[bold {color}]{fn}>[/bold {color}] {event.get('content', '')}")
+                        if is_current:
                             user_input = None
                             break
                     elif etype == "heartbeat_silent":
                         hb_counts[fn] += 1
-                continue
+                    continue
 
             # User input arrived
             for k in hb_counts:
@@ -464,16 +510,13 @@ async def _async_chat_loop(
                 console.print(result)
             continue
 
-        # Check if current agent is online (three-state: None=probing, True=online, False=offline)
+        # Check if current agent is online — probe on demand when not confirmed online
         cur_name = _current_agent_name()
         cur_entry = _current_agent_entry()
-        if cur_entry and online_status.get(cur_name) is None:
-            # Status unknown — probe once
+        if cur_entry and online_status.get(cur_name) is not True:
             ok = await router.is_online(cur_name)
             online_status[cur_name] = ok
-            if not ok:
-                console.print(f"  [dim]Agent '{cur_name}' — probing... (not yet reachable)[/dim]")
-        if online_status.get(cur_name) is False:
+        if online_status.get(cur_name) is not True:
             console.print(f"[bold red]Agent '{cur_name}' is offline.[/bold red] Use [bold]/agents[/bold] to switch to an online agent.")
             continue
 
@@ -699,6 +742,9 @@ def serve(
     bind_host = DEFAULT_BIND_HOST
     connect_host = entry.server.host if entry else DEFAULT_SERVER_HOST
     port = entry.server.port if entry else DEFAULT_SERVER_PORT
+    # Ensure the AgentCard URL is set so push notification webhooks reach this server
+    if server.card and not server.card.url:
+        server.card.url = f"{connect_host}:{port}"
     fn = agent
     logger.info("A2A serve: starting agent '%s' (human=%s) on %s:%s",
                 agent, is_human, bind_host, port)
@@ -811,11 +857,12 @@ def chat(
     connect_host = a2a_cli_cfg.server.host or DEFAULT_SERVER_HOST
     port = a2a_cli_cfg.server.port or DEFAULT_SERVER_PORT
 
+    agents = settings.agents_config.agents
+
     logger.info("A2A CLI: %d agents configured, chat='%s', server=%s:%s",
                 len(agents), chat_agent_name, bind_host, port)
 
     # 6. Startup panel
-    agents = settings.agents_config.agents
     fn = chat_agent_name
 
     if len(agents) > 1:

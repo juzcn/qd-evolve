@@ -351,6 +351,16 @@ class MqttAgent:
             "status": "online",
         }, ensure_ascii=False)
         await self._client.publish(online_topic, online_payload.encode("utf-8"), qos=QOS_EVENT, retain=True)
+        # Also publish non-retained so existing subscribers see the update immediately.
+        # Some brokers (e.g. amqtt) only deliver retained messages to new subscribers,
+        # not to clients already subscribed when the retain is published.
+        await self._client.publish(online_topic, online_payload.encode("utf-8"), qos=QOS_EVENT, retain=False)
+
+        # Push immediate "connected" event so subscribers know the agent is ready
+        # without waiting for the first heartbeat (same pattern as A2A server).
+        events_topic = f"a2a/{agent_name}/events"
+        connected_payload = json.dumps({"type": "status", "text": "Connected"}, ensure_ascii=False)
+        await self._client.publish(events_topic, connected_payload.encode("utf-8"), qos=QOS_EVENT)
 
         # Start request listener
         self._listener_task = asyncio.create_task(self._listen_requests())

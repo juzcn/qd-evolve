@@ -271,9 +271,12 @@ def create_agent(name: str, settings: Settings, *, need_a2a: bool | None = None,
         from qd_evolve.agent.a2a import AgentCard, AgentCapabilities
         from qd_evolve.agent.server import TaskStore
 
+        server_host = entry.server.host or "127.0.0.1"
+        server_port = entry.server.port or 8000
         card = AgentCard(
             name=name,
             description=entry.description,
+            url=f"{server_host}:{server_port}",
             capabilities=AgentCapabilities(streaming=True),
         )
         a2a_agent = A2AAgent(agent, card, TaskStore())
