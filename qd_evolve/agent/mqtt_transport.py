@@ -82,6 +82,7 @@ class MqttTransport:
         self._connected = False
         self._pending: dict[str, asyncio.Future[Task]] = {}
         self._listener_task: asyncio.Task | None = None
+        self._loop: asyncio.AbstractEventLoop | None = None  # captured during connect
         self._registry: Any = None
 
         # Event subscriber registry: agent_name → list of queues
@@ -124,6 +125,7 @@ class MqttTransport:
                 f"Is the broker running? Start it with: qd-evolve mqtt broker"
             )
         self._connected = True
+        self._loop = asyncio.get_running_loop()
         logger.info("MqttTransport: connected to %s:%s as %s",
                      self._broker_host, self._broker_port, client_id)
 
@@ -406,10 +408,14 @@ class MqttTransport:
             pass
         finally:
             self.unsubscribe_agent_events(target, event_queue)
-            try:
-                await self._client.unsubscribe(events_topic)
-            except Exception:
-                pass
+            # Only unsubscribe MQTT events topic if no other subscribers remain
+            # (e.g. resubscribe() workers rely on this subscription for heartbeat events)
+            remaining = self._event_subscribers.get(target)
+            if not remaining:
+                try:
+                    await self._client.unsubscribe(events_topic)
+                except Exception:
+                    pass
             await self._unsubscribe_response(req_id)
             self._pending.pop(req_id, None)
 

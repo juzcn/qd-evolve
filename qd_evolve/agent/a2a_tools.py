@@ -115,11 +115,19 @@ def _delegate_to(agent: str, task: str) -> str:
             logger.warning("delegate_to: %s failed: %s", agent, e)
             return f"Error from agent '{agent}': {type(e).__name__}: {e}"
 
-    # For http transport, run async in a thread pool
+    # For remote transport, run send_task
     import concurrent.futures
-    with concurrent.futures.ThreadPoolExecutor() as pool:
-        future = pool.submit(asyncio.run, transport.send_task(agent, message))
-        result_task = future.result(timeout=60)
+    from qd_evolve.agent.mqtt_transport import MqttTransport
+    remote = transport._pick(agent)
+    if isinstance(remote, MqttTransport) and remote._loop is not None:
+        # MQTT client is bound to its original event loop — must use run_coroutine_threadsafe
+        future = asyncio.run_coroutine_threadsafe(remote.send_task(agent, message), remote._loop)
+        result_task = future.result(timeout=120)
+    else:
+        # HttpTransport: run async in a new event loop (standard approach)
+        with concurrent.futures.ThreadPoolExecutor() as pool:
+            future = pool.submit(asyncio.run, transport.send_task(agent, message))
+            result_task = future.result(timeout=120)
 
     # Human agent returned input_required — reject
     if result_task.status.state == TaskState.input_required:
