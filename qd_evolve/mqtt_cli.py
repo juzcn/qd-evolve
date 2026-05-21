@@ -616,7 +616,7 @@ def serve(
     _use_selector_loop()
 
     from qd_evolve.core.logger import setup_logging
-    from qd_evolve.core.config import LOG_DIR as LOG_DIR_PATH, load_settings
+    from qd_evolve.core.config import LOG_DIR as LOG_DIR_PATH, load_settings, MqttConfig
     from qd_evolve.agent import create_agent, init_process
 
     # 1. Config & logging
@@ -648,12 +648,21 @@ def serve(
         raise typer.Exit(code=1)
 
     # 4. A2A + MQTT setup
+    broker_cfg = settings.agents_config.mqtt_broker
+    mqtt_transport = None
     if not is_human:
         from qd_evolve.agent.registry import AgentRegistry, Topology, set_agent_registry
-        from qd_evolve.agent.transport import InprocTransport, HttpTransport, TransportRouter
+        from qd_evolve.agent.transport import InprocTransport, TransportRouter
+        from qd_evolve.agent.mqtt_transport import MqttTransport
 
         topology = Topology(settings)
-        router = TransportRouter(InprocTransport(), HttpTransport())
+        mqtt_transport = MqttTransport(
+            broker_host=broker_cfg.host,
+            broker_port=broker_cfg.port,
+            mqtt_config=entry.mqtt if entry else MqttConfig(),
+            client_name=agent,
+        )
+        router = TransportRouter(InprocTransport(), mqtt_transport)
         agent_reg = AgentRegistry(topology, current_agent=agent)
         agent_reg.register(agent_core)
         set_agent_registry(agent_reg)
@@ -662,7 +671,6 @@ def serve(
         set_transport(router)
 
     # 5. Start MQTT agent
-    broker_cfg = settings.agents_config.mqtt_broker
     fn = _friendly_name(settings, agent)
     if is_human:
         console.print(Panel(
@@ -676,6 +684,9 @@ def serve(
         ))
 
     async def _run() -> None:
+        # Connect MqttTransport for outbound requests
+        if mqtt_transport is not None:
+            await mqtt_transport.connect()
         await agent_core.start()
         if is_human:
             agent_core.start_heartbeat_loop(settings.heartbeat_idle_seconds)
@@ -692,6 +703,13 @@ def serve(
         asyncio.run(_run())
     except KeyboardInterrupt:
         console.print("\n[dim]MQTT agent stopped.[/dim]")
+    except Exception as exc:
+        from aiomqtt import MqttError
+        if isinstance(exc, MqttError):
+            console.print(f"\n[bold red]Cannot connect to MQTT broker {broker_cfg.host}:{broker_cfg.port}.[/bold red]")
+            console.print("[dim]Start the broker first: qd-evolve mqtt broker[/dim]")
+        else:
+            raise
 
 
 # ── mqtt broker ────────────────────────────────────────────────────────────

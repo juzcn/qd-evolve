@@ -327,8 +327,13 @@ class MqttAgent:
             identifier=client_id,
         )
         # aiomqtt.Client is an async context manager — enter it to connect
-        # aiomqtt.Client is an async context manager — enter it to connect
-        await self._client.__aenter__()
+        try:
+            await self._client.__aenter__()
+        except Exception as exc:
+            logger.error("MqttAgent: '%s' failed to connect to %s:%s — %s",
+                         agent_name, self._broker_host, self._broker_port, exc)
+            self._client = None
+            raise
         self._connected = True
 
         # Subscribe to all request topics for this agent
@@ -420,6 +425,11 @@ class MqttAgent:
 
                 # Extract method from topic: a2a/{agent}/{method}
                 method = topic[len(prefix):]
+
+                # Skip non-request topics (events, online status)
+                if method == "events" or method.startswith("agent/"):
+                    continue
+
                 req_id = data.get("req_id", "")
                 from_agent = data.get("from_agent", "")
 
@@ -480,7 +490,7 @@ class MqttAgent:
             await self._publish_response(from_agent, req_id, task.model_dump())
 
     async def _on_message_stream(self, data: dict, req_id: str, from_agent: str) -> None:
-        """Handle message/stream: run agent, push events to events topic, publish final response."""
+        """Handle message/stream: run agent, _push_events() handles intermediate events, publish final response."""
         message_data = data.get("message", {})
         message = Message.model_validate(message_data) if message_data else make_text_message("user", "")
         task_text = self._extract_text(message)
@@ -489,39 +499,17 @@ class MqttAgent:
         task.status.state = TaskState.working
         self.task_store.put(task)
 
-        # Subscribe to agent events for intermediate updates
-        event_queue = self.agent.subscribe_events()
-        agent_name = self.card.name
-        events_topic = f"a2a/{agent_name}/events"
-
-        # Background execution
-        run_task = asyncio.ensure_future(asyncio.to_thread(self.agent.run, task_text))
-
+        # Run agent — _push_events() background task handles intermediate events
         try:
-            while not run_task.done():
-                try:
-                    event = await asyncio.wait_for(event_queue.get(), timeout=30)
-                    # Push intermediate event to MQTT events topic
-                    event_payload = json.dumps(event, ensure_ascii=False)
-                    await self._client.publish(events_topic, event_payload.encode("utf-8"), qos=QOS_EVENT)
-                except asyncio.TimeoutError:
-                    # Send ping
-                    ping_payload = json.dumps({"type": "ping"}, ensure_ascii=False)
-                    await self._client.publish(events_topic, ping_payload.encode("utf-8"), qos=QOS_EVENT)
-        except asyncio.CancelledError:
-            pass
-        finally:
-            self.agent.unsubscribe_events(event_queue)
-
-        # Get result
-        try:
-            result = run_task.result()
+            result = await asyncio.to_thread(self.agent.run, task_text)
             final_state = TaskState.completed
         except Exception as e:
             result = f"{type(e).__name__}: {e}"
             final_state = TaskState.failed
 
         # Push final event
+        agent_name = self.card.name
+        events_topic = f"a2a/{agent_name}/events"
         final_event = json.dumps({"type": "final", "state": final_state.value, "content": result}, ensure_ascii=False)
         await self._client.publish(events_topic, final_event.encode("utf-8"), qos=QOS_EVENT)
 

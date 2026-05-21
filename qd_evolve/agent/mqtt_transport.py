@@ -15,6 +15,11 @@ Topic structure:
 
 Message format: JSON payload with existing A2A pydantic models.
 Each request includes a req_id; responses go to a2a/{agent}/response/{req_id}.
+
+Single-consumer design: _listen_all() is the sole iterator of
+self._client.messages. It dispatches to pending futures (responses),
+event subscriber queues, and online subscriber queues. No other code
+should iterate self._client.messages.
 """
 
 from __future__ import annotations
@@ -62,6 +67,10 @@ class MqttTransport:
 
     Uses aiomqtt for async MQTT client. Each request includes a req_id;
     the response arrives on a2a/{self_name}/response/{req_id}.
+
+    Single-consumer design: _listen_all() is the sole consumer of
+    self._client.messages. Other methods register subscriber queues
+    to receive specific message types.
     """
 
     def __init__(self, broker_host: str, broker_port: int, mqtt_config: MqttConfig, client_name: str = "") -> None:
@@ -75,6 +84,11 @@ class MqttTransport:
         self._listener_task: asyncio.Task | None = None
         self._registry: Any = None
 
+        # Event subscriber registry: agent_name → list of queues
+        self._event_subscribers: dict[str, list[asyncio.Queue[dict]]] = {}
+        # Online subscriber registry: agent_name → list of futures
+        self._online_subscribers: dict[str, list[asyncio.Future[bool]]] = {}
+
     def _get_registry(self) -> Any:
         if self._registry is None:
             from qd_evolve.agent.registry import get_agent_registry
@@ -82,7 +96,7 @@ class MqttTransport:
         return self._registry
 
     async def connect(self, timeout: float = 10.0) -> None:
-        """Connect to MQTT broker and start listener."""
+        """Connect to MQTT broker and start the sole message listener."""
         try:
             import aiomqtt
         except ImportError:
@@ -113,8 +127,8 @@ class MqttTransport:
         logger.info("MqttTransport: connected to %s:%s as %s",
                      self._broker_host, self._broker_port, client_id)
 
-        # Start listener for responses
-        self._listener_task = asyncio.create_task(self._listen_responses())
+        # Start the sole message listener
+        self._listener_task = asyncio.create_task(self._listen_all())
 
     async def disconnect(self) -> None:
         """Disconnect from MQTT broker."""
@@ -132,6 +146,21 @@ class MqttTransport:
                 f.cancel()
         self._pending.clear()
 
+        # Clear subscriber registries
+        for queues in self._event_subscribers.values():
+            for q in queues:
+                while not q.empty():
+                    try:
+                        q.get_nowait()
+                    except asyncio.QueueEmpty:
+                        break
+        self._event_subscribers.clear()
+        for futures in self._online_subscribers.values():
+            for f in futures:
+                if not f.done():
+                    f.cancel()
+        self._online_subscribers.clear()
+
         if self._client is not None:
             # Prevent aiomqtt's _on_unsubscribe KeyError traceback during paho cleanup
             self._client._client.on_unsubscribe = None  # noqa: SLF001
@@ -143,8 +172,16 @@ class MqttTransport:
         self._connected = False
         logger.info("MqttTransport: disconnected")
 
-    async def _listen_responses(self) -> None:
-        """Background task: listen for response messages on subscribed topics."""
+    # ── Sole message consumer ─────────────────────────────────────
+
+    async def _listen_all(self) -> None:
+        """Background task: sole consumer of self._client.messages.
+
+        Dispatches to:
+        - _pending futures for response topics
+        - _event_subscribers queues for events topics
+        - _online_subscribers futures for online topics
+        """
         if self._client is None:
             return
         try:
@@ -156,8 +193,9 @@ class MqttTransport:
                 except json.JSONDecodeError:
                     continue
 
-                # Check if it's a response topic: a2a/{agent}/response/{req_id}
                 parts = topic.split("/")
+
+                # Response topic: a2a/{agent}/response/{req_id}
                 if len(parts) == 4 and parts[0] == "a2a" and parts[2] == "response":
                     req_id = parts[3]
                     future = self._pending.get(req_id)
@@ -167,20 +205,56 @@ class MqttTransport:
                             future.set_result(task)
                         except Exception as e:
                             future.set_exception(e)
+
+                # Events topic: a2a/{agent}/events
+                elif len(parts) == 3 and parts[0] == "a2a" and parts[2] == "events":
+                    agent_name = parts[1]
+                    queues = self._event_subscribers.get(agent_name, [])
+                    for q in queues:
+                        await q.put(data)
+
+                # Online topic: a2a/{agent}/agent/online
+                elif (len(parts) == 4 and parts[0] == "a2a"
+                      and parts[2] == "agent" and parts[3] == "online"):
+                    agent_name = parts[1]
+                    futures = self._online_subscribers.pop(agent_name, [])
+                    for f in futures:
+                        if not f.done():
+                            f.set_result(True)
+
         except asyncio.CancelledError:
             pass
         except Exception as e:
             logger.warning("MqttTransport: listener error: %s", e)
 
+    # ── Event subscriber registry ──────────────────────────────────
+
+    def subscribe_agent_events(self, agent_name: str) -> asyncio.Queue[dict]:
+        """Register a queue to receive events for an agent."""
+        queue: asyncio.Queue[dict] = asyncio.Queue()
+        self._event_subscribers.setdefault(agent_name, []).append(queue)
+        return queue
+
+    def unsubscribe_agent_events(self, agent_name: str, queue: asyncio.Queue[dict]) -> None:
+        """Unregister an event subscriber queue."""
+        queues = self._event_subscribers.get(agent_name)
+        if queues is not None:
+            try:
+                queues.remove(queue)
+            except ValueError:
+                pass
+            if not queues:
+                self._event_subscribers.pop(agent_name, None)
+
+    # ── MQTT subscribe/unsubscribe helpers ─────────────────────────
+
     async def _subscribe_response(self, req_id: str) -> None:
-        """Subscribe to response topic for a specific request."""
         if self._client is None:
             return
         topic = _response_topic(self._client_name, req_id)
         await self._client.subscribe(topic, qos=QOS_TASK)
 
     async def _unsubscribe_response(self, req_id: str) -> None:
-        """Unsubscribe from response topic after request completes."""
         if self._client is None:
             return
         topic = _response_topic(self._client_name, req_id)
@@ -190,7 +264,6 @@ class MqttTransport:
             pass
 
     async def _publish_request(self, target: str, method: str, payload: dict, req_id: str) -> None:
-        """Publish a request to a2a/{target}/{method}."""
         if self._client is None:
             raise RuntimeError("MqttTransport not connected")
         payload["req_id"] = req_id
@@ -198,10 +271,14 @@ class MqttTransport:
         topic = _topic(target, method)
         await self._client.publish(topic, json.dumps(payload, ensure_ascii=False).encode("utf-8"), qos=QOS_TASK)
 
-    # ── A2ATransport interface ──────────────────────────────────────
+    # ── A2ATransport interface ─────────────────────────────────────
 
     async def send_task(self, target: str, message: Message) -> Task:
         """Blocking: publish message/send, await response on response topic."""
+        # Quick online check — fail fast if agent is offline
+        if not await self.is_online(target):
+            return self._error_task(target, f"Agent '{target}' is offline")
+
         req_id = _new_req_id()
         msg_dict = message.model_dump()
         payload = {"message": msg_dict}
@@ -212,7 +289,6 @@ class MqttTransport:
 
         try:
             await self._publish_request(target, "message/send", payload, req_id)
-            # Wait for response with timeout
             try:
                 result = await asyncio.wait_for(future, timeout=120)
             except asyncio.TimeoutError:
@@ -223,19 +299,29 @@ class MqttTransport:
             await self._unsubscribe_response(req_id)
 
     async def send_stream(self, target: str, message: Message) -> AsyncIterator[StreamResponse]:
-        """Stream: publish message/stream, subscribe to events topic, yield StreamResponse events."""
+        """Stream: publish message/stream, receive events via subscriber queue, yield StreamResponse events."""
         if self._client is None:
             yield StreamResponse(task=self._error_task(target, "MqttTransport not connected"))
+            return
+
+        # Quick online check — fail fast if agent is offline
+        if not await self.is_online(target):
+            yield StreamResponse(task=self._error_task(target, f"Agent '{target}' is offline"))
             return
 
         req_id = _new_req_id()
         msg_dict = message.model_dump()
         payload = {"message": msg_dict}
 
-        # Subscribe to events and response topics
+        # Subscribe to events topic at MQTT level and register event subscriber
         events_topic = _topic(target, "events")
         await self._client.subscribe(events_topic, qos=QOS_EVENT)
+        event_queue = self.subscribe_agent_events(target)
+
+        # Subscribe to response topic and register pending future
         await self._subscribe_response(req_id)
+        future: asyncio.Future[Task] = asyncio.get_running_loop().create_future()
+        self._pending[req_id] = future
 
         # Publish stream request
         await self._publish_request(target, "message/stream", payload, req_id)
@@ -247,25 +333,44 @@ class MqttTransport:
         yield StreamResponse(task=task)
 
         try:
-            # Listen for events until final response
             final_received = False
             while not final_received:
+                # Wait for either an event from the queue or the response future
+                event_wait = asyncio.ensure_future(event_queue.get())
+                future_wait = asyncio.ensure_future(asyncio.shield(future))
                 try:
-                    # Use the client's message iterator with timeout
-                    async for message in self._client.messages:
-                        topic = str(message.topic)
-                        raw = message.payload.decode("utf-8") if isinstance(message.payload, bytes) else str(message.payload)
-                        try:
-                            data = json.loads(raw)
-                        except json.JSONDecodeError:
-                            continue
+                    done, pending = await asyncio.wait(
+                        {event_wait, future_wait},
+                        return_when=asyncio.FIRST_COMPLETED,
+                    )
+                except asyncio.CancelledError:
+                    event_wait.cancel()
+                    future_wait.cancel()
+                    break
 
-                        # Check if it's a response (final)
-                        parts = topic.split("/")
-                        if len(parts) == 4 and parts[0] == "a2a" and parts[2] == "response" and parts[3] == req_id:
-                            result_task = Task.model_validate(data)
-                            final_state = result_task.status.state
-                            result_text = self._extract_task_text(result_task)
+                # Cancel pending tasks
+                for t in pending:
+                    t.cancel()
+                    try:
+                        await t
+                    except (asyncio.CancelledError, Exception):
+                        pass
+
+                # Process completed tasks
+                for t in done:
+                    if t is event_wait:
+                        try:
+                            event = t.result()
+                        except (asyncio.CancelledError, Exception):
+                            continue
+                        etype = event.get("type", "")
+                        if etype == "final":
+                            result_text = event.get("content", "")
+                            final_state_str = event.get("state", "completed")
+                            try:
+                                final_state = TaskState(final_state_str)
+                            except ValueError:
+                                final_state = TaskState.completed
                             yield StreamResponse(statusUpdate=TaskStatusUpdateEvent(
                                 task_id=task.id,
                                 context_id=task.session_id,
@@ -274,47 +379,33 @@ class MqttTransport:
                             ))
                             final_received = True
                             break
+                        else:
+                            yield StreamResponse(statusUpdate=TaskStatusUpdateEvent(
+                                task_id=task.id,
+                                context_id=task.session_id,
+                                status=TaskStatus(state=TaskState.working),
+                                metadata=event,
+                            ))
 
-                        # Check if it's an event from the target agent
-                        if topic == events_topic:
-                            event = data
-                            etype = event.get("type", "")
-                            if etype == "final":
-                                # Final event from streaming agent
-                                result_text = event.get("content", "")
-                                final_state_str = event.get("state", "completed")
-                                try:
-                                    final_state = TaskState(final_state_str)
-                                except ValueError:
-                                    final_state = TaskState.completed
-                                yield StreamResponse(statusUpdate=TaskStatusUpdateEvent(
-                                    task_id=task.id,
-                                    context_id=task.session_id,
-                                    status=TaskStatus(state=final_state, message=make_text_message("agent", result_text)),
-                                    final=True,
-                                ))
-                                final_received = True
-                                break
-                            else:
-                                # Intermediate event (iteration, status, print, tokens, heartbeat)
-                                yield StreamResponse(statusUpdate=TaskStatusUpdateEvent(
-                                    task_id=task.id,
-                                    context_id=task.session_id,
-                                    status=TaskStatus(state=TaskState.working),
-                                    metadata=event,
-                                ))
-
-                except asyncio.TimeoutError:
-                    # Send ping-like event
-                    yield StreamResponse(statusUpdate=TaskStatusUpdateEvent(
-                        task_id=task.id,
-                        context_id=task.session_id,
-                        status=TaskStatus(state=TaskState.working),
-                        metadata={"type": "ping"},
-                    ))
+                    elif t is future_wait:
+                        # Response future completed — this is the final result
+                        try:
+                            result_task = t.result()
+                        except (asyncio.CancelledError, Exception):
+                            continue
+                        result_text = self._extract_task_text(result_task)
+                        yield StreamResponse(statusUpdate=TaskStatusUpdateEvent(
+                            task_id=task.id,
+                            context_id=task.session_id,
+                            status=TaskStatus(state=result_task.status.state, message=make_text_message("agent", result_text)),
+                            final=True,
+                        ))
+                        final_received = True
+                        break
         except (asyncio.CancelledError, GeneratorExit):
             pass
         finally:
+            self.unsubscribe_agent_events(target, event_queue)
             try:
                 await self._client.unsubscribe(events_topic)
             except Exception:
@@ -378,11 +469,9 @@ class MqttTransport:
             except asyncio.TimeoutError:
                 return AgentCard(name=target, description=f"Agent '{target}' timeout")
 
-            # The response Task contains the AgentCard in metadata
             card_data = result_task.metadata.get("agent_card", {})
             if card_data:
                 return AgentCard.model_validate(card_data)
-            # Fallback: extract from message
             if result_task.status.message:
                 for part in result_task.status.message.parts:
                     if part.type == "text" and part.text:
@@ -426,27 +515,20 @@ class MqttTransport:
 
         events_topic = _topic(target, "events")
         await self._client.subscribe(events_topic, qos=QOS_EVENT)
+        event_queue = self.subscribe_agent_events(target)
 
         try:
             while True:
-                async for message in self._client.messages:
-                    topic = str(message.topic)
-                    if topic != events_topic:
-                        continue
-                    raw = message.payload.decode("utf-8") if isinstance(message.payload, bytes) else str(message.payload)
-                    try:
-                        event = json.loads(raw)
-                    except json.JSONDecodeError:
-                        continue
-
-                    yield StreamResponse(statusUpdate=TaskStatusUpdateEvent(
-                        task_id=task_id,
-                        status=TaskStatus(state=TaskState.working),
-                        metadata=event,
-                    ))
+                event = await event_queue.get()
+                yield StreamResponse(statusUpdate=TaskStatusUpdateEvent(
+                    task_id=task_id,
+                    status=TaskStatus(state=TaskState.working),
+                    metadata=event,
+                ))
         except (asyncio.CancelledError, GeneratorExit):
             pass
         finally:
+            self.unsubscribe_agent_events(target, event_queue)
             try:
                 await self._client.unsubscribe(events_topic)
             except Exception:
@@ -458,36 +540,33 @@ class MqttTransport:
             return False
 
         online_topic = _topic(target, "agent/online")
-        try:
-            await self._client.subscribe(online_topic, qos=QOS_EVENT)
-            # Wait for retained message with short timeout
-            found = False
-            async def _check() -> None:
-                nonlocal found
-                async for message in self._client.messages:
-                    topic = str(message.topic)
-                    if topic == online_topic:
-                        found = True
-                        return
+        await self._client.subscribe(online_topic, qos=QOS_EVENT)
 
-            task = asyncio.ensure_future(_check())
+        # Register a one-shot subscriber for the online topic
+        future: asyncio.Future[bool] = asyncio.get_running_loop().create_future()
+        self._online_subscribers.setdefault(target, []).append(future)
+
+        try:
             try:
-                await asyncio.wait_for(task, timeout=2.0)
+                await asyncio.wait_for(future, timeout=2.0)
+                result = True
             except asyncio.TimeoutError:
-                pass
-            finally:
-                task.cancel()
+                result = False
+            return result
+        finally:
+            # Clean up subscriber
+            futures = self._online_subscribers.get(target)
+            if futures is not None:
                 try:
-                    await task
-                except (asyncio.CancelledError, Exception):
+                    futures.remove(future)
+                except ValueError:
                     pass
+                if not futures:
+                    self._online_subscribers.pop(target, None)
             try:
                 await self._client.unsubscribe(online_topic)
             except Exception:
                 pass
-            return found
-        except Exception:
-            return False
 
     # ── Helpers ──────────────────────────────────────────────────────
 

@@ -210,7 +210,7 @@ def create_agent(name: str, settings: Settings, *, need_a2a: bool | None = None,
     template_name = entry.system_prompt_template or "default"
 
     # MQTT mode: prefer mqtt-{template} over a2a-{template}
-    mqtt_on = need_mqtt or (entry.mqtt.enabled and a2a_on)
+    mqtt_on = need_mqtt
     if mqtt_on:
         mqtt_prefixed = f"mqtt-{template_name}"
         if template_mgr.has_template(mqtt_prefixed):
@@ -226,7 +226,6 @@ def create_agent(name: str, settings: Settings, *, need_a2a: bool | None = None,
 
     system_prompt = template_mgr.render(
         template_name,
-        a2a_enabled=a2a_on,
         unpreloaded_skills=unloaded_skills,
         unpreloaded_cli=unloaded_cli,
         unloaded_tools=unloaded_tools,

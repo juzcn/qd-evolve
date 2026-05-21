@@ -113,7 +113,7 @@ States: `"enabled"` (default), `"disabled"`, `"preload"` (load schema into syste
 
 ### Topology
 
-`agents_config.topology.relations` defines agent relationships. Transport between agents is auto-derived: if target is in local registry → inproc, otherwise → http.
+`agents_config.topology.relations` defines agent relationships. Transport between agents is auto-derived: if target is in local registry → inproc, otherwise → remote (HttpTransport or MqttTransport depending on system).
 
 ```json
 {"relations": [
@@ -152,12 +152,15 @@ Communication pattern (async callback via push notification):
 
 CLI uses `send_task` (non-blocking) for human agents because humans may leave; uses `send_stream` (blocking) for AI agents.
 
-### Dual Transport
+### Three Independent Systems
 
-- **InprocTransport** — Direct `AgentCore.run()` via `asyncio.to_thread`. Zero latency for same-machine agents.
-- **HttpTransport** — aiohttp JSON-RPC client for cross-machine agents. Standard A2A protocol.
-- **MqttTransport** — aiomqtt pub/sub for A2A over MQTT broker. Topic-based communication.
-- **TransportRouter** — Auto-selects: local registry → inproc, otherwise → http.
+Chat, A2A, and MQTT are three separate systems that never fall back between protocols:
+
+- **Chat** (`qd-evolve`) — In-process only. No A2A tools, no remote transport.
+- **A2A** (`qd-evolve a2a`) — InprocTransport for local agents + HttpTransport for remote agents.
+- **MQTT** (`qd-evolve mqtt`) — InprocTransport for local agents + MqttTransport for remote agents.
+
+`TransportRouter(inproc, remote)` where `remote` is exclusively `HttpTransport` or `MqttTransport` — never both, never falls back between protocols. `_pick()` checks inproc first (local registry), then returns `remote`.
 
 `send_task` includes `callback_url` and `from_agent` in message metadata so push notifications route back to the sender's own A2A server (not the CLI's).
 
@@ -208,6 +211,10 @@ MQTT provides an alternative transport layer using a message broker. All agents 
 | `qd/agents/{name}/events` | Agent → Client | Streaming events |
 
 **MQTT CLI** is a pure client — no tools, skills, or agent loading. It connects via MqttTransport and provides the same interactive experience as the A2A CLI (prompt_toolkit, slash commands, heartbeat, streaming, token stats).
+
+**MqttTransport sole-consumer design:** `_listen_all()` is the sole consumer of `self._client.messages` — no other code iterates the aiomqtt message stream. It dispatches via subscriber registries: `_pending` (response futures), `_event_subscribers` (asyncio.Queue per agent for streaming events), `_online_subscribers` (one-shot futures for online status). This prevents aiomqtt's `MessagesIterator` from distributing messages between concurrent iterators.
+
+**Dynamic agent handling:** `is_online()` checks agent presence before `send_task`/`send_stream` — fast-fail with clear error when the target agent is not running.
 
 **Broker types:**
 - **mosquitto** (recommended) — Install [Eclipse Mosquitto](https://mosquitto.org/) and start it before running MQTT commands. Production-ready, works on Windows.
@@ -400,7 +407,7 @@ qd_evolve/
   agent/                   # Agent implementation
     agent.py               — AgentCore loop (openai_completion, openai_response, anthropic)
     a2a.py                 — A2A v1.0 data models
-    transport.py           — InprocTransport, HttpTransport, TransportRouter
+    transport.py           — InprocTransport, HttpTransport, MqttTransport, TransportRouter
     mqtt_transport.py      — MqttTransport (aiomqtt pub/sub)
     mqtt_agent.py          — MqttAgent wrapper (subscribes, runs, publishes)
     mqtt_broker.py         — Embedded amqtt broker

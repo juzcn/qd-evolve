@@ -472,41 +472,34 @@ class HttpTransport:
 
 
 class TransportRouter:
-    """Route A2A calls to inproc, mqtt, or http transport based on topology config."""
+    """Routes A2A calls to the appropriate transport.
 
-    def __init__(self, inproc: InprocTransport | None, http: HttpTransport, mqtt: MqttTransport | None = None) -> None:
+    Three independent systems, no protocol mixing:
+    - A2A context: inproc + http (no MQTT)
+    - MQTT context: inproc + mqtt (no HTTP)
+
+    Priority: inproc (same process) → remote transport (http or mqtt).
+    """
+
+    def __init__(self, inproc: InprocTransport | None,
+                 remote: HttpTransport | MqttTransport) -> None:
         self._inproc = inproc
-        self._http = http
-        self._mqtt = mqtt
-        self._registry: Any = None
-
-    def _get_registry(self) -> Any:
-        if self._registry is None:
-            from qd_evolve.agent.registry import get_agent_registry
-            self._registry = get_agent_registry()
-        return self._registry
+        self._remote = remote
 
     def _pick(self, target: str) -> InprocTransport | HttpTransport | MqttTransport:
+        """Pick transport for target agent."""
+        # 1. Inproc — target is in same process
         if self._inproc is not None:
-            # If the agent is registered locally (in-process), use inproc
-            if self._get_registry().get(target) is not None:
-                return self._inproc
-        # If MQTT is available and target has MQTT enabled, use MQTT
-        if self._mqtt is not None and self._is_mqtt_target(target):
-            return self._mqtt
-        return self._http
+            try:
+                from qd_evolve.agent.registry import get_agent_registry
+                reg = get_agent_registry()
+                if reg and reg.get(target):
+                    return self._inproc
+            except Exception:
+                pass
 
-    def _is_mqtt_target(self, target: str) -> bool:
-        """Check if target agent has MQTT enabled in config."""
-        try:
-            from qd_evolve.core.config import load_settings
-            settings = load_settings()
-            for a in settings.agents_config.agents:
-                if a.name == target or a.effective_friendly_name() == target:
-                    return a.mqtt.enabled
-        except Exception:
-            pass
-        return False
+        # 2. Remote transport (HTTP or MQTT — never mixed)
+        return self._remote
 
     async def send_task(self, target: str, message: Message) -> Task:
         return await self._pick(target).send_task(target, message)
@@ -537,7 +530,8 @@ class TransportRouter:
         transport = self._pick(target)
         if hasattr(transport, "is_online"):
             return await transport.is_online(target)
-        return await self._http.is_online(target)
+        # HttpTransport doesn't have is_online, use its HTTP check
+        return await self._remote.is_online(target)
 
 
 def _new_id() -> str:

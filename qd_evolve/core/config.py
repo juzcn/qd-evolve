@@ -107,7 +107,6 @@ class ToolboxDefaults(BaseModel):
 
 class MqttConfig(BaseModel):
     """Per-agent MQTT transport configuration."""
-    enabled: bool = False
     username: str = ""
     password: str = ""
     keepalive: int = 60
