@@ -30,7 +30,11 @@ class A2AAgent:
         self.task_store = task_store or TaskStore()
         self._event_subscribers: list[asyncio.Queue] = []
 
-        # Hook our _push_event into the agent's event callback
+    @property
+    def _running(self) -> bool:
+        return self.agent._running
+
+    # Hook our _push_event into the agent's event callback
         agent._on_event = self._push_event
 
     # ── Delegate key Agent methods ──────────────────────────────────

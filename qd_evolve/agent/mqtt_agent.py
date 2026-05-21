@@ -89,6 +89,10 @@ class MqttAgent:
 
     def heartbeat_check(self, idle_seconds: int) -> str:
         """MQTT heartbeat: use mqtt-heartbeat template with broker info."""
+        if self.agent._running:
+            logger.debug("MQTT Heartbeat: skipped, agent is busy")
+            return None
+
         from datetime import datetime
 
         pending_results = self._check_pending_task_results()

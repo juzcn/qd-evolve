@@ -46,6 +46,7 @@ class Agent:
         self._preload_skills: set[str] = preload_skills or set()
         self._preload_cli: set[str] = preload_cli or set()
         self._hb_task: asyncio.Task | None = None
+        self._running: bool = False
 
     @staticmethod
     def _create_memory(entry: AgentEntry, settings: Settings, registry: ToolRegistry) -> MemoryStore | None:
@@ -101,6 +102,9 @@ class Agent:
         Returns the LLM's response. Caller decides whether to display it
         (e.g. suppress '.' which means 'stay silent').
         """
+        if self._running:
+            logger.debug("Heartbeat: skipped, agent is busy")
+            return None
         if self._template_mgr is not None:
             msg = self._template_mgr.render("heartbeat", idle_seconds=idle_seconds,
                                             now=datetime.now().strftime("%Y-%m-%d %A %H:%M:%S"))
@@ -157,6 +161,19 @@ class Agent:
             self._hb_task.cancel()
 
     def run(
+        self,
+        user_input: str,
+        system: str | None = None,
+        provider: str | None = None,
+        model: str | None = None,
+    ) -> str:
+        self._running = True
+        try:
+            return self._run_inner(user_input, system, provider, model)
+        finally:
+            self._running = False
+
+    def _run_inner(
         self,
         user_input: str,
         system: str | None = None,
