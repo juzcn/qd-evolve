@@ -133,7 +133,7 @@ def create_agent(name: str, settings: Settings, *, need_a2a: bool | None = None,
         if need_mqtt:
             from qd_evolve.agent.mqtt_human_agent import MqttHumanAgent
             broker = settings.agents_config.mqtt_broker
-            return MqttHumanAgent(human, broker.host, broker.port, entry.mqtt)
+            return MqttHumanAgent(human, broker.host, broker.port, entry.mqtt, broker.will_delay_interval)
         return human
 
     # Resolve process-level singletons
@@ -273,10 +273,15 @@ def create_agent(name: str, settings: Settings, *, need_a2a: bool | None = None,
 
         server_host = entry.server.host or "127.0.0.1"
         server_port = entry.server.port or 8000
+        if mqtt_on:
+            broker = settings.agents_config.mqtt_broker
+            card_url = f"mqtt://{broker.host}:{broker.port}"
+        else:
+            card_url = f"http://{server_host}:{server_port}"
         card = AgentCard(
             name=name,
             description=entry.description,
-            url=f"{server_host}:{server_port}",
+            url=card_url,
             capabilities=AgentCapabilities(streaming=True),
         )
         a2a_agent = A2AAgent(agent, card, TaskStore())
@@ -284,7 +289,7 @@ def create_agent(name: str, settings: Settings, *, need_a2a: bool | None = None,
         # ── Wrap with MqttAgent if needed ──────────────────────────
         if mqtt_on:
             from qd_evolve.agent.mqtt_agent import MqttAgent
-            mqtt_agent = MqttAgent(a2a_agent, settings.agents_config.mqtt_broker.host, settings.agents_config.mqtt_broker.port, entry.mqtt)
+            mqtt_agent = MqttAgent(a2a_agent, settings.agents_config.mqtt_broker.host, settings.agents_config.mqtt_broker.port, entry.mqtt, settings.agents_config.mqtt_broker.will_delay_interval)
             return mqtt_agent
 
         return a2a_agent

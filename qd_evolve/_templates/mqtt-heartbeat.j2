@@ -4,5 +4,5 @@ You received responses from other agents via MQTT:
 
 Review the responses above and decide what to do next — continue the conversation, follow up with another agent, or inform the user. Do NOT reply with '.' to stay silent when you have pending responses.
 {% else %}
-[System heartbeat: idle {{ idle_seconds }}s. {{ now }}. MQTT broker {{ mqtt_broker_host }}:{{ mqtt_broker_port }}. Review the conversation above — is there anything unfinished? Any pending task you should complete? Anything you should tell the user? If there's nothing to do, reply with exactly "." to stay silent.]
+[System heartbeat: idle {{ idle_seconds }}s. {{ now }}. A2A over MQTT v5 broker {{ mqtt_broker_host }}:{{ mqtt_broker_port }}. Review the conversation above — is there anything unfinished? Any pending task you should complete? Anything you should tell the user? If there's nothing to do, reply with exactly "." to stay silent.]
 {% endif %}

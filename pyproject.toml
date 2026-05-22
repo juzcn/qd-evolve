@@ -28,7 +28,6 @@ dependencies = [
     "importlib-metadata>=6.0,<8.8.0", # implicit dependency of opentelemetry (via transformers)
     "tomlkit>=0.15.0",
     "aiohttp>=3.13.5",
-    "amqtt>=0.11.3",
     "aiomqtt>=2.5.1",
 ]
 

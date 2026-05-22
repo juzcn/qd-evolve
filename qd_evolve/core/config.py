@@ -110,13 +110,16 @@ class MqttConfig(BaseModel):
     username: str = ""
     password: str = ""
     keepalive: int = 60
+    ca_certs: str = ""
+    certfile: str = ""
+    keyfile: str = ""
 
 
 class MqttBrokerConfig(BaseModel):
-    """MQTT broker configuration. host/port are where clients connect."""
-    type: str = "mosquitto"
+    """MQTT broker configuration. host/port are where clients connect. MQTT v5 only."""
     host: str = "127.0.0.1"
     port: int = 1883
+    will_delay_interval: int = 0
 
 
 class AgentEntry(BaseModel):

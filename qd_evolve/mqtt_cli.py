@@ -1,9 +1,8 @@
-"""MQTT CLI — pure MQTT client for remote A2A agent servers.
+"""MQTT CLI — A2A over MQTT v5 client/server.
 
-CLI is NOT an agent. It connects to remote agent servers via MQTT transport.
+CLI is NOT an agent. It connects to remote agent servers via MQTT v5 transport.
 Use `qd-evolve mqtt serve --agent <name>` to start an agent server.
-Use `qd-evolve mqtt chat` to connect as a client.
-Use `qd-evolve mqtt broker` to start an embedded MQTT broker.
+Use `qd-evolve mqtt` to connect as a client.
 """
 
 import asyncio
@@ -11,6 +10,11 @@ from asyncio import CancelledError
 import sys
 from pathlib import Path
 from typing import Any
+
+# Windows: paho-mqtt requires add_reader/add_writer which ProactorEventLoop doesn't support.
+# Must use SelectorEventLoop on Windows for aiomqtt to work.
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 import typer
 from qd_evolve.core.logger import logger
@@ -26,14 +30,8 @@ from qd_evolve.core.config import CONFIG_PATH, Settings, load_settings, save_jso
 
 from qd_evolve import __version__
 
-mqtt_app = typer.Typer(help="MQTT — A2A over MQTT client/server/broker")
+mqtt_app = typer.Typer(help="MQTT — A2A over MQTT v5 client/server")
 console = Console()
-
-
-def _use_selector_loop() -> None:
-    """Switch to SelectorEventLoop on Windows (amqtt requires add_reader/add_writer)."""
-    if sys.platform == "win32":
-        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 
 class ReplayInput:
@@ -237,18 +235,17 @@ async def _handle_slash_command(
         if not agent_list:
             return "  (no agents configured in config.json)"
 
-        # Check online status for all agents in parallel (on demand)
-        async def _check_one(a: Any) -> tuple[str, bool]:
+        # Check agent status for all agents in parallel (on demand)
+        async def _check_one(a: Any) -> tuple[str, str]:
             try:
-                ok = await transport.is_online(a.name)
+                status = await transport.get_agent_status(a.name)
             except Exception:
-                ok = False
-            return a.name, ok
+                status = "unknown"
+            return a.name, status
 
-        import asyncio as _asyncio
         tasks = [_check_one(a) for a in agent_list]
-        pairs = await _asyncio.gather(*tasks)
-        results: dict[str, bool] = dict(pairs)
+        pairs = await asyncio.gather(*tasks)
+        results: dict[str, str] = dict(pairs)
 
         table = Table(title="Available Agents", show_header=True)
         table.add_column("#", style="dim", justify="right")
@@ -265,10 +262,12 @@ async def _handle_slash_command(
                 prov_mdl = "human"
             else:
                 prov_mdl = f"{a.effective_provider(settings)}/{a.effective_model(settings)}"
-            stat = results.get(a.name)
-            if stat is True:
+            stat = results.get(a.name, "unknown")
+            if stat == "online":
                 status_str = "[green]online[/green]"
-            elif stat is False:
+            elif stat == "lwt":
+                status_str = "[bold red]lost (LWT)[/bold red]"
+            elif stat == "offline":
                 status_str = "[red]offline[/red]"
             else:
                 status_str = "[dim]unknown[/dim]"
@@ -300,9 +299,9 @@ async def _async_chat_loop(
     output_file: Any,
     transport: Any,
 ) -> None:
-    """Async main chat loop — pure MQTT client via MqttTransport.
+    """Async main chat loop — pure MQTT client via MqttTransport (A2A over MQTT v5).
 
-    CLI never creates agents. All communication goes through MQTT transport:
+    CLI never creates agents. All communication goes through transport:
     send_stream for chat, resubscribe for heartbeat events, is_online for probes.
     """
     from qd_evolve.core.providers import ProviderRegistry
@@ -328,45 +327,33 @@ async def _async_chat_loop(
     # Event queue — heartbeats, presence, task_completed events.
     event_queue: asyncio.Queue[tuple[str, dict]] = asyncio.Queue()
     event_workers: list[asyncio.Task] = []
-    resubscribe_retry_seconds = 15
 
-    async def _presence_worker(name: str) -> None:
-        """Monitor a2a/{name}/agent/online for presence changes.
-
-        Subscribes ONCE — no re-subscription dance.  The non-retained
-        publish in MqttAgent.start() guarantees every transition is
-        delivered to existing subscribers.
-        """
-        was_online = False
-        online_queue = await transport.subscribe_online_updates(name)
-        logger.debug("Presence worker '%s': subscribed", name)
+    async def _discovery_worker() -> None:
+        """Monitor $a2a/v1/discovery/+ for agent online/offline/lwt events."""
+        disc_queue = await transport.subscribe_discovery()
         try:
             while True:
-                is_online_now = await online_queue.get()
-                logger.debug("Presence worker '%s': got %s (was=%s)", name, is_online_now, was_online)
-                if is_online_now == was_online:
-                    continue
-                was_online = is_online_now
-                if is_online_now:
-                    await event_queue.put(("system", {"type": "agent_online", "name": name}))
+                event = await disc_queue.get()
+                agent_name = event.get("agent_name", "")
+                is_online = event.get("online", False)
+                a2a_status = event.get("status", "offline" if not is_online else "online")
+                if is_online:
+                    await event_queue.put(("system", {"type": "agent_online", "name": agent_name}))
+                elif a2a_status == "lwt":
+                    await event_queue.put(("system", {"type": "agent_lwt", "name": agent_name}))
                 else:
-                    await event_queue.put(("system", {"type": "agent_offline", "name": name}))
+                    await event_queue.put(("system", {"type": "agent_offline", "name": agent_name}))
         except asyncio.CancelledError:
             pass
         except Exception:
-            logger.exception("Presence worker '%s': crashed", name)
+            logger.exception("Discovery worker crashed")
         finally:
-            await transport.unsubscribe_online_updates(name, online_queue)
+            transport.unsubscribe_discovery(disc_queue)
 
     async def _event_stream_worker(name: str) -> None:
         """Stream agent events (heartbeat, iteration, tokens) via resubscribe.
 
-        Does NOT monitor online/offline presence — that is checked on demand
-        via transport.is_online().  This worker purely handles event streaming
-        and retries automatically on disconnect.
-
-        Uses fast (2s) initial retry so events flow quickly after an agent
-        starts, then exponential backoff up to 30s.
+        Retries automatically on disconnect with exponential backoff.
         """
         retry_delay = 2
         while True:
@@ -382,34 +369,37 @@ async def _async_chat_loop(
                 await asyncio.sleep(retry_delay)
                 retry_delay = min(retry_delay * 2, 30)
 
-    async def _check_online(target: str) -> bool:
-        """Check if an agent is online via MQTT retained message (on demand)."""
-        try:
-            return await transport.is_online(target)
-        except Exception:
-            return False
-
     # Check all agents at startup (parallel, on demand)
     async def _check_all_online() -> None:
-        async def _check_one(a: Any) -> tuple[str, bool]:
-            ok = await _check_online(a.name)
-            return a.name, ok
+        async def _check_one(a: Any) -> tuple[str, str]:
+            try:
+                status = await transport.get_agent_status(a.name)
+            except Exception:
+                status = "unknown"
+            return a.name, status
 
         tasks = [_check_one(a) for a in settings.agents_config.agents]
         pairs = await asyncio.gather(*tasks)
         broker_info = f"{settings.agents_config.mqtt_broker.host}:{settings.agents_config.mqtt_broker.port}"
-        for name, ok in pairs:
-            status = "[green]online[/green]" if ok else "[red]offline[/red]"
-            console.print(f"  {name} MQTT {broker_info} — {status}")
+        for name, status in pairs:
+            if status == "online":
+                status_str = "[green]online[/green]"
+            elif status == "lwt":
+                status_str = "[bold red]lost (LWT)[/bold red]"
+            elif status == "offline":
+                status_str = "[red]offline[/red]"
+            else:
+                status_str = "[dim]unknown[/dim]"
+            console.print(f"  {name} MQTT {broker_info} — {status_str}")
 
     await _check_all_online()
 
-    # Start presence + event stream workers for all agents.
+    # Start discovery + event stream workers for all agents.
     logger.info("MQTT CLI: starting workers for %d agents", len(all_agent_names))
+    event_workers.append(asyncio.ensure_future(_discovery_worker()))
     for name in all_agent_names:
-        event_workers.append(asyncio.ensure_future(_presence_worker(name)))
         event_workers.append(asyncio.ensure_future(_event_stream_worker(name)))
-        logger.debug("MQTT CLI: workers started for '%s'", name)
+        logger.debug("MQTT CLI: event worker started for '%s'", name)
 
     input_task = None
     quitting = False
@@ -456,13 +446,41 @@ async def _async_chat_loop(
                     continue
                 elif etype == "agent_offline":
                     target = event.get("name", agent_name)
-                    logger.info("MQTT CLI: agent '%s' is now offline", target)
+                    logger.info("MQTT CLI: agent '%s' is now offline (graceful)", target)
                     _app = getattr(input_session, "app", None)
                     if _app and _app.is_running:
                         _app.renderer.erase()
                     console.print(f"[bold yellow]Agent '{target}' is now offline[/bold yellow]")
                     if _app and _app.is_running:
                         _app.invalidate()
+                    continue
+                elif etype == "agent_lwt":
+                    target = event.get("name", agent_name)
+                    logger.warning("MQTT CLI: agent '%s' lost connection (LWT)", target)
+                    _app = getattr(input_session, "app", None)
+                    if _app and _app.is_running:
+                        _app.renderer.erase()
+                    console.print(f"[bold red]Agent '{target}' lost connection (LWT)[/bold red]")
+                    if _app and _app.is_running:
+                        _app.invalidate()
+                    continue
+
+                # ── Task completed events (push notification from remote agent) ──
+                if etype == "task_completed":
+                    content = event.get("content", "")
+                    if content:
+                        display_name = _current_agent_name() if agent_name == "pushNotification" else agent_name
+                        if display_name == _current_agent_name():
+                            logger.debug("MQTT CLI: task_completed received (from=%s, task=%s)", agent_name, event.get("task_id", ""))
+                            input_task.cancel()
+                            try:
+                                await input_task
+                            except (CancelledError, EOFError, KeyboardInterrupt):
+                                pass
+                            color = _agent_color(display_name)
+                            console.print(f"[bold {color}]{display_name}>[/bold {color}] {content}")
+                            user_input = None
+                            break
                     continue
 
                 # ── Heartbeat events (only when hb_idle > 0) ──
@@ -477,8 +495,6 @@ async def _async_chat_loop(
                                 await input_task
                             except (CancelledError, EOFError, KeyboardInterrupt):
                                 pass
-                        # Cancel input first, then use console.print for color.
-                        # Don't touch _app renderer — that causes the double prompt.
                         color = _agent_color(agent_name)
                         console.print(f"[bold {color}]{fn}>[/bold {color}] {event.get('content', '')}")
                         if is_current:
@@ -521,12 +537,12 @@ async def _async_chat_loop(
 
         # Check agent online on demand before sending
         cur_name = _current_agent_name()
-        if not await _check_online(cur_name):
+        cur_entry = _current_agent_entry()
+        if not await transport.is_online(cur_name):
             console.print(f"[bold red]Agent '{cur_name}' is offline.[/bold red] Use [bold]/agents[/bold] to switch.")
             continue
 
         # Chat via MQTT transport
-        cur_entry = _current_agent_entry()
         is_human_target = cur_entry is not None and cur_entry.is_human
         msg = Message(role="user", parts=[Part(type="text", text=user_input)])
         response = ""
@@ -644,8 +660,6 @@ async def _async_chat_loop(
     for t in event_workers:
         if not t.done():
             t.cancel()
-    # Await all workers so their finally blocks (unsubscribe etc.) complete
-    # before the transport disconnects.
     if event_workers:
         await asyncio.gather(*event_workers, return_exceptions=True)
     if output_file:
@@ -673,7 +687,7 @@ async def _human_terminal_loop(agent_core: Any, settings: Any = None) -> None:
                 console.print(f"\n[bold yellow]{label}:[/bold yellow] {task_content}")
                 console.print("[bold cyan]Your response:[/bold cyan] ", end="")
                 response = await asyncio.to_thread(input)
-                agent_core.complete_task(task_id, response)
+                await agent_core.complete_task(task_id, response)
                 console.print(f"[dim]Response submitted[/dim]")
             elif etype == "task_completed":
                 pass
@@ -683,15 +697,15 @@ async def _human_terminal_loop(agent_core: Any, settings: Any = None) -> None:
         agent_core.unsubscribe_events(queue)
 
 
+
+
 # ── mqtt serve ─────────────────────────────────────────────────────────────
 
 @mqtt_app.command()
 def serve(
     agent: str = typer.Option("", "--agent", help="Agent name from config.json to serve"),
 ) -> None:
-    """Start an agent as an MQTT-accessible server."""
-    _use_selector_loop()
-
+    """Start an agent as an MQTT-accessible server (A2A over MQTT v5)."""
     from qd_evolve.core.logger import setup_logging
     from qd_evolve.core.config import LOG_DIR as LOG_DIR_PATH, load_settings, MqttConfig
     from qd_evolve.agent import create_agent, init_process
@@ -762,7 +776,7 @@ def serve(
         ))
     else:
         console.print(Panel(
-            f"Serving agent [bold]{fn} ({agent})[/bold] via MQTT {broker_cfg.host}:{broker_cfg.port}\nA2A over MQTT pub/sub",
+            f"Serving agent [bold]{fn} ({agent})[/bold] via MQTT {broker_cfg.host}:{broker_cfg.port}\nA2A over MQTT v5",
             style="bold green",
         ))
 
@@ -778,68 +792,57 @@ def serve(
             else:
                 agent_core.start_heartbeat_loop()
                 stop_event = asyncio.Event()
-                try:
-                    await stop_event.wait()
-                except KeyboardInterrupt:
-                    pass
+                await stop_event.wait()
         finally:
-            await agent_core.stop()
+            # Graceful shutdown: publish a2a-status=offline BEFORE disconnect
+            # so Broker sees clean offline, not LWT
+            try:
+                await agent_core.stop()
+            except Exception:
+                pass
             if mqtt_transport is not None:
-                await mqtt_transport.disconnect()
+                try:
+                    await mqtt_transport.disconnect()
+                except Exception:
+                    pass
 
+    # Use loop.run_until_complete instead of asyncio.run so that on
+    # KeyboardInterrupt we can still run async cleanup (agent_core.stop())
+    # before the loop closes. asyncio.run() cancels all tasks immediately
+    # on KeyboardInterrupt, preventing any async cleanup from completing.
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
     try:
-        asyncio.run(_run())
+        loop.run_until_complete(_run())
     except KeyboardInterrupt:
+        # Loop is still alive — run async cleanup to publish
+        # a2a-status=offline and send MQTT v5 DISCONNECT (suppresses LWT)
+        try:
+            loop.run_until_complete(agent_core.stop())
+        except Exception:
+            pass
+        if mqtt_transport is not None:
+            try:
+                loop.run_until_complete(mqtt_transport.disconnect())
+            except Exception:
+                pass
+        # Cancel remaining tasks so the loop can close cleanly
+        for task in asyncio.all_tasks(loop):
+            task.cancel()
+        try:
+            loop.run_until_complete(asyncio.gather(*asyncio.all_tasks(loop), return_exceptions=True))
+        except Exception:
+            pass
         console.print("\n[dim]MQTT agent stopped.[/dim]")
     except Exception as exc:
         from aiomqtt import MqttError
         if isinstance(exc, MqttError):
             console.print(f"\n[bold red]Cannot connect to MQTT broker {broker_cfg.host}:{broker_cfg.port}.[/bold red]")
-            console.print("[dim]Start the broker first: qd-evolve mqtt broker[/dim]")
+            console.print("[dim]Start mosquitto first: mosquitto -v[/dim]")
         else:
             raise
-
-
-# ── mqtt broker ────────────────────────────────────────────────────────────
-
-@mqtt_app.command()
-def broker() -> None:
-    """Start embedded MQTT broker (type=embedded in config.json)."""
-    _use_selector_loop()
-
-    from qd_evolve.core.config import load_settings, LOG_DIR as LOG_DIR_PATH
-    from qd_evolve.core.logger import setup_logging
-    from qd_evolve.agent.mqtt_broker import ensure_broker, shutdown_broker
-
-    settings = load_settings()
-    setup_logging(settings.log.level, log_dir=LOG_DIR_PATH)
-    broker_cfg = settings.agents_config.mqtt_broker
-
-    if broker_cfg.type != "embedded":
-        console.print(f"[yellow]Broker type is '{broker_cfg.type}', not 'embedded'.[/yellow]")
-        console.print(f"[dim]To use embedded broker, set mqtt_broker.type='embedded' in config.json.[/dim]")
-        console.print(f"[dim]For mosquitto, run: mosquitto -p {broker_cfg.port} -v[/dim]")
-        raise SystemExit(0)
-
-    async def _run() -> None:
-        try:
-            b = await ensure_broker(broker_cfg)
-            typer.echo(f"Embedded MQTT broker running on {broker_cfg.host}:{broker_cfg.port}. Press Ctrl+C to stop.")
-            try:
-                while True:
-                    await asyncio.sleep(1)
-            except asyncio.CancelledError:
-                pass
-        except ImportError:
-            typer.echo("Error: amqtt not installed. Run: pip install amqtt", err=True)
-            sys.exit(1)
-        finally:
-            await shutdown_broker()
-
-    try:
-        asyncio.run(_run())
-    except KeyboardInterrupt:
-        typer.echo("\nEmbedded MQTT broker stopped.")
+    finally:
+        loop.close()
 
 
 # ── mqtt chat (default command) ────────────────────────────────────────────
@@ -850,11 +853,9 @@ def chat(
     replay: Path | None = typer.Option(None, "--replay", help="Replay inputs from file"),
     output: Path | None = typer.Option(None, "--output", help="Capture output to file"),
 ) -> None:
-    """MQTT chat client. Connects to remote agents via MQTT broker."""
+    """MQTT chat client. Connects to remote agents via MQTT v5 broker."""
     if ctx.invoked_subcommand is not None:
         return
-
-    _use_selector_loop()
 
     from qd_evolve.core.logger import setup_logging
     from qd_evolve.core.config import LOG_DIR as LOG_DIR_PATH
@@ -912,7 +913,7 @@ def chat(
             else:
                 agent_lines.append(f"    {name_col}  {info}")
         panel_text = (
-            f"qd-evolve v{__version__} (MQTT client)\n\n"
+            f"qd-evolve v{__version__} (A2A over MQTT v5)\n\n"
             + "\n".join(agent_lines)
             + f"\n\nChat: {fn} ({chat_agent_name})"
             + f"\nBroker: {broker_cfg.host}:{broker_cfg.port}"
@@ -920,7 +921,7 @@ def chat(
         )
     else:
         model_info = escape(f"[{chat_agent_entry.effective_provider(settings)}/{chat_agent_entry.effective_model(settings)}]") if chat_agent_entry else ""
-        panel_text = f"qd-evolve v{__version__} (MQTT client) {fn} ({chat_agent_name}) {model_info}\nBroker: {broker_cfg.host}:{broker_cfg.port}\n/help for commands, /quit to leave"
+        panel_text = f"qd-evolve v{__version__} (A2A over MQTT v5) {fn} ({chat_agent_name}) {model_info}\nBroker: {broker_cfg.host}:{broker_cfg.port}\n/help for commands, /quit to leave"
 
     console.print(Panel(
         panel_text,

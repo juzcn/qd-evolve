@@ -116,12 +116,15 @@ def _delegate_to(agent: str, task: str) -> str:
             return f"Error from agent '{agent}': {type(e).__name__}: {e}"
 
     # For remote transport, run send_task
+    from_agent = _get_current_agent_name()
     import concurrent.futures
     from qd_evolve.agent.mqtt_transport import MqttTransport
     remote = transport._pick(agent)
     if isinstance(remote, MqttTransport) and remote._loop is not None:
         # MQTT client is bound to its original event loop — must use run_coroutine_threadsafe
-        future = asyncio.run_coroutine_threadsafe(remote.send_task(agent, message), remote._loop)
+        future = asyncio.run_coroutine_threadsafe(
+            remote.send_task(agent, message, from_agent=from_agent), remote._loop
+        )
         result_task = future.result(timeout=120)
     else:
         # HttpTransport: run async in a new event loop (standard approach)
@@ -152,17 +155,32 @@ def _send_task(agent: str, task: str) -> str:
     transport = _get_transport()
     message = make_text_message("user", task)
 
-    # Set callback_url to AI agent's own A2A server for push notifications
-    callback_url = _get_own_callback_url()
-    if callback_url:
-        message.metadata["callback_url"] = callback_url
     from_agent = _get_current_agent_name()
-    if from_agent:
-        message.metadata["from_agent"] = from_agent
+
+    # For MQTT transport: from_agent is passed via User Property (not callback_url)
+    # For HTTP transport: callback_url is set for webhook push notifications
+    from qd_evolve.agent.mqtt_transport import MqttTransport
+    remote = transport._pick(agent)
+    if isinstance(remote, MqttTransport):
+        # MQTT: from_agent in message metadata + User Property
+        if from_agent:
+            message.metadata["from_agent"] = from_agent
+    else:
+        # HTTP: callback_url for webhook push notifications
+        callback_url = _get_own_callback_url()
+        if callback_url:
+            message.metadata["callback_url"] = callback_url
+        if from_agent:
+            message.metadata["from_agent"] = from_agent
 
     async def _watch() -> None:
         try:
-            result_task = await transport.send_task(agent, message)
+            if isinstance(remote, MqttTransport) and remote._loop is not None:
+                result_task = await asyncio.run_coroutine_threadsafe(
+                    remote.send_task(agent, message, from_agent=from_agent), remote._loop
+                ).result(timeout=120)
+            else:
+                result_task = await transport.send_task(agent, message)
             _task_store[task_id]["state"] = result_task.status.state.value
             _task_store[task_id]["result"] = _extract_result_text(result_task)
             # Map remote task_id to local entry so push notifications can update it
