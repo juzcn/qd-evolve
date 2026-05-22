@@ -91,17 +91,6 @@ class MqttAgent:
     def _push_event(self, event: dict) -> None:
         self.agent._push_event(event)
 
-    def _check_pending_task_results(self) -> list:
-        results = []
-        try:
-            for task_id, task in self.agent.task_store._tasks.items():
-                if task.status.state in (TaskState.completed, TaskState.failed, TaskState.canceled):
-                    if task.status.message:
-                        results.append((task_id, task))
-        except Exception:
-            pass
-        return results
-
     # ── Delegate key A2AAgent methods/attributes ────────────────────
 
     def heartbeat_check(self, idle_seconds: int) -> str:
@@ -111,20 +100,15 @@ class MqttAgent:
 
         from datetime import datetime
 
-        pending_results = self._check_pending_task_results()
-
         if self.agent._template_mgr is not None:
             msg = self.agent._template_mgr.render("mqtt-heartbeat",
                                                    idle_seconds=idle_seconds,
                                                    now=datetime.now(),
                                                    agent_name=self.card.name,
                                                    mqtt_broker_host=self._broker_host,
-                                                   mqtt_broker_port=self._broker_port,
-                                                   pending_results=pending_results)
+                                                   mqtt_broker_port=self._broker_port)
         else:
             msg = f"[MQTT Heartbeat: idle {idle_seconds}s. Broker: {self._broker_host}:{self._broker_port}.]"
-            if pending_results:
-                msg += "\n" + pending_results
 
         logger.debug("MQTT Heartbeat: idle %ss, broker %s:%s", idle_seconds,
                       self._broker_host, self._broker_port)
@@ -375,6 +359,9 @@ class MqttAgent:
         # Subscribe to request topic
         await self._client.subscribe(_request_topic(agent_name), qos=QOS_TASK)
 
+        # Subscribe to own event topic to receive push notifications
+        await self._client.subscribe(_event_topic(agent_name), qos=QOS_EVENT)
+
         # Publish AgentCard to discovery topic (retained, a2a-status=online)
         disc_props = Properties(PacketTypes.PUBLISH)
         disc_props.UserProperty = [("a2a-status", "online")]
@@ -459,14 +446,48 @@ class MqttAgent:
             return
         agent_name = self.card.name
         request_prefix = _request_topic(agent_name)
+        event_prefix = _event_topic(agent_name)
 
         try:
             async for message in self._client.messages:
                 topic = str(message.topic)
+                payload = message.payload.decode("utf-8") if isinstance(message.payload, bytes) else str(message.payload)
+
+                # ── Event topic: handle push notifications ──────────
+                if topic == event_prefix:
+                    try:
+                        rpc = json.loads(payload)
+                    except json.JSONDecodeError:
+                        continue
+                    method = rpc.get("method", "")
+                    params = rpc.get("params", {})
+
+                    if method == "pushNotification":
+                        task_id = params.get("task_id", "")
+                        state = params.get("state", "completed")
+                        content = params.get("content", "")
+                        from qd_evolve.agent.a2a_tools import on_push_notification
+                        on_push_notification(task_id, state, content)
+                        logger.info("MqttAgent: push notification received — task=%s, state=%s",
+                                    task_id[:8] if task_id else "?", state)
+                        # Process push notification as a normal input — agent.run() resets heartbeat
+                        # If agent is busy, wait for it to finish before running
+                        if self.agent._running:
+                            logger.debug("MqttAgent: agent busy, waiting to process push notification")
+                            while self.agent._running:
+                                await asyncio.sleep(0.5)
+                        pending = self.agent._check_pending_task_results()
+                        if pending:
+                            try:
+                                await asyncio.to_thread(self.agent.run, pending)
+                            except Exception as e:
+                                logger.debug("MqttAgent: push-triggered run error: %s", e)
+                    continue
+
+                # ── Request topic: handle JSON-RPC ──────────────────
                 if topic != request_prefix:
                     continue
 
-                payload = message.payload.decode("utf-8") if isinstance(message.payload, bytes) else str(message.payload)
                 try:
                     rpc = json.loads(payload)
                 except json.JSONDecodeError:

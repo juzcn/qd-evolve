@@ -708,10 +708,12 @@ class MqttTransport:
             raise
         finally:
             self.unsubscribe_agent_events(target, event_queue)
-            try:
-                await self._client.unsubscribe(events_topic)
-            except Exception:
-                pass
+            remaining = self._event_subscribers.get(target)
+            if not remaining:
+                try:
+                    await self._client.unsubscribe(events_topic)
+                except Exception:
+                    pass
 
     async def is_online(self, target: str) -> bool:
         """Check if a remote agent is online via discovery retained message."""

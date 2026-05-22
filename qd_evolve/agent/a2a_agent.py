@@ -43,21 +43,12 @@ class A2AAgent:
         return self.agent.run(*args, **kwargs)
 
     def heartbeat_check(self, idle_seconds: int) -> str:
-        """A2A heartbeat: check pending task results before calling LLM.
-
-        Uses a2a-heartbeat template and injects any completed task results
-        from push notifications (e.g. human agent replies).
-        """
-        pending_results = self._check_pending_task_results()
-
+        """A2A heartbeat: idle check only. Push notifications are handled by agent.run() directly."""
         if self.agent._template_mgr is not None:
             msg = self.agent._template_mgr.render("a2a-heartbeat", idle_seconds=idle_seconds,
-                                                   now=datetime.now().strftime("%Y-%m-%d %A %H:%M:%S"),
-                                                   pending_task_results=pending_results)
+                                                   now=datetime.now().strftime("%Y-%m-%d %A %H:%M:%S"))
         else:
             msg = f"[System heartbeat: idle {idle_seconds}s. Chat if you want, '.' to stay silent.]"
-            if pending_results:
-                msg += "\n" + pending_results
 
         logger.debug("A2A Heartbeat: idle %ss, sending heartbeat message", idle_seconds)
         try:
@@ -81,13 +72,17 @@ class A2AAgent:
         from qd_evolve.agent.a2a_tools import _task_store
         completed_items = []
         for task_id, entry in list(_task_store.items()):
+            if entry.get("consumed"):
+                continue
             if entry.get("state") in ("completed", "failed", "canceled") and entry.get("result"):
                 target = entry.get("target", "")
                 result = entry.get("result", "")
-                completed_items.append(f"- Task {task_id[:8]} → {target}: [{entry['state']}] {result[:200]}")
+                completed_items.append(f"- Agent '{target}' replied to your task: {result[:200]}")
+                # Mark as consumed so heartbeat doesn't re-inject
+                entry["consumed"] = True
         if not completed_items:
             return ""
-        return "\nPending task results arrived via push notification:\n" + "\n".join(completed_items)
+        return "\n".join(completed_items)
 
     def start_heartbeat_loop(self) -> None:
         """Start heartbeat loop using A2AAgent.heartbeat_check (not Agent's).
