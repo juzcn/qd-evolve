@@ -347,6 +347,20 @@ class A2AServer:
         state_value = task.status.state.value if isinstance(task.status.state, TaskState) else str(task.status.state)
         result_text = self._extract_text(task.status.message) if task.status.message else ""
         on_push_notification(task.id, state_value, result_text)
+        # Process push notification as a normal input — agent.run() resets heartbeat
+        if self.agent_core is not None:
+            from qd_evolve.agent.human_agent import HumanAgent
+            if not isinstance(self.agent_core, HumanAgent):
+                if getattr(self.agent_core, '_running', False):
+                    logger.debug("A2A server: agent busy, waiting to process push notification")
+                    while getattr(self.agent_core, '_running', False):
+                        await asyncio.sleep(0.5)
+                pending = self.agent_core._check_pending_task_results()
+                if pending:
+                    try:
+                        await asyncio.to_thread(self.agent_core.run, pending)
+                    except Exception as e:
+                        logger.debug("A2A server: push-triggered run error: %s", e)
         if self._on_task_completed:
             try:
                 await self._on_task_completed(event)

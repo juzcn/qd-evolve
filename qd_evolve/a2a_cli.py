@@ -376,6 +376,7 @@ async def _async_chat_loop(
         logger.debug("A2A CLI: event worker started for '%s'", name)
 
     input_task = None
+    pending_task_id: str | None = None
     quitting = False
 
     try:
@@ -438,24 +439,43 @@ async def _async_chat_loop(
                         _app.invalidate()
                     continue
 
-                # ── Task completed events (push notification from remote agent) ──
-                # Can arrive via SSE (agent_name="Jack") or direct webhook (agent_name="webhook")
+                # ── Completed events (agent finished a run triggered by push notification) ──
+                if etype == "completed":
+                    content = event.get("content", "")
+                    if content and content.strip() != ".":
+                        color = _agent_color(agent_name)
+                        _app = getattr(input_session, "app", None)
+                        if _app and _app.is_running:
+                            _app.renderer.erase()
+                        console.print(f"[bold {color}]{agent_name}>[/bold {color}] {content}")
+                        if _app and _app.is_running:
+                            _app.invalidate()
+                    continue
+
+                # ── Task completed events (push notification from human agent) ──
+                # Only handle if this is a response to a task the CLI itself sent
+                # (i.e. user chatted with a human agent via send_task).
+                # Push notifications for AI agents are handled by the agent itself.
                 if etype == "task_completed":
                     content = event.get("content", "")
-                    if content:
-                        # Arrived via webhook to CLI's own server — display as the remote agent
+                    task_id = event.get("task_id", "")
+                    if content and task_id == pending_task_id:
+                        logger.debug("A2A CLI: task_completed received (from=%s, task=%s)", agent_name, task_id)
+                        input_task.cancel()
+                        try:
+                            await input_task
+                        except (CancelledError, EOFError, KeyboardInterrupt):
+                            pass
                         display_name = _current_agent_name() if agent_name == "webhook" else agent_name
-                        if display_name == _current_agent_name():
-                            logger.debug("A2A CLI: task_completed received (from=%s, task=%s)", agent_name, event.get("task_id", ""))
-                            input_task.cancel()
-                            try:
-                                await input_task
-                            except (CancelledError, EOFError, KeyboardInterrupt):
-                                pass
-                            color = _agent_color(display_name)
-                            console.print(f"[bold {color}]{display_name}>[/bold {color}] {content}")
-                            user_input = None
-                            break
+                        color = _agent_color(display_name)
+                        _app = getattr(input_session, "app", None)
+                        if _app and _app.is_running:
+                            _app.renderer.erase()
+                        console.print(f"[bold {color}]{display_name}>[/bold {color}] {content}")
+                        if _app and _app.is_running:
+                            _app.invalidate()
+                        user_input = None
+                        break
                     continue
 
                 # ── Heartbeat events (only when hb_idle > 0) ──
@@ -470,10 +490,13 @@ async def _async_chat_loop(
                                 await input_task
                             except (CancelledError, EOFError, KeyboardInterrupt):
                                 pass
-                        # Cancel input first, then use console.print for color.
-                        # Don't touch _app renderer — that causes the double prompt.
                         color = _agent_color(agent_name)
+                        _app = getattr(input_session, "app", None)
+                        if _app and _app.is_running:
+                            _app.renderer.erase()
                         console.print(f"[bold {color}]{fn}>[/bold {color}] {event.get('content', '')}")
+                        if _app and _app.is_running:
+                            _app.invalidate()
                         if is_current:
                             user_input = None
                             break
