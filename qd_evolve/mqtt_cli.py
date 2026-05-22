@@ -329,14 +329,24 @@ async def _async_chat_loop(
     event_workers: list[asyncio.Task] = []
 
     async def _discovery_worker() -> None:
-        """Monitor $a2a/v1/discovery/+ for agent online/offline/lwt events."""
+        """Monitor $a2a/v1/discovery/+ for agent online/offline/lwt events.
+
+        Deduplicates: only emits presence events on actual status transitions.
+        MQTT broker re-delivers retained messages on every subscribe, so
+        without dedup every is_online() call would trigger a duplicate
+        "agent online" notification.
+        """
         disc_queue = await transport.subscribe_discovery()
+        last_status: dict[str, str] = {}
         try:
             while True:
                 event = await disc_queue.get()
                 agent_name = event.get("agent_name", "")
+                a2a_status = event.get("status", "unknown")
+                if last_status.get(agent_name) == a2a_status:
+                    continue
+                last_status[agent_name] = a2a_status
                 is_online = event.get("online", False)
-                a2a_status = event.get("status", "offline" if not is_online else "online")
                 if is_online:
                     await event_queue.put(("system", {"type": "agent_online", "name": agent_name}))
                 elif a2a_status == "lwt":

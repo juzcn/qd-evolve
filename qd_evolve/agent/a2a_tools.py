@@ -176,11 +176,20 @@ def _send_task(agent: str, task: str) -> str:
     async def _watch() -> None:
         try:
             if isinstance(remote, MqttTransport) and remote._loop is not None:
-                result_task = await asyncio.run_coroutine_threadsafe(
+                result_task = asyncio.run_coroutine_threadsafe(
                     remote.send_task(agent, message, from_agent=from_agent), remote._loop
                 ).result(timeout=120)
             else:
                 result_task = await transport.send_task(agent, message)
+            # Human agent returns input_required — result arrives via push notification
+            if result_task.status.state == TaskState.input_required:
+                _task_store[task_id]["state"] = "input_required"
+                _task_store[task_id]["result"] = None
+                remote_task_id = result_task.id
+                if remote_task_id and remote_task_id != task_id:
+                    _task_store[remote_task_id] = _task_store[task_id]
+                logger.info("send_task: %s returned input_required (task=%s)", agent, remote_task_id[:8])
+                return
             _task_store[task_id]["state"] = result_task.status.state.value
             _task_store[task_id]["result"] = _extract_result_text(result_task)
             # Map remote task_id to local entry so push notifications can update it
