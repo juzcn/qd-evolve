@@ -5,18 +5,18 @@ description = "AI agent with tool use, structured logging, and CLI interface"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "anthropic>=0.52.0",
+    "anthropic>=0.104.1",
     "pydantic>=2.11",
-    "typer>=0.15.0",
+    "typer>=0.25.1",
     "rich>=14.0.0",
     "jinja2>=3.1",
-    "pyyaml>=6.0",
+    "pyyaml>=6.0.3",
     "sqlite-vec>=0.1.9",
-    "openai>=2.35.1",
+    "openai>=2.38.0",
     "prompt-toolkit>=3.0.52",
     "serper-toolkit>=0.0.13",
     "requests>=2.33.1",
-    "sentence-transformers>=5.4.1",
+    "sentence-transformers>=5.5.1",
     "numpy>=2.4.4",
     "llama-cpp-python>=0.3.23",
     "mcp>=1.0",
@@ -25,7 +25,7 @@ dependencies = [
     "markdown-pdf",
     "coding-open-agent-tools>=0.14.1",
     "defusedxml>=0.7.1", # implicit dependency of coding-open-agent-tools
-    "importlib-metadata>=6.0,<8.8.0", # implicit dependency of opentelemetry (via transformers)
+    "importlib-metadata>=9.0.0", # implicit dependency of opentelemetry (via transformers)
     "tomlkit>=0.15.0",
     "aiohttp>=3.13.5",
     "aiomqtt>=2.5.1",
@@ -37,8 +37,14 @@ boat = ["basic-open-agent-tools[all]>=1.3"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
-addopts = "-n auto --tb=short -q"
-filterwarnings = ["ignore::DeprecationWarning"]
+addopts = "-n auto --tb=short -q --timeout=30"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::RuntimeWarning",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]
 
 [project.scripts]
 qd-evolve = "qd_evolve.chat_cli:app"

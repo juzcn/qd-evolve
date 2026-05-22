@@ -3,73 +3,117 @@
 ## Principles
 
 - **Don't reinvent the wheel.** Use battle-tested libraries: anthropic/openai SDK, pydantic, rich, typer, standard logging.
-- **Composition over inheritance.** Tools are callables registered in a registry, not a class hierarchy.
-- **Configuration is data.** All config via `config.json`. No CLI config commands, no .env files. Edit the file directly.
-- **Multi-provider, multi-model.** Each provider has an api_key, base_url, api type, and multiple models with full metadata.
-- **Three API types supported.** `openai-completions`, `openai-response`, `anthropic`. Set at provider level via `api` field.
-- **Logging is structured.** Standard library logging with custom SharedFileHandler (per-write open/flush/close) for real-time log visibility. No print statements for debugging.
-- **CLI is minimal.** Just `qd-evolve` to start chat. `qd-evolve a2a` to start A2A chat client. `qd-evolve a2a serve --agent <name>` to run an agent as a standalone A2A HTTP server. `qd-evolve mqtt` to start MQTT chat client. `qd-evolve mqtt serve --agent <name>` to run an agent as an MQTT-accessible server. `--replay` for automated testing, `--output` to capture. No CLI options for provider/model/agent — edit `config.json` or use `/models` or `/agents` at runtime.
-- **Agent loop is simple and explicit.** Call API → check stop_reason → execute tools → append results → repeat. Capped at `max_iterations` (default 20) to prevent infinite loops.
-- **Heartbeat is agent-owned.** Agent manages its own heartbeat loop via `start_heartbeat_loop()`/`stop_heartbeat_loop()`. Uses `asyncio.Event.wait(timeout)` for idle detection — not fixed `asyncio.sleep()`. `Agent.run()` calls `self.touch_heartbeat()` at the start of every message, which sets the event → loop wakes, clears the event, and resets the idle timer without firing. Heartbeat only triggers on actual timeout (no activity for `heartbeat_idle_seconds`). `_hb_event` lives on `Agent` and is shared by `A2AAgent`/`MqttAgent` wrappers (via `self.agent._hb_event`), so any path into `Agent.run()` resets the same timer. CLI is purely event-driven — it subscribes to events and displays results. Template-driven heartbeat message via `heartbeat.j2` (single-agent) or `a2a-heartbeat.j2` (multi-agent). Configurable via `heartbeat_idle_seconds` (0 = disabled). Per-agent heartbeat counters displayed via `hb_counts` dict with friendly name format.
-- **Streaming is global.** `stream` is a top-level settings field, not per-model. OpenAI-compatible providers stream tokens to the terminal.
-- **Reasoning/thinking is per-model.** `reasoning: true` on a model enables reasoning_content passthrough (DeepSeek, etc.). Reasoning text is displayed in the terminal with a "Reasoning:" label.
+- **Composition over inheritance.** Tools are callables in a registry, not a class hierarchy. Agents wrap via composition: Agent → A2AAgent → MqttAgent.
+- **Configuration is data.** All config via `config.json`. No CLI config commands, no `.env` files. Edit the file directly.
+- **Three API types.** `openai-completions`, `openai-response`, `anthropic`. Set at provider level via `api` field.
 - **Type everything.** Python 3.13 with full type annotations. pydantic models for all data boundaries.
 
 ## Design Decisions
 
-- **Multi-agent architecture.** Each agent is a fully isolated A2A server with independent messages, memory db, system prompt, and toolbox config. All agents and CLI may be distributed across different machines — communication is always via A2A protocol (HTTP JSON-RPC + SSE). Agent config is centralized in `config.json` — `agents_config` section with `chat_agent`, `agents` list (AgentEntry: name, description, provider, model, system_prompt_template, memory_db, server), `topology` (relations), and `a2a_cli` (CLI server config). `/agents` command switches agent at runtime (like `/models`).
-- **A2A protocol (v1.0 spec).** Full implementation: AgentCard, Task lifecycle (submitted→working→completed/failed/canceled/input_required), Message/Part/Artifact, StreamResponse, JSON-RPC over HTTP, SSE streaming. Standard methods: `message/send`, `message/stream`, `tasks/get`, `tasks/cancel`, `tasks/resubscribe`, `tasks/pushNotification`, `agent/getExtendedAgentCard`. Agent discovery via `/.well-known/agent.json`. Custom events (iteration, status, print, tokens, heartbeat) carried in `TaskStatusUpdateEvent.metadata`.
-- **Agent initialization is centralized in loader.py.** `init_process(settings)` does per-process setup (SkillRegistry, CLIRegistry, BridgeManager.connect_all, registry injection into loader tools). `create_agent(name, settings, *, need_a2a, need_mqtt)` does per-agent setup (toolbox state, preload sets, system prompt rendering with proper skill/CLI/tool summaries, memory, provider, A2A identity, event subscribers). Both `chat()` and `serve()` call `init_process` once then `create_agent` per agent. CLI is decoupled from agent logic — it only calls `init_process` + `create_agent`, then handles display/transport. All agents get identical initialization regardless of entry point (chat, serve, inproc). `qd-evolve chat` passes `need_a2a=False` to prevent A2A tools and template sections in single-agent mode.
-- **Event subscribers generalize heartbeat.** `_event_subscribers` in A2AAgent. `subscribe_events()`/`unsubscribe_events()`/`_push_event()` manage subscriber queues. All agent events flow through this mechanism: `iteration` (num, provider, model), `status` (tool calls, step progress), `print` (reasoning, tool output), `tokens` (input/output/total), `completed`, `error`, `heartbeat`, `heartbeat_silent`. `_update_status` and `_print` are wired to also push events. `subscribe_heartbeat`/`unsubscribe_heartbeat` kept as backward-compat aliases.
-- **message/stream is a standard A2A SSE event stream.** Uses A2A v1.0 `StreamResponse` wrapper: first event = `StreamResponse(task=...)`, intermediate events = `StreamResponse(statusUpdate=TaskStatusUpdateEvent(..., metadata={custom event dict}))`, final event = `StreamResponse(statusUpdate=TaskStatusUpdateEvent(..., final=True))`. InprocTransport yields events directly from `subscribe_events()`. HttpTransport parses SSE `StreamResponse` objects. CLI consumes events to reconstruct the iteration display (`iteration_lines` + `output_lines` + `Live(Group)`) for both inproc and HTTP agents. `tasks/resubscribe` allows subscribing to agent events for an existing task.
-- **Three independent systems — no protocol mixing.** Chat, A2A, and MQTT are three separate systems that never fall back between protocols. (1) **Chat** (`qd-evolve`): in-process only, `need_a2a=False`, no A2A tools, no remote transport. (2) **A2A** (`qd-evolve a2a` / `qd-evolve a2a serve`): in-process for local agents + `HttpTransport` for remote agents. (3) **MQTT** (`qd-evolve mqtt` / `qd-evolve mqtt serve`): in-process for local agents + `MqttTransport` for remote agents. `TransportRouter(inproc, remote)` where `remote` is exclusively `HttpTransport` or `MqttTransport` — never both, never falls back between protocols. `_pick()` checks inproc first (local registry), then returns `self._remote`. HTTP server always runs for cross-machine access in A2A mode, but same-machine agents bypass it. Both transports handle human agents consistently: `send_task` returns `input_required`, `send_stream` yields `input_required` final event. `send_task` includes `callback_url` (the sender's own A2A server URL) and `from_agent` in message metadata so push notifications route back correctly. `HttpTransport._get_callback_url()` returns the current agent's server URL (not the CLI's), enabling AI agents to receive push notifications when running as standalone servers.
-- **CLI is decoupled from agent logic.** CLI only calls `init_process(settings)` + `create_agent(name, settings)` from `loader.py`, then handles display and transport. No agent initialization code lives in `cli.py`. All agents (chat, inproc, serve) get identical initialization through the same `create_agent` function.
-- **CLI as A2A client+server — event-driven architecture.** `qd-evolve a2a chat` starts a full A2A server (not just HTTP client) so it can receive webhook callbacks. The server port is configured via `agents_config.a2a_cli.server.port`. CLI never directly calls `agent.run()` for HTTP agents. Two distinct code paths: (1) **AI agent**: CLI uses `send_stream` (blocking) — SSE event stream for iteration/heartbeat/tool-call/reasoning display. (2) **Human agent**: CLI uses `send_task` (non-blocking) — returns `input_required`, then waits for webhook callback (`tasks/pushNotification`) which pushes `task_completed` event to the CLI's event queue. Both paths share a unified `event_queue` for per-agent heartbeat display. Heartbeat messages from non-current agents erase the prompt_toolkit prompt before printing, then invalidate to redraw — avoids duplicate `You>` prompts.
-- **Human agent.** `provider == "human"` identifies human agents (`AgentEntry.is_human` property). HumanAgent implements AgentProtocol directly — no Agent inheritance, no LLM, no tools, no memory. Human agents are full A2A participants: they have their own server, AgentCard, TaskStore, event subscribers, and heartbeat. Communication pattern: AI agent calls `send_task("human", ...)` → human agent returns `Task(input_required)` → human responds asynchronously → `complete_task()` fires webhook callback (`tasks/pushNotification`) to the calling agent's server. In MQTT mode, `MqttHumanAgent.complete_task()` is async — it delegates to HumanAgent then publishes a push notification event on the caller's event topic (`$a2a/v1/event/{from_agent}`). CLI uses `send_task` (non-blocking) for human agents because humans may leave; uses `send_stream` (blocking) for AI agents. Human agent heartbeat pushes periodic "online" events so other agents know the human is present. `delegate_to` rejects human agents — they require async `send_task` because `delegate_to` is blocking.
-- **A2AAgent wraps Agent via composition.** `Agent` is the pure LLM loop (run, tools, memory, messages, callbacks, heartbeat). `A2AAgent` wraps an `Agent` instance, adding A2A identity (`card`, `task_store`), event subscriber fan-out (`_event_subscribers`, `subscribe_events`, `_push_event`), and heartbeat override. Agent emits events via `_on_event` callback; A2AAgent hooks it to `_push_event` for multi-subscriber fan-out. A2AAgent overrides `heartbeat_check()` to use `a2a-heartbeat.j2` template and inject pending push-notification task results; it also runs its own heartbeat loop (not Agent's) so the override takes effect. `create_agent()` in loader.py returns `A2AAgent` when A2A is enabled, plain `Agent` otherwise. HumanAgent implements AgentProtocol directly without wrapping Agent.
-- **A2A auto-enabled by agent count.** A2A tools and system prompt section are automatically enabled when >1 agent is configured and `need_a2a` is not explicitly False. Single-agent setups have A2A tools disabled and the prompt section hidden — no manual `a2a_tools` config needed. `qd-evolve chat` passes `need_a2a=False` to force-disable A2A regardless of agent count (it's always single-agent in-process). A2A tools live in `qd_evolve/agent/a2a_tools.py` (outside the auto-scanned `qd_evolve/tools/` directory) and are only registered via `register_a2a_tools()` when `a2a_on=True` inside `create_agent()`.
-- **Push notifications update task store.** When `A2AServer._tasks_push_notification` receives a completed task from a remote agent, it calls `on_push_notification()` to update `_task_store` so `get_task()` returns the result. `send_task` maps the remote `task_id` to the local `_task_store` entry so push notifications can find and update it. A2AAgent's `heartbeat_check` reads pending completed results from `_task_store` and injects them into the heartbeat prompt via `a2a-heartbeat.j2`, enabling the agent to act on asynchronously received responses.
-- **Transport is not an agent property.** Any agent can be started in-process or via A2A/MQTT — transport is determined by how the agent is started, not by a config field. `TransportRouter._pick()` checks if the agent is in the local registry (inproc) or not (remote). No `transport` field on `AgentEntry`. MQTT mode is determined by entry point (`qd-evolve mqtt serve`), not a config flag — there is no `mqtt.enabled` field.
-- **Topology config.** `agents_config.topology` in config.json defines agent relationships via `relations` list. Default peer-to-peer, configurable master-worker. Transport between agents is auto-derived: if target is in local registry → inproc, otherwise → remote (HttpTransport or MqttTransport depending on system).
-- **Two tool categories.** System tools in `qd_evolve/tools/` (load/install/register — not user-replaceable, auto-scanned via `discover_tools()`). A2A tools in `qd_evolve/agent/a2a_tools.py` — outside auto-scanned directory, only registered via `register_a2a_tools()` when A2A is enabled. Func tools in `tools/func/` (run_shell, fetch, etc. — add/delete .py files to add/remove tools). `register_func` saves permanently to `tools/func/`.
-- **Bridge protocol.** qd-evolve's own protocol for tool source integration. Each bridge type self-registers with `BridgeManager` (discover/connect/disconnect). `cli.py` only talks to `BridgeManager` — adding a new bridge type never touches `cli.py` or `toolbox.py`. Current bridges: `mcp` (external: stdio/SSE/StreamableHTTP/WebSocket), `oat` (in-process boat + coat). Bridge modules live in `tools/bridge/_*.py`, config files in `tools/bridge/*.json`.
-- **OAT bridge (in-process).** `basic-open-agent-tools` (boat) and `coding-open-agent-tools` (coat) are loaded in-process via `tools/bridge/_oat.py`. No subprocess, no MCP serialization overhead. Wrapped functions get Google ADK → OpenAI JSON Schema conversion via `qd_evolve/utils/adk_schema.py`, output normalization via `qd_evolve/utils/adk_output.py`. Config in `tools/bridge/oat.json` — edit loadout per package without touching Settings model.
-- **On-demand tool loading.** Tools start with name+description only. The LLM calls `load_func` to get the full schema, then the tool is activated for subsequent turns. This reduces prompt size. Applies to both system and func tools.
-- **Hot-loading.** `install_func/install_mcp/install_skill` register new tools in the current session without restart. Staged in `.qd_evolve/staging/`, persisted via `register_func/register_mcp/register_skill`. Staging cleaned on session exit.
-- **Dynamic system prompt sections.** The system prompt has sections for preloaded content: "Preloaded Skills SKILL.md", "Preloaded CLI Tools Usage", and "Func Tools" (schemas via API). When `load_skill`, `load_cli`, or `load_func` is called, the content is delivered via tool message (not injected into system prompt), and the item is removed from the unloaded summary.
-- **Toolbox manages tool state.** Per-agent tool enable/disable/preload state is stored in config.json under `agents_config.agents[].toolbox` (sections: tools, mcp_servers, bridge, cli, skills). Global defaults (e.g. timeout) are in `toolbox_defaults`. Managed interactively via `qd-evolve toolbox` (Textual TUI).
-- **Skills are non-callable.** SKILL.md files injected into system prompt as summaries — the LLM calls `load_skill` to get full instructions and uses callable tools to execute.
-- **CLI tools are non-callable definitions.** YAML files in `tools/cli/` describe CLI commands (name, command, help_summary, examples). The LLM calls `load_cli` to get usage info, then executes via `run_shell`.
-- **MCP multi-transport.** MCP bridge supports 4 transport types via `type` field: `stdio` (local subprocess), `sse` (Server-Sent Events), `http`/`streamable-http` (Streamable HTTP POST), `ws`/`websocket` (WebSocket). All string config values support `$VAR`/`${VAR}` env var expansion. `headers` field allows API key injection for remote transports.
-- **MCP tools use original names.** No prefix on tool names. Disabled MCP servers are skipped entirely (no subprocess spawned, no HTTP connection). Disabled bridges are skipped by BridgeManager.
-- **Templates are Jinja2.** User templates in `templates/` override builtin fallbacks in `qd_evolve/_templates/`. System prompt rendered via `PromptTemplateManager.render()`. Template selection: `need_a2a=False` → `default.j2`; `a2a_on=True, not MQTT` → `a2a-default.j2`; `mqtt_on=True` → `mqtt-default.j2`. Shared Toolbox tail extracted into `_system_tail.j2` and included via `{% include %}` — single source of truth for the Toolbox/skills/CLI/tools section. `a2a-default.j2` and `mqtt-default.j2` render the A2A section unconditionally (they are only selected when A2A is active). Multi-agent heartbeat uses `a2a-heartbeat.j2`; MQTT heartbeat uses `mqtt-heartbeat.j2`; single-agent uses `heartbeat.j2`.
-- **Per-turn and cumulative token stats.** Track input/output tokens and context window usage each turn, plus running session total. Streaming mode calls `_track_tokens_openai_completion` to push token events for both inproc and HTTP display.
-- **Per-agent provider/model with global fallback.** Each `AgentEntry` has `provider`/`model` fields. Empty strings fall back to `Settings.default_provider`/`default_model`. `AgentEntry.effective_provider(settings)` / `effective_model(settings)` resolve the fallback chain. `provider == "human"` identifies human agents — `is_human` property, no API key needed. `/models` switches the current agent's provider/model and persists to config.json.
-- **ServerConfig is structured.** `AgentEntry.server` is a `ServerConfig` pydantic model (`host`/`port`), not a raw dict. `host` is the connect address (default `127.0.0.1`). Server binds `0.0.0.0` to accept connections from all interfaces. No hardcoded ports in agent code — defaults come from `DEFAULT_SERVER_HOST`/`DEFAULT_SERVER_PORT` constants.
-- **API errors are caught, not fatal.** LLM API call failures in `AgentCore.run()` return an error string instead of crashing. Heartbeat errors are caught silently. The user stays in the chat loop.
-- **Per-agent memory db.** `AgentEntry.memory_db` in config.json specifies the SQLite file for each agent (default: `"memory.db"`). Empty string `""` or `null` disables memory entirely — no MemoryStore created, no auto_recall, no recall_memory tool, no save. Full isolation — each agent has its own db.
-- **Persistent memory.** SQLite + sqlite-vec for cross-session memory storage. Each user+assistant message pair is auto-saved with BGE-M3 embedding. Supports semantic + keyword hybrid search, time-range filtering, and session exclusion.
-- **Context compression.** When input tokens exceed `compress_threshold` (default 70%) of context window, old Q/A pairs are removed from the message list until tokens drop below `target_threshold` (default 50%). A new memory session is created after compression so recall_memory can distinguish pre/post compression context.
-- **Auto recall.** Before each LLM call, user input is used as query to automatically retrieve relevant past conversations from MemoryStore. Results are injected into a dedicated memory section in the system prompt, with deduplication via `RecalledMemoryRegistry` (keyed by memory id). All recall queries exclude the current session. Configurable via `auto_recall` (on/off) and `auto_recall_top_k`.
-- **Embedder selection by config.** `embeddings_backends` section in `config.json` defines named backends with `backend` field (`sentence-transformers` or `llama-cpp-python`). `memory_search.embeddings_backend` selects which to use. No file-suffix auto-detection.
-- **Env vars from config.** `env_vars` in `config.json` are injected into `os.environ` at startup, so tools can access API keys without .env files.
-- **Clean shutdown.** On `/quit` exit, bridges disconnect with `shutdown=True`, closing remote sessions and killing subprocesses while skipping unnecessary in-memory registry cleanup.
-- **Config is read once at startup.** No runtime config changes — edit `config.json` and restart. However, registries (skills, CLI tools, bridges) are reloaded after each conversation turn to pick up new files without restart. Hot-loaded tools via `install_*` are immediately available without reload. Toolbox state mutations (toggle, enable, disable, preload) are the exception — they write directly to config.json at runtime.
-- **Staging area for hot-loaded tools.** `.qd_evolve/staging/` holds func/mcp/skill files before user confirms permanent registration. Cleaned on session exit. Registries scan both permanent and staging directories during discovery.
-- **File paths relative to CWD.** Tools never hardcode paths; everything resolves against current working directory.
-- **Shell encoding.** `run_shell` uses `locale.getpreferredencoding()` to decode subprocess output, handling Windows GBK/cp936 correctly.
-- **BOAT via OAT bridge.** basic-open-agent-tools loaded in-process, no subprocess latency. Config in `tools/bridge/oat.json` — set `loadout` per package (coder, python, all, etc.).
-- **COAT via OAT bridge.** coding-open-agent-tools (485 code analysis functions) loaded in-process alongside boat. Same Google ADK format, same bridge, same schema/output converters.
-- **Bridge toolbox.** config.json `agents[].toolbox.bridge` section controls bridge enable/disable (e.g. `"oat:boat": "disabled"`). Bridges don't support preload — too many tools.
-- **MQTT CLI is a pure client.** `qd-evolve mqtt` starts an interactive chat loop (prompt_toolkit, slash commands, heartbeat, streaming, token stats) without loading any tools, skills, bridges, or creating agents locally. It connects to agents via MqttTransport only — no init_process, no create_agent. This mirrors the A2A CLI pattern where the CLI is decoupled from agent logic. `qd-evolve mqtt serve --agent <name>` runs a full agent with tools as an MQTT-accessible server. The chat code is an independent copy of a2a_cli.py (not shared) — independent code is safer during development and avoids cross-dependencies.
-- **MQTT broker config is centralized.** `MqttBrokerConfig` in `agents_config.mqtt_broker` is the single source of truth for broker address: `host`, `port`, `will_delay_interval` (seconds, 0 = disabled). MQTT v5 only — requires an external Mosquitto v5 broker (no embedded broker). No per-agent broker_host/broker_port — all agents and CLI connect to the same broker. `MqttConfig` on each `AgentEntry` holds per-agent credentials (`username`, `password`, `keepalive`) and TLS settings (`ca_certs`, `certfile`, `keyfile`). MQTT mode is determined by entry point, not a config flag — there is no `mqtt.enabled` field.
-- **A2A over MQTT v5.** MQTT system uses A2A JSON-RPC payloads over MQTT v5 transport — same semantics as HTTP, different wire. MQTT v5 features: Response Topic + Correlation Data for request-response, User Properties (a2a-from-agent, a2a-status) for metadata, LWT with User Properties for offline detection, Retained messages for Agent Card discovery. Requires external Mosquitto v5 broker — no embedded broker support. Start mosquitto externally before running MQTT commands. AgentCard.url is set to `mqtt://host:port` format in MQTT mode (vs `http://host:port` in A2A HTTP mode).
-- **MqttTransport topic structure (A2A over MQTT v5 spec).** Topics: `$a2a/v1/discovery/{agent_name}` (retained AgentCard + LWT for online/offline/lwt), `$a2a/v1/request/{agent_name}` (task requests as JSON-RPC), `$a2a/v1/response/{agent_name}/{req_id}` (task responses via MQTT v5 Response Topic + Correlation Data), `$a2a/v1/event/{agent_name}` (streaming events + push notifications). `is_online` checks discovery retained message with a 2-second timeout. `get_agent_status` returns detailed status string ("online"/"offline"/"lwt"/"unknown"). `subscribe_discovery()` monitors all agent online/offline/lwt transitions. Client ID format: `qd-evolve/{agent_name}/{agent_name}-{hex8}` for agents, `qd-evolve/cli/{hex8}` for CLI — follows hierarchical `{org_id}/{unit_id}/{agent_id}` spec pattern.
-- **MqttTransport sole-consumer design.** `_listen_all()` is the sole consumer of `self._client.messages` — no other code iterates the aiomqtt message stream. It dispatches via four subscriber registries: `_pending` (response futures resolved by CorrelationData), `_event_subscribers` (asyncio.Queue per agent_name for streaming events + push notifications), `_discovery_subscribers` (asyncio.Queue list for agent online/offline discovery events), `_online_subscribers` (one-shot futures per agent_name for online status). `send_stream()` reads from an event subscriber queue instead of iterating messages directly. `resubscribe()` uses the same subscriber mechanism. `is_online()` registers a temporary subscriber with a 2-second timeout. Push notifications: when `_listen_all` receives a `pushNotification` method on an event topic, it calls `on_push_notification()` from a2a_tools and sets event type to `task_completed`.
-- **MqttAgent wraps A2AAgent.** `MqttAgent` takes an `A2AAgent` instance plus broker address, `MqttConfig`, and `will_delay_interval`, subscribes to request topics, runs the agent, and publishes results/events. Constructor: `MqttAgent(a2a_agent, broker_host, broker_port, mqtt_config, will_delay_interval)`. Broker address comes from `settings.agents_config.mqtt_broker.host/port`, not from per-agent config. `start()` connects with V5 protocol, sets LWT (Will with JSON payload `{"a2a-status": "lwt", "agent_name": ...}`, retain=True, a2a-status=lwt User Property, optional WillDelayInterval), subscribes to request topic, publishes AgentCard to discovery topic (retained, a2a-status=online). `_listen_requests()` parses JSON-RPC from request topic, extracts from_agent from User Properties. `_dispatch()` handles message/send, message/stream, tasks/get, tasks/cancel, agent/getExtendedAgentCard. `_publish_rpc_response()` uses Response Topic + Correlation Data from original message's v5 properties. `_push_events()` background task is the sole event publisher — `_on_message_stream()` only runs the agent and publishes the final response. `stop()` publishes a2a-status=offline (empty payload, retained) to clear discovery, then disconnects — MQTT v5 DISCONNECT suppresses LWT so consumers see graceful "offline" not "lwt". `start()` catches `MqttError` gracefully (logs and sets `self._client = None`) when the broker is not running.
-- **No backward-compat shims.** All imports use the real paths: `qd_evolve.core.config`, `qd_evolve.core.providers`, `qd_evolve.core.logger`, etc.
+### Three Independent Systems — No Protocol Mixing
+
+(1) **Chat** (`qd-evolve`): in-process only, `need_a2a=False`, no A2A tools, no remote transport.
+(2) **A2A** (`qd-evolve a2a`): in-proc for local + `HttpTransport` for remote.
+(3) **MQTT** (`qd-evolve mqtt`): in-proc for local + `MqttTransport` for remote.
+
+`TransportRouter(inproc, remote)` where remote is exclusively HttpTransport or MqttTransport — never both, never falls back between protocols. `_pick()` checks inproc first (local registry), then returns `self._remote`. MQTT mode is determined by entry point, not a config flag — there is no `mqtt.enabled` field.
+
+### Agent Initialization — Centralized in loader.py
+
+`init_process(settings)` does per-process setup (SkillRegistry, CLIRegistry, BridgeManager.connect_all).
+`create_agent(name, settings, *, need_a2a, need_mqtt)` does per-agent setup (toolbox, preload, system prompt, memory, provider, A2A identity).
+
+Both `chat()` and `serve()` call `init_process` once then `create_agent` per agent. CLI is decoupled from agent logic — only calls `init_process` + `create_agent`, then handles display/transport. `qd-evolve chat` passes `need_a2a=False` to force-disable A2A in single-agent mode.
+
+### Agent Wrapping — Composition Chain
+
+Agent is the pure LLM loop. A2AAgent wraps Agent, adding card, task_store, event subscribers, and heartbeat override. MqttAgent wraps A2AAgent, adding MQTT lifecycle. HumanAgent implements AgentProtocol directly (no wrapping). Each wrapper delegates all Agent attributes through `.agent`.
+
+A2AAgent hooks `agent._on_event` to `_push_event` for multi-subscriber fan-out. A2AAgent overrides `heartbeat_check()` to use `a2a-heartbeat.j2` template. A2AAgent runs its own heartbeat loop (not Agent's) so the override takes effect. `_hb_event` lives on Agent and is shared by wrappers via `self.agent._hb_event`.
+
+### A2A Auto-Enabled by Agent Count
+
+A2A tools and system prompt section auto-enable when >1 agent is configured and `need_a2a` is not explicitly False. `qd-evolve chat` passes `need_a2a=False` regardless of agent count. A2A tools live in `qd_evolve/agent/a2a_tools.py` (outside auto-scanned `qd_evolve/tools/`), registered only via `register_a2a_tools()` when `a2a_on=True`.
+
+### CLI as A2A Client+Server — Event-Driven Architecture
+
+`qd-evolve a2a chat` starts a full A2A server (not just HTTP client) for webhook callbacks. Two distinct code paths:
+- **AI agent**: CLI uses `send_stream` (blocking) — SSE event stream for display.
+- **Human agent**: CLI uses `send_task` (non-blocking) — returns `input_required`, then waits for webhook callback (`tasks/pushNotification`) which pushes `task_completed` event.
+
+Both paths share a unified `event_queue` for per-agent heartbeat display.
+
+### Push Notifications — Task Store Updates + Heartbeat Injection
+
+`A2AServer._tasks_push_notification` calls `on_push_notification()` to update `_task_store`. `send_task` maps remote `task_id` to local entry so push notifications can find and update it. After updating task store, the server calls `_check_pending_task_results()` and runs the agent with the pending result, forwarding to CLI via `_forward_to_cli()`.
+
+In MQTT mode, `MqttAgent._listen_requests` and `MqttTransport._listen_all` both handle push notifications on the event topic by calling `on_push_notification()` and setting event type to `task_completed`.
+
+### Human Agent — Async Only
+
+`provider == "human"` identifies human agents. HumanAgent implements AgentProtocol directly — no Agent, no LLM, no tools, no memory. Communication: AI agent calls `send_task("human", ...)` → human returns `input_required` → human responds async → `complete_task()` fires webhook/push notification. `delegate_to` rejects human agents — blocking is incompatible with async. MqttHumanAgent wraps HumanAgent for MQTT, publishing push notifications on the caller's event topic.
+
+### Heartbeat — Agent-Owned, Event-Based
+
+Agent manages heartbeat via `start_heartbeat_loop()`/`stop_heartbeat_loop()`. Uses `asyncio.Event.wait(timeout)` for idle detection — not fixed `asyncio.sleep()`. `Agent.run()` calls `self.touch_heartbeat()` at the start, which sets the event → loop wakes, clears event, resets timer. Heartbeat only triggers on actual timeout. `_hb_event` shared by wrappers. Template selection: single-agent → `heartbeat.j2`, A2A → `a2a-heartbeat.j2`, MQTT → `mqtt-heartbeat.j2`.
+
+### Transport — Not an Agent Property
+
+Any agent can be started in-process or via A2A/MQTT. Transport determined by entry point, not config field. No `transport` field on `AgentEntry`.
+
+### On-Demand Tool Loading + Dynamic System Prompt
+
+Tools start with name+description only. LLM calls `load_func`/`load_skill`/`load_cli` to get full schema, then the tool activates. System prompt has unloaded summary sections that shrink as tools are loaded — content delivered via tool message, not injected into system prompt.
+
+### Bridge Protocol
+
+Each bridge type self-registers with `BridgeManager` (discover/connect/disconnect). CLI only talks to BridgeManager. Adding a new bridge type only requires a `_*.py` module in `tools/bridge/`. Current bridges: MCP (external: stdio/SSE/StreamableHTTP/WebSocket), OAT (in-process: boat + coat). Schema conversion: Google ADK → OpenAI JSON Schema via `adk_schema.py`, output normalization via `adk_output.py`.
+
+### Context Compression
+
+When input tokens exceed `compress_threshold` (default 0.7) of context window, old Q/A pairs removed until below `target_threshold` (default 0.5). New memory session created after compression.
+
+### Memory — Per-Agent, Persistent, Auto-Recall
+
+Each agent has its own SQLite + sqlite-vec DB (configurable via `AgentEntry.memory_db`; `""` or `null` disables). Auto-recall before each LLM call, deduplication via `RecalledMemoryRegistry`. Embeddings backend selected by config name, not file suffix.
+
+### Templates — Jinja2, User Overrides
+
+User templates in `templates/` override builtin fallbacks in `qd_evolve/_templates/`. Selection: `need_a2a=False` → `default.j2`, `a2a_on=True` → `a2a-default.j2`, `mqtt_on=True` → `mqtt-default.j2`. Shared tail in `_system_tail.j2` included via `{% include %}`.
+
+### MqttTransport — Sole-Consumer Design
+
+`_listen_all()` is the sole consumer of `self._client.messages`. Dispatches via: `_pending` (response futures by CorrelationData), `_event_subscribers` (Queue per agent), `_discovery_subscribers` (Queue list), `_online_subscribers` (one-shot futures). No other code iterates the aiomqtt stream.
+
+### Config — Read Once at Startup
+
+No runtime config changes — edit `config.json` and restart. Exception: registries reload after each turn, hot-loaded tools available immediately, toolbox state mutations write to config.json at runtime.
+
+### Shell Encoding
+
+`run_shell` uses `locale.getpreferredencoding()` to decode subprocess output, handling Windows GBK/cp936 correctly.
+
+### Server Binding
+
+`ServerConfig.host` is the connect address (default `127.0.0.1`). Server binds `0.0.0.0` to accept all interfaces. No hardcoded ports — defaults from `DEFAULT_SERVER_HOST`/`DEFAULT_SERVER_PORT` constants.
+
+### API Errors — Caught, Not Fatal
+
+LLM API call failures return an error string instead of crashing. Heartbeat errors caught silently. User stays in the chat loop.
+
+### No Backward-Compat Shims
+
+All imports use real paths: `qd_evolve.core.config`, `qd_evolve.core.providers`, `qd_evolve.core.logger`.
+
+### MQTT CLI — Pure Client
+
+`qd-evolve mqtt` is a pure client — no init_process, no create_agent, no tools/skills/bridges loading. Connects to agents via MqttTransport only. Chat code is independent copy of a2a_cli.py — avoids cross-dependencies during development.
 
 ## Rules
 
 - **Don't auto push.** Commit is fine, but never push to remote unless the user explicitly asks.
-- **Replay mode for testing.** `--replay <file>` feeds pre-recorded inputs instead of interactive prompt, with optional `--output` to capture. Used for automated CLI testing without an LLM dependency.
+- **Ask before committing.** Confirm with user before creating git commits.
+- **Ask before code changes.** Confirm with user before modifying any source code.
+- **No revert without permission.** Never revert code changes without asking the user first.
+- **Check logs first.** On any bug, read log files before analyzing code.
+- **No hardcoded fallbacks.** Read from config via pydantic models, not `.get()` with fallbacks.

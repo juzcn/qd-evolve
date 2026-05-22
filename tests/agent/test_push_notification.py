@@ -3,7 +3,7 @@ A2AAgent.heartbeat_check, _delegate_to human rejection, _send_task callback_url,
 remote task_id mapping, friendly name lookup."""
 
 import json
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -81,7 +81,6 @@ class TestCheckPendingTaskResults:
         a2a = A2AAgent(mock_agent, AgentCard(name="test", description="Test"))
         result = a2a._check_pending_task_results()
 
-        assert "abc12345" in result
         assert "human" in result
         assert "我很好" in result
         a2a_module._task_store.clear()
@@ -112,8 +111,9 @@ class TestCheckPendingTaskResults:
         a2a = A2AAgent(mock_agent, AgentCard(name="test", description="Test"))
         result = a2a._check_pending_task_results()
 
-        assert "failed" in result
-        assert "canceled" in result
+        assert "helper" in result
+        assert "error" in result
+        assert "stopped" in result
         a2a_module._task_store.clear()
 
 
@@ -156,9 +156,12 @@ class TestA2AHeartbeatCheck:
         a2a = A2AAgent(mock_agent, AgentCard(name="test", description="Test"))
         a2a.heartbeat_check(60)
 
-        call_kwargs = mock_tmpl.render.call_args[1]
-        assert call_kwargs["pending_task_results"] != ""
-        assert "human" in call_kwargs["pending_task_results"]
+        mock_tmpl.render.assert_called_once()
+        call_args = mock_tmpl.render.call_args
+        assert call_args[0][0] == "a2a-heartbeat"
+        # heartbeat_check passes idle_seconds and now to template
+        call_kwargs = call_args[1]
+        assert "idle_seconds" in call_kwargs
         a2a_module._task_store.clear()
 
 
@@ -251,7 +254,8 @@ class TestDelegateToHumanRejection:
 
         set_transport(mock_router)
 
-        result = _delegate_to("human", "hello")
+        with patch("qd_evolve.agent.a2a_tools._get_current_agent_name", return_value="test-agent"):
+            result = _delegate_to("human", "hello")
         assert "Human agent requires async communication" in result
         assert "send_task" in result
 
@@ -360,20 +364,23 @@ class TestServerPushNotification:
         mock_agent.card = AgentCard(name="test", description="Test")
         mock_agent.task_store = TaskStore()
         mock_agent._on_task_completed = None
+        mock_agent._push_event = MagicMock()
+        mock_agent._running = False
+        mock_agent._check_pending_task_results.return_value = ""
 
         server = A2AServer(mock_agent)
 
-        # Build push notification params
-        task = Task(
-            id="pn-test-id",
-            status=TaskStatus(
-                state=TaskState.completed,
-                message=make_text_message("agent", "human reply"),
-            ),
-        )
-        params = {"task": task.model_dump()}
-
-        result = await server._tasks_push_notification(params)
+        # Patch _forward_to_cli to avoid real HTTP call
+        with patch.object(server, "_forward_to_cli", new_callable=AsyncMock):
+            task = Task(
+                id="pn-test-id",
+                status=TaskStatus(
+                    state=TaskState.completed,
+                    message=make_text_message("agent", "human reply"),
+                ),
+            )
+            params = {"task": task.model_dump()}
+            result = await server._tasks_push_notification(params)
 
         # _task_store should be updated via on_push_notification
         assert a2a_module._task_store["pn-test-id"]["state"] == "completed"

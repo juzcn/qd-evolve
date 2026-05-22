@@ -118,7 +118,9 @@ class TestSendTask:
         mock_transport.send_task = mock_send
         set_transport(mock_transport)
 
-        result = _send_task("helper", "do something")
+        with patch("qd_evolve.agent.a2a_tools._get_current_agent_name", return_value="test-agent"), \
+             patch("qd_evolve.agent.a2a_tools._get_own_callback_url", return_value=""):
+            result = _send_task("helper", "do something")
         data = json.loads(result)
         assert "task_id" in data
         assert data["state"] == "submitted"
