@@ -70,11 +70,17 @@ class AgentRegistry:
         """Look up agent URL by name in local registry."""
         agent = self._agents.get(name)
         if agent is not None and hasattr(agent, "card"):
-            return f"http://{agent.card.url}"
+            url = agent.card.url
+            if url and not url.startswith(("http://", "mqtt://")):
+                url = f"http://{url}"
+            return url
         # Try topology
         info = self.topology.agents.get(name)
         if info:
-            return f"http://{info['url']}"
+            url = info["url"]
+            if url and not url.startswith(("http://", "mqtt://")):
+                url = f"http://{url}"
+            return url
         return None
 
     @property

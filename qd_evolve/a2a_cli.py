@@ -281,6 +281,7 @@ async def _async_chat_loop(
     settings: Settings,
     output_file: Any,
     router: Any,
+    event_queue: "asyncio.Queue[tuple[str, dict]]",
 ) -> None:
     """Async main chat loop — pure A2A HTTP client via TransportRouter.
 
@@ -335,7 +336,6 @@ async def _async_chat_loop(
         return online_status.get(_current_agent_name()) is True
 
     # Event workers for presence detection + event streaming via router.resubscribe
-    event_queue: asyncio.Queue[tuple[str, dict]] = asyncio.Queue()
     event_workers: list[asyncio.Task] = []
 
     async def _remote_event_worker(name: str) -> None:
@@ -385,6 +385,7 @@ async def _async_chat_loop(
 
         while True:
             event_wait = asyncio.ensure_future(event_queue.get())
+            logger.debug("A2A CLI: waiting for input or event, queue_size=%d", event_queue.qsize())
             try:
                 done, pending = await asyncio.wait(
                     [input_task, event_wait], return_when=asyncio.FIRST_COMPLETED,
@@ -400,13 +401,14 @@ async def _async_chat_loop(
                     console.print("\n[dim]Goodbye![/dim]")
                     return
 
-            # Event arrived from event workers
+            # Event arrived from event workers or webhook
             if event_wait in done:
                 try:
                     agent_name, event = event_wait.result()
                 except Exception:
                     continue
                 etype = event.get("type", "")
+                logger.debug("A2A CLI: event received from='%s', type='%s', keys=%s", agent_name, etype, sorted(event.keys()))
 
                 # ── Presence events (always processed) ──
                 if etype == "agent_online":
@@ -440,7 +442,10 @@ async def _async_chat_loop(
                     continue
 
                 # ── Completed events (agent finished a run triggered by push notification) ──
+                # Skip for current agent — send_stream loop already prints the response.
                 if etype == "completed":
+                    if agent_name == _current_agent_name():
+                        continue
                     content = event.get("content", "")
                     if content and content.strip() != ".":
                         color = _agent_color(agent_name)
@@ -459,6 +464,21 @@ async def _async_chat_loop(
                 if etype == "task_completed":
                     content = event.get("content", "")
                     task_id = event.get("task_id", "")
+                    task_meta = event.get("metadata") or {}
+                    logger.debug("A2A CLI: task_completed content=%d chars, task_id='%s', meta=%s, pending='%s'", len(content), task_id, task_meta, pending_task_id)
+                    # Forwarded completed result from AI agent (push-triggered agent.run())
+                    if task_meta.get("type") == "completed":
+                        from_agent = task_meta.get("from_agent", agent_name)
+                        logger.debug("A2A CLI: forwarding completed result from '%s'", from_agent)
+                        if content and content.strip() != ".":
+                            color = _agent_color(from_agent)
+                            _app = getattr(input_session, "app", None)
+                            if _app and _app.is_running:
+                                _app.renderer.erase()
+                            console.print(f"[bold {color}]{from_agent}>[/bold {color}] {content}")
+                            if _app and _app.is_running:
+                                _app.invalidate()
+                        continue
                     if content and task_id == pending_task_id:
                         logger.debug("A2A CLI: task_completed received (from=%s, task=%s)", agent_name, task_id)
                         input_task.cancel()
@@ -508,6 +528,7 @@ async def _async_chat_loop(
             for k in hb_counts:
                 hb_counts[k] = 0
             event_wait.cancel()
+            logger.debug("A2A CLI: user input received, event_wait cancelled, queue_size=%d", event_queue.qsize())
             try:
                 await event_wait
             except (CancelledError, Exception):
@@ -861,12 +882,17 @@ def chat(
     from qd_evolve.agent.a2a_tools import set_transport
     set_transport(router)
 
-    # 5. Minimal A2A server for webhook callbacks — no agent needed
+    # 5. Event queue shared between event loop and webhook callback
+    event_queue: "asyncio.Queue[tuple[str, dict]]" = asyncio.Queue()
+
+    # 6. Minimal A2A server for webhook callbacks — no agent needed
     from qd_evolve.agent.server import A2AServer
     from qd_evolve.core.config import DEFAULT_BIND_HOST, DEFAULT_SERVER_HOST, DEFAULT_SERVER_PORT
 
     async def _on_webhook(event: dict) -> None:
         """Push webhook callback events to the CLI event queue."""
+        etype = event.get("type", "")
+        logger.debug("A2A CLI: _on_webhook received type='%s', meta=%s", etype, event.get("metadata"))
         await event_queue.put(("webhook", event))
 
     cli_card = AgentCard(
@@ -945,6 +971,7 @@ def chat(
             await _async_chat_loop(
                 input_session, settings, output_file,
                 router=router,
+                event_queue=event_queue,
             )
         finally:
             await server.stop()

@@ -91,6 +91,52 @@ class A2AServer:
             except asyncio.QueueFull:
                 pass
 
+    async def _forward_to_cli(self, result: str) -> None:
+        """Forward push-triggered agent.run() result to CLI's A2A server.
+
+        SSE resubscribe is unreliable for delivering events after send_stream
+        ends — the connection may drop and events are lost. Instead, POST the
+        result directly to the CLI's webhook endpoint so it appears in the
+        CLI's event_queue. CLI URL comes from a2a_cli config (shared config.json).
+        """
+        from qd_evolve.core.config import load_settings
+        settings = load_settings()
+        a2a_cli = settings.agents_config.a2a_cli
+        host = a2a_cli.server.host or DEFAULT_SERVER_HOST
+        port = a2a_cli.server.port or DEFAULT_SERVER_PORT
+        if not port:
+            return
+        cli_url = f"http://{host}:{port}"
+        # Don't forward to ourselves (CLI stub mode)
+        if self.card and self.card.url and cli_url in self.card.url:
+            return
+        agent_name = self.card.name if self.card else ""
+        payload = {
+            "jsonrpc": "2.0",
+            "method": "tasks/pushNotification",
+            "params": {
+                "task": {
+                    "id": f"push-result-{agent_name}",
+                    "status": {
+                        "state": "completed",
+                        "message": {
+                            "role": "agent",
+                            "parts": [{"type": "text", "text": result}],
+                        },
+                    },
+                    "metadata": {"type": "completed", "from_agent": agent_name},
+                },
+            },
+        }
+        try:
+            import aiohttp
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5)) as session:
+                async with session.post(cli_url, json=payload):
+                    pass
+            logger.info("A2A server: forwarded push-triggered result to CLI at %s", cli_url)
+        except Exception as e:
+            logger.debug("A2A server: forward to CLI failed: %s", e)
+
     async def start(self, host: str = DEFAULT_SERVER_HOST, port: int = DEFAULT_SERVER_PORT) -> None:
         app = web.Application()
         app.router.add_get("/.well-known/agent.json", self._handle_agent_card)
@@ -340,6 +386,7 @@ class A2AServer:
             "type": "task_completed",
             "task_id": task.id,
             "content": self._extract_text(task.status.message) if task.status.message else "",
+            "metadata": task.metadata,
         }
         self._push_event(event)
         # Update a2a tools _task_store so get_task() returns the result
@@ -348,6 +395,7 @@ class A2AServer:
         result_text = self._extract_text(task.status.message) if task.status.message else ""
         on_push_notification(task.id, state_value, result_text)
         # Process push notification as a normal input — agent.run() resets heartbeat
+        # Same logic as MqttAgent._listen_requests push notification handling
         if self.agent_core is not None:
             from qd_evolve.agent.human_agent import HumanAgent
             if not isinstance(self.agent_core, HumanAgent):
@@ -358,7 +406,9 @@ class A2AServer:
                 pending = self.agent_core._check_pending_task_results()
                 if pending:
                     try:
-                        await asyncio.to_thread(self.agent_core.run, pending)
+                        result = await asyncio.to_thread(self.agent_core.run, pending)
+                        self._push_event({"type": "completed", "content": result})
+                        await self._forward_to_cli(result)
                     except Exception as e:
                         logger.debug("A2A server: push-triggered run error: %s", e)
         if self._on_task_completed:
