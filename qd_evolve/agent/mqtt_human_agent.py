@@ -29,22 +29,17 @@ from qd_evolve.agent.a2a import (
     TaskStatus,
     make_text_message,
 )
+from qd_evolve.agent.mqtt_transport import (
+    QOS_DISCOVERY,
+    QOS_EVENT,
+    QOS_TASK,
+    _build_tls_params,
+    _discovery_topic,
+    _event_topic,
+    _request_topic,
+)
 from qd_evolve.agent.server import TaskStore
 from qd_evolve.core.logger import logger
-
-QOS_TASK = 1
-QOS_EVENT = 0
-QOS_DISCOVERY = 1
-
-
-def _discovery_topic(name: str) -> str:
-    return f"$a2a/v1/discovery/{name}"
-
-def _request_topic(name: str) -> str:
-    return f"$a2a/v1/request/{name}"
-
-def _event_topic(name: str) -> str:
-    return f"$a2a/v1/event/{name}"
 
 
 class MqttHumanAgent:
@@ -168,7 +163,6 @@ class MqttHumanAgent:
             properties=will_props,
         )
 
-        from qd_evolve.agent.mqtt_transport import _build_tls_params
         tls = _build_tls_params(self._config)
         self._client = aiomqtt.Client(
             hostname=self._broker_host,

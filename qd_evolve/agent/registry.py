@@ -5,8 +5,6 @@ from __future__ import annotations
 from qd_evolve.agent.a2a_agent import A2AAgent
 from qd_evolve.agent.human_agent import HumanAgent
 
-DEFAULT_SERVER_PORT = 8000
-
 # ── Singleton ──────────────────────────────────────────────────────
 _registry: AgentRegistry | None = None
 

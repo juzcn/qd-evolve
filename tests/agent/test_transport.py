@@ -13,7 +13,9 @@ from qd_evolve.agent.a2a import (
     TaskStatus,
     make_text_message,
 )
-from qd_evolve.agent.transport import InprocTransport, HttpTransport, TransportRouter, _new_id
+from uuid import uuid4
+
+from qd_evolve.agent.transport import InprocTransport, HttpTransport, TransportRouter
 
 
 class TestInprocTransportPureFunctions:
@@ -111,7 +113,7 @@ class TestTransportRouter:
 
 class TestNewId:
     def test_generates_unique_ids(self):
-        id1 = _new_id()
-        id2 = _new_id()
+        id1 = uuid4().hex
+        id2 = uuid4().hex
         assert id1 != id2
         assert len(id1) == 32  # uuid4().hex is 32 chars

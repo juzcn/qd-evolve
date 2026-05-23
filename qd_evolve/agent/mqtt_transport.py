@@ -81,12 +81,6 @@ def _build_tls_params(config: MqttConfig) -> Any:
 def _rpc_request(method: str, params: dict, req_id: str) -> dict:
     return {"jsonrpc": "2.0", "method": method, "params": params, "id": req_id}
 
-def _rpc_response(result: dict, req_id: str) -> dict:
-    return {"jsonrpc": "2.0", "result": result, "id": req_id}
-
-def _rpc_event(method: str, params: dict) -> dict:
-    return {"jsonrpc": "2.0", "method": method, "params": params}
-
 
 class MqttTransport:
     """A2A over MQTT v5 transport.

@@ -14,6 +14,7 @@ from rich.table import Table
 from rich.text import Text
 
 from qd_evolve import __version__
+from qd_evolve.cli_utils import ReplayInput, TeeWriter
 from qd_evolve.core.config import CONFIG_PATH, Settings, load_settings, save_json
 from qd_evolve.core.logger import logger
 from qd_evolve.core.providers import ProviderRegistry
@@ -21,40 +22,6 @@ from qd_evolve.core.registry import get_registry
 
 app = typer.Typer(help="qd-evolve AI agent")
 console = Console()
-
-
-class ReplayInput:
-    """Feeds pre-recorded inputs instead of reading from prompt_toolkit."""
-
-    def __init__(self, inputs: list[str]) -> None:
-        self._inputs = list(inputs)
-        self._index = 0
-
-    def prompt(self, **kwargs: Any) -> str:
-        if self._index >= len(self._inputs):
-            raise EOFError
-        line = self._inputs[self._index]
-        self._index += 1
-        return line
-
-
-class TeeWriter:
-    """Writes to multiple file-like objects simultaneously."""
-
-    def __init__(self, *files: Any) -> None:
-        self._files = files
-
-    def write(self, text: str) -> int:
-        for f in self._files:
-            f.write(text)
-        return len(text)
-
-    def flush(self) -> None:
-        for f in self._files:
-            f.flush()
-
-    def isatty(self) -> bool:
-        return any(getattr(f, "isatty", lambda: False)() for f in self._files)
 
 
 SLASH_COMMANDS = {

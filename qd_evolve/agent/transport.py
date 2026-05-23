@@ -567,8 +567,3 @@ class TransportRouter:
             return await transport.is_online(target)
         # HttpTransport doesn't have is_online, use its HTTP check
         return await self._remote.is_online(target)
-
-
-def _new_id() -> str:
-    from uuid import uuid4
-    return uuid4().hex
