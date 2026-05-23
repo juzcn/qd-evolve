@@ -46,6 +46,7 @@ class Agent:
         self._preload_cli: set[str] = preload_cli or set()
         self._hb_task: asyncio.Task | None = None
         self._running: bool = False
+        self._run_lock: "threading.Lock" = __import__("threading").Lock()
 
     @staticmethod
     def _create_memory(entry: AgentEntry, settings: Settings, registry: ToolRegistry) -> MemoryStore | None:
@@ -166,11 +167,12 @@ class Agent:
         provider: str | None = None,
         model: str | None = None,
     ) -> str:
-        self._running = True
-        try:
-            return self._run_inner(user_input, system, provider, model)
-        finally:
-            self._running = False
+        with self._run_lock:
+            self._running = True
+            try:
+                return self._run_inner(user_input, system, provider, model)
+            finally:
+                self._running = False
 
     def _run_inner(
         self,
