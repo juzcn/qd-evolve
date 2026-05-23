@@ -104,7 +104,7 @@ class TestServerConfig:
     def test_defaults(self):
         sc = ServerConfig()
         assert sc.host == "127.0.0.1"
-        assert sc.port == 8001
+        assert sc.port == 0
 
     def test_custom(self):
         sc = ServerConfig(host="localhost", port=9000)
@@ -149,7 +149,7 @@ class TestAgentEntry:
     def test_server_config_defaults(self):
         ae = AgentEntry(name="remote")
         assert ae.server.host == "127.0.0.1"
-        assert ae.server.port == 8001
+        assert ae.server.port == 0
 
 
 class TestSettings:

@@ -746,11 +746,16 @@ def serve(
         set_transport(router)
 
     # 5. Start A2A server — bind 0.0.0.0 to accept all interfaces, display connect address
+    if not entry:
+        raise ValueError(f"Agent '{agent}' not found in config — host/port unknown")
+    if not entry.server.host:
+        raise ValueError(f"Agent '{agent}': server.host is required for A2A serve mode")
+    if not entry.server.port:
+        raise ValueError(f"Agent '{agent}': server.port is required for A2A serve mode")
     server = A2AServer(agent_core)
-    from qd_evolve.core.config import DEFAULT_BIND_HOST, DEFAULT_SERVER_HOST, DEFAULT_SERVER_PORT
     bind_host = DEFAULT_BIND_HOST
-    connect_host = entry.server.host if entry else DEFAULT_SERVER_HOST
-    port = entry.server.port if entry else DEFAULT_SERVER_PORT
+    connect_host = entry.server.host
+    port = entry.server.port
     # Ensure the AgentCard URL is set so push notification webhooks reach this server
     if server.card and not server.card.url:
         server.card.url = f"{connect_host}:{port}"
@@ -852,7 +857,7 @@ def chat(
 
     # 6. Minimal A2A server for webhook callbacks — no agent needed
     from qd_evolve.agent.server import A2AServer
-    from qd_evolve.core.config import DEFAULT_BIND_HOST, DEFAULT_SERVER_HOST, DEFAULT_SERVER_PORT
+    from qd_evolve.core.config import DEFAULT_BIND_HOST
 
     async def _on_webhook(event: dict) -> None:
         """Push webhook callback events to the CLI event queue."""
@@ -868,8 +873,12 @@ def chat(
     server = A2AServer(card=cli_card, on_task_completed=_on_webhook)
     bind_host = DEFAULT_BIND_HOST
     a2a_cli_cfg = settings.agents_config.a2a_cli
-    connect_host = a2a_cli_cfg.server.host or DEFAULT_SERVER_HOST
-    port = a2a_cli_cfg.server.port or DEFAULT_SERVER_PORT
+    if not a2a_cli_cfg.server.host:
+        raise ValueError("a2a_cli.server.host is required for A2A chat mode")
+    if not a2a_cli_cfg.server.port:
+        raise ValueError("a2a_cli.server.port is required for A2A chat mode")
+    connect_host = a2a_cli_cfg.server.host
+    port = a2a_cli_cfg.server.port
 
     agents = settings.agents_config.agents
 

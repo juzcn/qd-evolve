@@ -17,8 +17,6 @@ MCP_DIR = "tools/mcp"
 STAGING_DIR = ".qd_evolve/staging"
 DEFAULT_MEMORY_DB = "memory.db"
 LOG_DIR = "logs"
-DEFAULT_SERVER_HOST = "127.0.0.1"
-DEFAULT_SERVER_PORT = 8001
 DEFAULT_BIND_HOST = "0.0.0.0"
 
 
@@ -87,8 +85,8 @@ class LogConfig(BaseModel):
 
 
 class ServerConfig(BaseModel):
-    host: str = DEFAULT_SERVER_HOST
-    port: int = DEFAULT_SERVER_PORT
+    host: str = "127.0.0.1"
+    port: int = 0
 
 
 class ToolboxSection(BaseModel):
@@ -164,10 +162,11 @@ class AgentsConfig(BaseModel):
     def _validate_ports(self) -> "AgentsConfig":
         ports: dict[int, list[str]] = {}
         for agent in self.agents:
-            ports.setdefault(agent.server.port, []).append(f"agent '{agent.name}'")
+            if agent.server.port:
+                ports.setdefault(agent.server.port, []).append(f"agent '{agent.name}'")
 
-        cli_port = self.a2a_cli.server.port or DEFAULT_SERVER_PORT
-        ports.setdefault(cli_port, []).append("a2a_cli server")
+        if self.a2a_cli.server.port:
+            ports.setdefault(self.a2a_cli.server.port, []).append("a2a_cli server")
 
         dupes = {p: owners for p, owners in ports.items() if len(owners) > 1}
         if dupes:

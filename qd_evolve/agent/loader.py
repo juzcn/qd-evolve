@@ -271,13 +271,15 @@ def create_agent(name: str, settings: Settings, *, need_a2a: bool | None = None,
         from qd_evolve.agent.a2a import AgentCard, AgentCapabilities
         from qd_evolve.agent.server import TaskStore
 
-        server_host = entry.server.host or "127.0.0.1"
-        server_port = entry.server.port or 8000
         if mqtt_on:
             broker = settings.agents_config.mqtt_broker
             card_url = f"mqtt://{broker.host}:{broker.port}"
         else:
-            card_url = f"http://{server_host}:{server_port}"
+            if not entry.server.host:
+                raise ValueError(f"Agent '{name}': server.host is required for A2A mode")
+            if not entry.server.port:
+                raise ValueError(f"Agent '{name}': server.port is required for A2A mode")
+            card_url = f"http://{entry.server.host}:{entry.server.port}"
         card = AgentCard(
             name=name,
             description=entry.description,

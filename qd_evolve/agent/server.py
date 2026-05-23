@@ -21,7 +21,7 @@ from qd_evolve.agent.a2a import (
     make_text_message,
     make_task_with_text,
 )
-from qd_evolve.core.config import DEFAULT_BIND_HOST, DEFAULT_SERVER_HOST, DEFAULT_SERVER_PORT
+from qd_evolve.core.config import DEFAULT_BIND_HOST
 from qd_evolve.core.logger import logger
 
 
@@ -101,9 +101,9 @@ class A2AServer:
         from qd_evolve.core.config import load_settings
         settings = load_settings()
         a2a_cli = settings.agents_config.a2a_cli
-        host = a2a_cli.server.host or DEFAULT_SERVER_HOST
-        port = a2a_cli.server.port or DEFAULT_SERVER_PORT
-        if not port:
+        host = a2a_cli.server.host
+        port = a2a_cli.server.port
+        if not host or not port:
             return
         cli_url = f"http://{host}:{port}"
         # Don't forward to ourselves (CLI stub mode)
@@ -136,7 +136,7 @@ class A2AServer:
         except Exception as e:
             logger.debug("A2A server: forward to CLI failed: %s", e)
 
-    async def start(self, host: str = DEFAULT_BIND_HOST, port: int = DEFAULT_SERVER_PORT) -> None:
+    async def start(self, host: str = DEFAULT_BIND_HOST, port: int = 0) -> None:
         app = web.Application()
         app.router.add_get("/.well-known/agent.json", self._handle_agent_card)
         app.router.add_post("/", self._handle_rpc)
