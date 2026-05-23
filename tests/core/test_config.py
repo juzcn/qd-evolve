@@ -103,7 +103,7 @@ class TestMCPServerConfig:
 class TestServerConfig:
     def test_defaults(self):
         sc = ServerConfig()
-        assert sc.host == "127.0.0.1"
+        assert sc.host == ""
         assert sc.port == 0
 
     def test_custom(self):
@@ -120,7 +120,7 @@ class TestAgentEntry:
         assert ae.model == ""
         assert ae.system_prompt_template == "default"
         assert ae.memory_db == "memory.db"
-        assert ae.server.host == "127.0.0.1"
+        assert ae.server.host == ""
 
     def test_effective_provider_fallback(self, minimal_settings):
         ae = AgentEntry(name="test")
@@ -148,7 +148,7 @@ class TestAgentEntry:
 
     def test_server_config_defaults(self):
         ae = AgentEntry(name="remote")
-        assert ae.server.host == "127.0.0.1"
+        assert ae.server.host == ""
         assert ae.server.port == 0
 
 
@@ -190,6 +190,36 @@ class TestSettings:
     def test_is_configured_false_no_agent(self, minimal_settings):
         minimal_settings.agents_config = AgentsConfig(chat_agent="nonexistent", agents=[])
         assert minimal_settings.is_configured is False
+
+    def test_is_configured_human_agent(self):
+        """Human agents don't need api_key — is_configured is True."""
+        s = Settings(
+            max_iterations=5,
+            tool_output_limit=2000,
+            providers=[ProviderConfig(name="test", api_key="")],
+            default_provider="test",
+            default_model="test-model",
+            agents_config=AgentsConfig(
+                chat_agent="human",
+                agents=[AgentEntry(name="human", provider="human")],
+            ),
+        )
+        assert s.is_configured is True
+
+    def test_is_configured_missing_provider(self):
+        """Agent references nonexistent provider — is_configured is False."""
+        s = Settings(
+            max_iterations=5,
+            tool_output_limit=2000,
+            providers=[ProviderConfig(name="test", api_key="sk-key")],
+            default_provider="test",
+            default_model="test-model",
+            agents_config=AgentsConfig(
+                chat_agent="default",
+                agents=[AgentEntry(name="default", provider="nonexistent_provider")],
+            ),
+        )
+        assert s.is_configured is False
 
     def test_stream_default(self, minimal_settings):
         assert minimal_settings.stream is False

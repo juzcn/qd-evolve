@@ -85,7 +85,7 @@ class LogConfig(BaseModel):
 
 
 class ServerConfig(BaseModel):
-    host: str = "127.0.0.1"
+    host: str = ""
     port: int = 0
 
 
@@ -113,8 +113,8 @@ class MqttConfig(BaseModel):
 
 class MqttBrokerConfig(BaseModel):
     """MQTT broker configuration. host/port are where clients connect. MQTT v5 only."""
-    host: str = "127.0.0.1"
-    port: int = 1883
+    host: str = ""
+    port: int = 0
     will_delay_interval: int = 0
 
 

@@ -92,6 +92,24 @@ class TestPromptTemplateManager:
         result = mgr.render("custom", agent_name="testbot")
         assert "Custom: testbot" in result
 
+    def test_has_template_builtin(self):
+        mgr = PromptTemplateManager()
+        assert mgr.has_template("default") is True
+
+    def test_has_template_nonexistent(self):
+        mgr = PromptTemplateManager()
+        assert mgr.has_template("absolutely_nonexistent_template_xyz") is False
+
+    def test_render_nonexistent_template_raises(self):
+        mgr = PromptTemplateManager()
+        from jinja2 import TemplateNotFound
+        with pytest.raises(TemplateNotFound):
+            mgr.render("nonexistent_xyz_123")
+
+    def test_has_template_a2a_default(self):
+        mgr = PromptTemplateManager()
+        assert mgr.has_template("a2a-default") is True
+
     def test_default_context_includes_date(self):
         mgr = PromptTemplateManager()
         ctx = mgr._default_context()

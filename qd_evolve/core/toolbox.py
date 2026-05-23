@@ -1,7 +1,7 @@
 """Toolbox — manage tool state: enabled / preload / disabled.
 
 All state is in config.json under agents_config.agents[].toolbox sections.
-Every operation requires an agent_name (defaults to "default").
+Every operation requires an agent_name.
 """
 
 import json
@@ -19,19 +19,17 @@ TOOLBOX_MIGRATION_PATH = Path("toolbox.json")
 _EMPTY = {"tools": {}, "mcp_servers": {}, "bridge": {}, "cli": {}, "skills": {}}
 
 
-def _load(agent_name: str | None = None) -> dict[str, Any]:
-    name = agent_name or "default"
+def _load(agent_name: str) -> dict[str, Any]:
     if CONFIG_PATH.is_file():
         data = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
         agents = data.get("agents_config", {}).get("agents", [])
         for agent in agents:
-            if agent.get("name") == name:
+            if agent.get("name") == agent_name:
                 return agent.get("toolbox", deepcopy(_EMPTY))
     return deepcopy(_EMPTY)
 
 
-def _save(section_data: dict[str, Any], agent_name: str | None = None) -> None:
-    name = agent_name or "default"
+def _save(section_data: dict[str, Any], agent_name: str) -> None:
     if CONFIG_PATH.is_file():
         data = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
     else:
@@ -40,12 +38,12 @@ def _save(section_data: dict[str, Any], agent_name: str | None = None) -> None:
     agents = data.get("agents_config", {}).get("agents", [])
     found = False
     for i, agent in enumerate(agents):
-        if agent.get("name") == name:
+        if agent.get("name") == agent_name:
             agents[i]["toolbox"] = section_data
             found = True
             break
     if not found:
-        agents.append({"name": name, "toolbox": section_data})
+        agents.append({"name": agent_name, "toolbox": section_data})
         data["agents_config"]["agents"] = agents
 
     CONFIG_PATH.write_text(
@@ -55,24 +53,24 @@ def _save(section_data: dict[str, Any], agent_name: str | None = None) -> None:
 
 # ── state queries ──────────────────────────────────────────────
 
-def get_state(section: str, name: str, agent_name: str | None = None) -> str:
+def get_state(section: str, name: str, agent_name: str) -> str:
     data = _load(agent_name)
     return data.get(section, {}).get(name, "enabled")
 
 
-def get_disabled(section: str, agent_name: str | None = None) -> set[str]:
+def get_disabled(section: str, agent_name: str) -> set[str]:
     data = _load(agent_name)
     return {k for k, v in data.get(section, {}).items() if v == "disabled"}
 
 
-def get_preloaded(section: str, agent_name: str | None = None) -> set[str]:
+def get_preloaded(section: str, agent_name: str) -> set[str]:
     data = _load(agent_name)
     return {k for k, v in data.get(section, {}).items() if v == "preload"}
 
 
 # ── state mutations ────────────────────────────────────────────
 
-def set_state(section: str, name: str, state: str, agent_name: str | None = None) -> bool:
+def set_state(section: str, name: str, state: str, agent_name: str) -> bool:
     if section in ("mcp_servers", "bridge"):
         if state not in BRIDGE_VALID_STATES:
             return False
@@ -90,7 +88,7 @@ def set_state(section: str, name: str, state: str, agent_name: str | None = None
     return True
 
 
-def toggle(section: str, name: str, agent_name: str | None = None) -> str:
+def toggle(section: str, name: str, agent_name: str) -> str:
     if section in ("mcp_servers", "bridge"):
         current = get_state(section, name, agent_name)
         new_state = "disabled" if current != "disabled" else "enabled"
@@ -104,7 +102,7 @@ def toggle(section: str, name: str, agent_name: str | None = None) -> str:
 
 # ── apply to registries ────────────────────────────────────────
 
-def apply_to_tools(registry: Any, preload_tools_config: set[str], agent_name: str | None = None) -> None:
+def apply_to_tools(registry: Any, preload_tools_config: set[str], agent_name: str) -> None:
     for td in registry.list_tools():
         state = get_state("tools", td.name, agent_name)
         if state == "disabled":
@@ -115,7 +113,7 @@ def apply_to_tools(registry: Any, preload_tools_config: set[str], agent_name: st
                 preload_tools_config.add(td.name)
 
 
-def apply_to_cli_registry(registry: Any, preload_cli_config: set[str], agent_name: str | None = None) -> None:
+def apply_to_cli_registry(registry: Any, preload_cli_config: set[str], agent_name: str) -> None:
     for tool in registry.list_tools():
         state = get_state("cli", tool.name, agent_name)
         if state == "disabled":
@@ -126,7 +124,7 @@ def apply_to_cli_registry(registry: Any, preload_cli_config: set[str], agent_nam
                 preload_cli_config.add(tool.name)
 
 
-def apply_to_skill_registry(registry: Any, preload_skills_config: set[str], agent_name: str | None = None) -> None:
+def apply_to_skill_registry(registry: Any, preload_skills_config: set[str], agent_name: str) -> None:
     for skill in registry.get_all_skills():
         state = get_state("skills", skill.name, agent_name)
         if state == "disabled":
@@ -137,7 +135,7 @@ def apply_to_skill_registry(registry: Any, preload_skills_config: set[str], agen
                 preload_skills_config.add(skill.name)
 
 
-def get_disabled_bridges(agent_name: str | None = None) -> set[str]:
+def get_disabled_bridges(agent_name: str) -> set[str]:
     disabled = get_disabled("bridge", agent_name)
     for name in get_disabled("mcp_servers", agent_name):
         disabled.add(f"mcp:{name}")

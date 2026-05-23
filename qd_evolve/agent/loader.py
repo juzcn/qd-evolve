@@ -204,7 +204,7 @@ def create_agent(name: str, settings: Settings, *, need_a2a: bool | None = None,
 
     # ── System prompt via template ────────────────────────────
     template_mgr = PromptTemplateManager()
-    template_name = entry.system_prompt_template or "default"
+    template_name = entry.system_prompt_template
 
     # MQTT mode: prefer mqtt-{template} over a2a-{template}
     mqtt_on = need_mqtt
@@ -273,6 +273,10 @@ def create_agent(name: str, settings: Settings, *, need_a2a: bool | None = None,
 
         if mqtt_on:
             broker = settings.agents_config.mqtt_broker
+            if not broker.host:
+                raise ValueError("mqtt_broker.host is required for MQTT mode")
+            if not broker.port:
+                raise ValueError("mqtt_broker.port is required for MQTT mode")
             card_url = f"mqtt://{broker.host}:{broker.port}"
         else:
             if not entry.server.host:

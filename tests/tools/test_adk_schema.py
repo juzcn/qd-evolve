@@ -3,6 +3,7 @@
 import types
 import typing
 from typing import Any, Optional
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -132,3 +133,41 @@ class TestGoogleAdkToOpenaiSchema:
         schema = google_adk_to_openai_schema(my_tool)
         assert "filter" not in schema["required"]
         assert schema["properties"]["filter"].get("nullable") is True
+
+    def test_union_all_none(self):
+        """Union where all args are None — returns empty schema."""
+        result = _annotation_to_json_type(type(None) | type(None))
+        assert result == {}
+
+    def test_optional_with_empty_inner(self):
+        """Optional[object] — inner is empty schema, nullable not added."""
+        result = _annotation_to_json_type(Optional[object])
+        # object maps to {}, which is falsy — nullable not added
+        assert isinstance(result, dict)
+
+    def test_named_type_str_fallback(self):
+        """Named type matching 'str' by __name__ attribute."""
+        # Create a mock that has __name__ = "str"
+        mock_type = MagicMock()
+        mock_type.__name__ = "str"
+        mock_type.__str__ = lambda self: "str"
+        result = _annotation_to_json_type(mock_type)
+        assert result == {"type": "string"}
+
+    def test_named_type_int_fallback(self):
+        mock_type = MagicMock()
+        mock_type.__name__ = "int"
+        result = _annotation_to_json_type(mock_type)
+        assert result == {"type": "integer"}
+
+    def test_named_type_float_fallback(self):
+        mock_type = MagicMock()
+        mock_type.__name__ = "float"
+        result = _annotation_to_json_type(mock_type)
+        assert result == {"type": "number"}
+
+    def test_named_type_bool_fallback(self):
+        mock_type = MagicMock()
+        mock_type.__name__ = "bool"
+        result = _annotation_to_json_type(mock_type)
+        assert result == {"type": "boolean"}

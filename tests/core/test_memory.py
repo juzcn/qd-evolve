@@ -182,3 +182,75 @@ class TestParseTimeRange:
         entries = memory_store.recall(keywords=["x"], time_range="invalid_format", limit=5)
         # Invalid format is logged but handled gracefully — returns empty list
         assert isinstance(entries, list)
+
+
+class TestParseTimeRangeDirect:
+    """Test _parse_time_range directly via MemoryStore for all patterns."""
+
+    def test_empty_string(self, memory_store):
+        start, end = memory_store._parse_time_range("")
+        assert start is None
+        assert end is None
+
+    def test_last_session(self, memory_store):
+        start, end = memory_store._parse_time_range("last_session")
+        assert start is None
+        assert end is None
+
+    def test_today(self, memory_store):
+        start, end = memory_store._parse_time_range("today")
+        assert start is not None
+        assert end is None
+        # start should be today at midnight
+        assert start.endswith("00:00:00")
+
+    def test_yesterday(self, memory_store):
+        start, end = memory_store._parse_time_range("yesterday")
+        assert start is not None
+        assert end is not None
+
+    def test_this_week(self, memory_store):
+        start, end = memory_store._parse_time_range("this_week")
+        assert start is not None
+        assert end is None
+
+    def test_last_week(self, memory_store):
+        start, end = memory_store._parse_time_range("last_week")
+        assert start is not None
+        assert end is not None
+
+    def test_this_month(self, memory_store):
+        start, end = memory_store._parse_time_range("this_month")
+        assert start is not None
+        assert end is None
+
+    def test_last_month(self, memory_store):
+        start, end = memory_store._parse_time_range("last_month")
+        assert start is not None
+        assert end is not None
+
+    def test_last_Nd(self, memory_store):
+        start, end = memory_store._parse_time_range("last_7d")
+        assert start is not None
+        assert end is None
+
+    def test_date_range(self, memory_store):
+        start, end = memory_store._parse_time_range("2025-01-01~2025-01-15")
+        assert start is not None
+        assert end is not None
+        assert "2025-01-01" in start
+        assert "2025-01-15" in end
+
+    def test_single_date(self, memory_store):
+        start, end = memory_store._parse_time_range("2025-06-01")
+        assert start is not None
+        assert end is None
+
+    def test_unknown_format_returns_none(self, memory_store):
+        start, end = memory_store._parse_time_range("garbage_format")
+        assert start is None
+        assert end is None
+
+    def test_whitespace_handling(self, memory_store):
+        start, end = memory_store._parse_time_range("  today  ")
+        assert start is not None
