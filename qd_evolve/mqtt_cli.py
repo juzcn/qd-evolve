@@ -725,7 +725,7 @@ def serve(
 
     # 2. Per-process init (skills, CLI tools, bridges, registry injection)
     if not is_human:
-        init_process(settings)
+        init_process(settings, agent_name=agent)
 
     # 3. Create agent via loader
     try:

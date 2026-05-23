@@ -48,7 +48,7 @@ def get_bridges() -> list[Any]:
 
 # ── Per-process initialization ─────────────────────────────────────
 
-def init_process(settings: Settings) -> None:
+def init_process(settings: Settings, agent_name: str = "") -> None:
     """Per-process setup: SkillRegistry, CLIRegistry, BridgeManager.connect_all,
     registry injection into loader tools."""
     global _skill_registry, _cli_registry, _bridges
@@ -75,7 +75,7 @@ def init_process(settings: Settings) -> None:
 
     # Bridges
     from tools.bridge import BridgeManager
-    _bridges = BridgeManager.connect_all(settings)
+    _bridges = BridgeManager.connect_all(settings, agent_name=agent_name)
 
     logger.debug("init_process: skills=%d, cli=%d, bridges=%d",
                  len(_skill_registry.get_all_skills()),
@@ -102,7 +102,7 @@ def _a2a_enabled(settings: Settings) -> bool:
 
 # ── Per-agent factory ──────────────────────────────────────────────
 
-def create_agent(name: str, settings: Settings, *, need_a2a: bool | None = None, need_mqtt: bool = False) -> Any:
+def create_agent(name: str, settings: Settings, *, need_a2a: bool | None = None, need_mqtt: bool = False, need_gchat: bool = False) -> Any:
     """Create a fully initialized Agent (or A2AAgent / MqttAgent) from name + settings.
 
     Resolves entry, registries, and providers internally.
@@ -221,6 +221,12 @@ def create_agent(name: str, settings: Settings, *, need_a2a: bool | None = None,
         if template_mgr.has_template(prefixed):
             template_name = prefixed
 
+    # GChat mode: prefer gchat-{template} over all above
+    if need_gchat:
+        gchat_prefixed = f"gchat-{template_name}"
+        if template_mgr.has_template(gchat_prefixed):
+            template_name = gchat_prefixed
+
     system_prompt = template_mgr.render(
         template_name,
         unpreloaded_skills=unloaded_skills,
@@ -242,6 +248,7 @@ def create_agent(name: str, settings: Settings, *, need_a2a: bool | None = None,
         human_agent_names=", ".join(a.name for a in settings.agents_config.agents if a.is_human),
         mqtt_broker_host=settings.agents_config.mqtt_broker.host,
         mqtt_broker_port=settings.agents_config.mqtt_broker.port,
+        group_members=", ".join(a.name for a in settings.agents_config.agents),
     )
     logger.debug("Agent [%s]: system prompt assembled (%d chars), template=%s\n%s", name, len(system_prompt), template_name, system_prompt)
 

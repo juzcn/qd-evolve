@@ -485,7 +485,7 @@ def chat(
         raise SystemExit(1)
 
     # 2. Per-process init (skills, CLI tools, bridges, registry injection)
-    init_process(settings)
+    init_process(settings, agent_name=chat_agent_name)
 
     # 3. Load the specified agent in-process (pure Agent, no A2A)
     chat_agent_name = agent
@@ -544,3 +544,6 @@ app.add_typer(mqtt_app, name="mqtt")
 
 from qd_evolve.toolbox_tui import toolbox_app
 app.add_typer(toolbox_app, name="toolbox")
+
+from qd_evolve.gchat_cli import gchat_app
+app.add_typer(gchat_app, name="gchat")

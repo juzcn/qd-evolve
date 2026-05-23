@@ -82,12 +82,12 @@ class _BridgeManager:
         cls._loaded = True
 
     @classmethod
-    def connect_all(cls, settings: Any) -> list[Bridge]:
+    def connect_all(cls, settings: Any, agent_name: str = "") -> list[Bridge]:
         """Discover and connect all registered bridge types. Returns flat list."""
         cls._ensure_loaded()
         from qd_evolve.core.toolbox import get_disabled_bridges
 
-        disabled = get_disabled_bridges()
+        disabled = get_disabled_bridges(agent_name) if agent_name else set()
         all_bridges: list[Bridge] = []
 
         for bt_name, spec in cls._types.items():
