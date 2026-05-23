@@ -497,9 +497,12 @@ class MqttTransport:
                         except (asyncio.CancelledError, Exception):
                             continue
                         etype = event.get("type", "")
+                        logger.debug("MqttTransport: send_stream event type=%s content_len=%d",
+                                   etype, len(str(event.get("content", ""))))
                         if etype == "task_completed":
                             result_text = event.get("content", "")
                             final_state_str = event.get("state", "completed")
+                            logger.debug("MqttTransport: send_stream FINAL via task_completed (%d chars)", len(result_text))
                             try:
                                 final_state = TaskState(final_state_str)
                             except ValueError:

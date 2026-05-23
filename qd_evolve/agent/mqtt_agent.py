@@ -543,6 +543,13 @@ class MqttAgent:
         task.status.state = TaskState.working
         self.task_store.put(task)
 
+        # Temporarily hook _on_event to skip "completed" — result goes via response topic.
+        base_agent = self.agent.agent
+        original_on_event = base_agent._on_event
+        def _filter_completed(event: dict) -> None:
+            if event.get("type") != "completed":
+                original_on_event(event)
+        base_agent._on_event = _filter_completed
         try:
             result = await asyncio.to_thread(self.agent.run, task_text)
             logger.info("MqttAgent: message/send from '%s' done — %s chars", from_agent, len(result))
@@ -556,6 +563,8 @@ class MqttAgent:
                 state=TaskState.failed,
                 message=make_text_message("agent", f"{type(e).__name__}: {e}"),
             )
+        finally:
+            base_agent._on_event = original_on_event
         self.task_store.put(task)
 
         if req_id:
@@ -571,7 +580,14 @@ class MqttAgent:
         task.status.state = TaskState.working
         self.task_store.put(task)
 
-        # Run agent — _push_events() handles intermediate events
+        # Run agent — _push_events() handles intermediate events.
+        # Hook _on_event to skip "completed" broadcast: result is returned via response topic.
+        base_agent = self.agent.agent
+        original_on_event = base_agent._on_event
+        def _filter_completed(event: dict) -> None:
+            if event.get("type") != "completed":
+                original_on_event(event)
+        base_agent._on_event = _filter_completed
         try:
             result = await asyncio.to_thread(self.agent.run, task_text)
             final_state = TaskState.completed
@@ -579,17 +595,11 @@ class MqttAgent:
             logger.exception("MqttAgent: message/stream from '%s' failed: %s", from_agent, e)
             result = f"{type(e).__name__}: {e}"
             final_state = TaskState.failed
+        finally:
+            base_agent._on_event = original_on_event
 
         logger.info("MqttAgent: message/stream from '%s' done — %s chars, state=%s",
                      from_agent, len(result), final_state.value)
-
-        # Push final event
-        agent_name = self.card.name
-        events_topic = _event_topic(agent_name)
-        final_event = json.dumps({"jsonrpc": "2.0", "method": "event",
-                                   "params": {"type": "final", "state": final_state.value, "content": result}},
-                                  ensure_ascii=False)
-        await self._client.publish(events_topic, final_event.encode("utf-8"), qos=QOS_EVENT)
 
         # Update task store
         task.status = TaskStatus(state=final_state, message=make_text_message("agent", result))
@@ -637,6 +647,10 @@ class MqttAgent:
         try:
             while True:
                 event = await queue.get()
+                etype = event.get("type", "")
+                content_len = len(str(event.get("content", "")))
+                logger.debug("MqttAgent: _push_events PUBLISH type=%s content_len=%d",
+                           etype, content_len)
                 try:
                     rpc = json.dumps({"jsonrpc": "2.0", "method": "event", "params": event}, ensure_ascii=False)
                     await self._client.publish(events_topic, rpc.encode("utf-8"), qos=QOS_EVENT)

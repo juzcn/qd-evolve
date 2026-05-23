@@ -370,7 +370,10 @@ async def _async_chat_loop(
             try:
                 async for sr in transport.resubscribe(name):
                     if sr.statusUpdate and sr.statusUpdate.metadata:
-                        await event_queue.put((name, sr.statusUpdate.metadata))
+                        meta = sr.statusUpdate.metadata
+                        logger.debug("MQTT CLI: _event_stream_worker '%s' recv type=%s content_len=%d",
+                                   name, meta.get("type", ""), len(str(meta.get("content", ""))))
+                        await event_queue.put((name, meta))
                     retry_delay = 2
             except asyncio.CancelledError:
                 return
@@ -443,6 +446,8 @@ async def _async_chat_loop(
                 except Exception:
                     continue
                 etype = event.get("type", "")
+                logger.debug("MQTT CLI: main loop recv event agent=%s type=%s content_len=%d",
+                           agent_name, etype, len(str(event.get("content", ""))))
 
                 # ── Presence events ──
                 if etype == "agent_online":
