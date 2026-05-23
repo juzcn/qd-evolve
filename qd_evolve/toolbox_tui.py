@@ -2,11 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 import typer
 from rich.console import Console
-from rich.table import Table
 
 from qd_evolve.core.toolbox import get_state, set_state, state_mark
 
@@ -53,7 +50,7 @@ def toolbox(
 def _toolbox_interactive(agent_name: str | None = None) -> None:
     """Interactive toolbox shell."""
     from qd_evolve.core.toolbox import (
-        get_state, set_state, toggle as tb_toggle,
+        set_state, toggle as tb_toggle,
     )
 
     label = f" (agent: {agent_name})" if agent_name else ""

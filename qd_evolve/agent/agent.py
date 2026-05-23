@@ -9,7 +9,6 @@ from qd_evolve.core.config import AgentEntry, Settings
 from qd_evolve.core.logger import logger
 from qd_evolve.core.memory import MemoryStore, RecalledMemoryRegistry
 from qd_evolve.core.providers import ProviderRegistry
-from qd_evolve.core.prompts import PromptTemplateManager
 from qd_evolve.core.registry import ToolRegistry
 
 

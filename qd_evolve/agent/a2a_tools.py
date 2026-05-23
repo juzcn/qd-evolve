@@ -8,11 +8,8 @@ from typing import Any
 from uuid import uuid4
 
 from qd_evolve.agent.a2a import (
-    Message,
-    Part,
     Task,
     TaskState,
-    TaskStatus,
     make_text_message,
 )
 from qd_evolve.core.logger import logger

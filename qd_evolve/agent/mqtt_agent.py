@@ -22,13 +22,10 @@ from paho.mqtt.packettypes import PacketTypes
 
 from qd_evolve.agent.a2a import (
     AgentCard,
-    AgentCapabilities,
     Message,
-    StreamResponse,
     Task,
     TaskState,
     TaskStatus,
-    TaskStatusUpdateEvent,
     make_text_message,
     make_task_with_text,
 )

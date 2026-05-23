@@ -16,7 +16,7 @@ from qd_evolve.core.config import SKILLS_DIR, CLI_TOOLS_DIR, AgentEntry, Setting
 from qd_evolve.core.logger import logger
 from qd_evolve.core.providers import ProviderRegistry
 from qd_evolve.core.prompts import PromptTemplateManager
-from qd_evolve.core.registry import ToolRegistry, get_registry
+from qd_evolve.core.registry import get_registry
 
 
 # ── Module-level singletons ────────────────────────────────────────

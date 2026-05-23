@@ -13,7 +13,6 @@ from qd_evolve.agent.a2a import (
     AgentCapabilities,
     AgentExtension,
     Message,
-    Part,
     StreamResponse,
     Task,
     TaskState,

@@ -9,7 +9,6 @@ from typing import AsyncIterator, Protocol, runtime_checkable
 from qd_evolve.agent.a2a import (
     AgentCard,
     Message,
-    Part,
     StreamResponse,
     Task,
     TaskState,
@@ -223,7 +222,6 @@ class InprocTransport:
             agent_node = self._lazy_load(target, registry)
             if agent_node is None:
                 return AgentCard(name=target, description=f"Agent '{target}' not found")
-        from qd_evolve.agent.a2a import AgentCapabilities, AgentExtension
         from qd_evolve.agent.server import A2AServer
         server = A2AServer(agent_node)
         return server._get_extended_agent_card()

@@ -9,7 +9,6 @@ via webhook callback when the human responds.
 from __future__ import annotations
 
 import asyncio
-from typing import Any
 
 from qd_evolve.agent.a2a import (
     AgentCard,

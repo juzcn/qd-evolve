@@ -8,6 +8,7 @@ import pytest
 
 class TestInstallMcp:
     def test_install_creates_staging_file(self, tmp_path, monkeypatch):
+        import qd_evolve.tools.install_mcp  # ensure submodule attr exists for patch()
         monkeypatch.setattr("qd_evolve.tools.staging._staging_base", lambda: tmp_path / ".qd_evolve" / "staging")
         from qd_evolve.tools.staging import ensure_staging_dirs
         ensure_staging_dirs()

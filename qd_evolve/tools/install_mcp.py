@@ -4,7 +4,6 @@ import json
 import shutil
 import subprocess
 import sys
-from pathlib import Path
 
 from qd_evolve.core.config import MCPServerConfig
 from qd_evolve.tools import get_registry
