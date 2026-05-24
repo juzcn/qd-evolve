@@ -1,6 +1,6 @@
 # QD-Evolve
 
-Multi-agent AI framework with A2A protocol support, persistent memory, and extensible tool system.
+Multi-agent AI framework with A2A protocol support, group chat, persistent memory, and extensible tool system.
 
 ## Quick Start
 
@@ -24,22 +24,28 @@ qd-evolve mqtt
 
 # Run an agent as MQTT-accessible server
 qd-evolve mqtt serve --agent <name>
+
+# Group chat — WeChat-style multi-agent group (requires Mosquitto v5 broker)
+qd-evolve gchat --agent <name>
+
+# Manage tool enable/disable/preload
+qd-evolve toolbox
 ```
 
 ## Architecture
 
 ```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│   Chat CLI   │     │   A2A CLI    │     │  MQTT CLI   │
-│  (in-proc)   │     │ (HTTP/SSE)   │     │  (MQTT v5)  │
-└──────┬───────┘     └──────┬───────┘     └──────┬───────┘
-       │                    │                     │
-       ▼                    ▼                     ▼
-┌──────────────────────────────────────────────────────────┐
-│                    Agent Layer                            │
-│  Agent ← A2AAgent ← MqttAgent  |  HumanAgent (no LLM)   │
-│  AgentRegistry  |  TransportRouter  |  EventSubscribers  │
-└──────────────────────────┬───────────────────────────────┘
+┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐
+│   Chat CLI   │  │   A2A CLI    │  │  MQTT CLI   │  │  GChat CLI  │
+│  (in-proc)   │  │ (HTTP/SSE)   │  │  (MQTT v5)  │  │ (MQTT v5)   │
+└──────┬───────┘  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘
+       │                 │                  │                  │
+       ▼                 ▼                  ▼                  ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                          Agent Layer                                  │
+│  Agent ← A2AAgent ← MqttAgent ← GroupChatAgent  |  HumanAgent       │
+│  AgentRegistry  |  TransportRouter  |  EventSubscribers             │
+└──────────────────────────┬───────────────────────────────────────────┘
                            │
         ┌──────────────────┼──────────────────┐
         ▼                  ▼                  ▼
@@ -49,26 +55,28 @@ qd-evolve mqtt serve --agent <name>
   └──────────┘      └──────────┘      └──────────┘
 ```
 
-### Three Independent Systems
+### Four Independent Systems
 
 | System | Entry | Transport | Use Case |
 |--------|-------|-----------|----------|
 | Chat | `qd-evolve` | In-process only | Single-agent, no network |
 | A2A | `qd-evolve a2a` | HTTP + in-proc | Multi-agent over HTTP/SSE |
 | MQTT | `qd-evolve mqtt` | MQTT v5 + in-proc | Multi-agent over MQTT |
+| GChat | `qd-evolve gchat` | MQTT v5 (group topics) | WeChat-style group chat |
 
 Each system is fully independent — no protocol fallback between them.
 
 ### Agent Hierarchy
 
-- **Agent** — Pure LLM loop: call API → execute tools → repeat. Manages messages, memory, heartbeat, callbacks.
+- **Agent** — Pure LLM loop: call API → execute tools → repeat. Manages messages, memory, heartbeat, callbacks. Serialized with `threading.Lock` to prevent concurrent corruption.
 - **A2AAgent** — Wraps Agent, adds A2A identity (AgentCard, TaskStore), event subscriber fan-out, heartbeat override with multi-agent template.
 - **MqttAgent** — Wraps A2AAgent, adds MQTT v5 lifecycle (connect, LWT, subscribe, publish).
+- **GroupChatAgent** — Wraps MqttAgent, adds group chat behavior: subscribes to `/chat` topics, deduplication, parallel `agent.run()`, group message publishing. Owns heartbeat loop using `group-heartbeat.j2` template.
 - **HumanAgent** — Implements AgentProtocol directly. No LLM, no tools, no memory. Returns `input_required`, completes asynchronously.
 
 ### Transport
 
-`TransportRouter(inproc, remote)` — routes to in-process for local agents, to `HttpTransport` or `MqttTransport` for remote. Never both remote transports simultaneously.
+`TransportRouter(inproc, remote)` — routes to in-process for local agents, to `HttpTransport` or `MqttTransport` for remote. Never both remote transports simultaneously. Group chat uses a separate `GroupChatTransport` with its own MQTT connection on `$a2a/v1/group/+/chat` topics, keeping the MqttTransport sole-consumer design intact.
 
 ## Configuration
 
@@ -86,7 +94,7 @@ All configuration via `config.json`. No CLI config commands, no `.env` files.
       "base_url": "https://api.openai.com/v1",
       "api": "openai-completions",
       "models": {
-        "gpt-4o": { "context_window": 128000, "input_price": 2.5, "output_price": 10 }
+        "gpt-4o": { "context_window": 128000, "cost": { "input": 2.5, "output": 10 } }
       }
     },
     "anthropic": {
@@ -104,7 +112,7 @@ All configuration via `config.json`. No CLI config commands, no `.env` files.
 }
 ```
 
-Three API types: `openai-completions`, `openai-response`, `anthropic`. Set at provider level via `api` field. Streaming is global (`stream` field). Reasoning/thinking is per-model (`reasoning: true`).
+Three API types: `openai-completions`, `openai-response`, `anthropic`. Set at provider level via `api` field. Streaming is global (`stream` field). Reasoning/thinking is per-model (`reasoning: true`). Per-model cost tracking via `ModelCost`.
 
 ### Multi-Agent
 
@@ -118,7 +126,7 @@ Three API types: `openai-completions`, `openai-response`, `anthropic`. Set at pr
         "description": "Plans and delegates tasks",
         "provider": "openai",
         "model": "gpt-4o",
-        "system_prompt_template": "planner.j2",
+        "system_prompt_template": "default",
         "memory_db": "planner.db",
         "server": { "host": "127.0.0.1", "port": 8001 },
         "toolbox": { "tools": {}, "bridge": { "oat:boat": "enabled" } }
@@ -196,8 +204,10 @@ Extensible tool source integration. Each bridge type self-registers with `Bridge
 
 | Bridge | Config | Description |
 |--------|--------|-------------|
-| MCP | `tools/bridge/*.json` | External: stdio, SSE, StreamableHTTP, WebSocket |
+| MCP | `tools/mcp/*.json` | External: stdio, SSE, StreamableHTTP, WebSocket |
 | OAT | `tools/bridge/oat.json` | In-process: boat + coat, no subprocess overhead |
+
+Schema conversion: Google ADK → OpenAI JSON Schema via `adk_schema.py`, output normalization via `adk_output.py`.
 
 ### Hot-Loading
 
@@ -228,6 +238,17 @@ Full [A2A v1.0](https://google.github.io/A2A/) implementation:
 | `$a2a/v1/request/{agent}` | Task requests (JSON-RPC) |
 | `$a2a/v1/response/{agent}/{req_id}` | Responses via MQTT v5 Response Topic |
 | `$a2a/v1/event/{agent}` | Streaming events + push notifications |
+| `$a2a/v1/group/{name}/chat` | Group chat messages |
+
+## Group Chat
+
+WeChat-style multi-agent group chat via MQTT. All configured agents form a single group.
+
+- **AI agents**: Background loop — subscribes to group topics, processes `@mentions`, runs `agent.run()` in parallel, publishes responses
+- **Human agents**: Interactive terminal — displays incoming group messages, publishes keyboard input
+- **Deduplication**: Message IDs tracked in `_seen_msg_ids` set
+- **Independent transport**: `GroupChatTransport` uses its own MQTT connection, keeping MqttTransport's sole-consumer design intact
+- **Templates**: `group-default.j2` (system prompt), `group-heartbeat.j2` (idle check), `group-message.j2` (incoming message format)
 
 ## Runtime Features
 
@@ -247,7 +268,7 @@ Full [A2A v1.0](https://google.github.io/A2A/) implementation:
 
 ### Heartbeat
 
-Agent-managed idle detection via `asyncio.Event.wait(timeout)`. Only triggers on actual timeout (no activity for `heartbeat_idle_seconds`). Configurable per agent — `0` disables. Displays per-agent heartbeat counters.
+Agent-managed idle detection via `asyncio.Event.wait(timeout)`. Only triggers on actual timeout (no activity for `heartbeat_idle_seconds`). Configurable per agent — `0` disables. Displays per-agent heartbeat counters. Template selection: single-agent → `heartbeat.j2`, A2A → `a2a-heartbeat.j2`, MQTT → `mqtt-heartbeat.j2`, Group → `group-heartbeat.j2`.
 
 ### Token Stats
 
@@ -262,18 +283,27 @@ Per-turn and cumulative input/output tokens with context window usage percentage
 ```
 qd-evolve/
 ├── qd_evolve/
-│   ├── __main__.py          # CLI entry point (typer)
+│   ├── __main__.py          # CLI entry point (typer) — registers subcommands
 │   ├── chat_cli.py          # Single-agent chat loop
 │   ├── a2a_cli.py           # A2A multi-agent chat loop
 │   ├── mqtt_cli.py          # MQTT multi-agent chat loop
+│   ├── gchat_cli.py         # Group chat CLI loop
+│   ├── cli_utils.py         # Shared CLI utilities (ReplayInput, TeeWriter, AGENT_COLORS)
+│   ├── skills.py            # SkillRegistry
+│   ├── cli_tools.py         # CLIRegistry
+│   ├── toolbox_tui.py       # Toolbox manager (Textual TUI)
 │   ├── agent/
-│   │   ├── agent.py         # Agent — LLM loop, tools, memory, heartbeat
+│   │   ├── agent.py         # Agent — LLM loop, tools, memory, heartbeat, compression
 │   │   ├── a2a_agent.py     # A2AAgent — wraps Agent, adds A2A identity + events
 │   │   ├── mqtt_agent.py    # MqttAgent — wraps A2AAgent, MQTT v5 lifecycle
+│   │   ├── group_chat_agent.py  # GroupChatAgent — wraps MqttAgent, group chat behavior
+│   │   ├── group_chat_human.py  # GroupChatHuman — wraps MqttHumanAgent for group chat
+│   │   ├── group_chat_transport.py  # GroupChatTransport — independent MQTT for /chat topics
 │   │   ├── human_agent.py   # HumanAgent — no LLM, async completion
 │   │   ├── mqtt_human_agent.py  # MQTT wrapper for HumanAgent
 │   │   ├── server.py        # A2A HTTP server (JSON-RPC + SSE)
 │   │   ├── transport.py     # Inproc / Http / Mqtt transport
+│   │   ├── mqtt_transport.py    # MqttTransport — sole-consumer MQTT v5
 │   │   ├── registry.py      # AgentRegistry — current agent management
 │   │   ├── loader.py        # init_process + create_agent
 │   │   ├── a2a_tools.py     # A2A tools (delegate_to, send_task, etc.)
@@ -286,23 +316,43 @@ qd-evolve/
 │   │   ├── memory.py        # MemoryStore + RecalledMemoryRegistry
 │   │   ├── prompts.py       # PromptTemplateManager (Jinja2)
 │   │   ├── logger.py        # SharedFileHandler
-│   │   └── compress.py      # Context compression
-│   └── tools/
-│       ├── _registry.py     # Tool discovery and dispatch
-│       ├── _bridge.py       # BridgeManager
-│       ├── run_shell.py     # Shell execution
-│       ├── web_search.py    # Web search (Serper)
-│       ├── memory_tools.py  # recall_memory, save_memory
-│       └── ...              # Other system tools
+│   │   └── toolbox.py       # Toolbox state management, migration, apply helpers
+│   ├── tools/
+│   │   ├── tool_loader.py   # Tool preloading
+│   │   ├── skill_loader.py  # Skill loading
+│   │   ├── cli_loader.py    # CLI tool loading
+│   │   ├── install_func.py  # Install func tools
+│   │   ├── install_mcp.py   # Install MCP servers
+│   │   ├── install_skill.py # Install skills
+│   │   ├── register_func.py # Register func tools
+│   │   ├── register_mcp.py  # Register MCP servers
+│   │   ├── register_skill.py # Register skills
+│   │   ├── recall_memory.py # Recall memory tool
+│   │   ├── staging.py       # Staging area for hot-loading
+│   │   └── ...              # Other system tools
+│   ├── utils/
+│   │   ├── adk_schema.py    # Google ADK → OpenAI JSON Schema conversion
+│   │   └── adk_output.py    # ADK output normalization
+│   └── _templates/          # Builtin Jinja2 templates (fallback)
+│       ├── default.j2       # Single-agent system prompt
+│       ├── a2a-default.j2   # A2A system prompt
+│       ├── mqtt-default.j2  # MQTT system prompt
+│       ├── group-default.j2 # Group chat system prompt
+│       ├── group-heartbeat.j2 # Group chat heartbeat
+│       ├── group-message.j2 # Group chat incoming message format
+│       ├── heartbeat.j2     # Single-agent heartbeat
+│       ├── a2a-heartbeat.j2 # A2A heartbeat
+│       ├── mqtt-heartbeat.j2 # MQTT heartbeat
+│       └── _system_tail.j2  # Shared tail included by all templates
 ├── tools/
 │   ├── func/                # User function tools (.py)
 │   ├── cli/                 # CLI tool definitions (.yaml)
 │   ├── skills/              # Skill instructions (SKILL.md)
+│   ├── mcp/                 # MCP server configs (*.json)
 │   └── bridge/
-│       ├── *.json           # Bridge configs (MCP, OAT)
-│       └── _*.py            # Bridge implementations
+│       ├── oat.json         # OAT bridge config
+│       └── _*.py            # Bridge implementations (MCP, OAT)
 ├── templates/               # User Jinja2 templates (override builtins)
-├── qd_evolve/_templates/    # Builtin Jinja2 templates (fallback)
 ├── tests/                   # pytest test suite
 ├── config.json              # All configuration
 └── pyproject.toml           # Dependencies and build config
@@ -311,7 +361,7 @@ qd-evolve/
 ## Requirements
 
 - Python 3.13+
-- External Mosquitto v5 broker (MQTT mode only)
+- External Mosquitto v5 broker (MQTT/GChat mode only)
 - API keys for configured providers
 
 ## License
