@@ -256,7 +256,7 @@ def _register(registry: Any) -> None:
             "properties": {
                 "agent_name": {
                     "type": "string",
-                    "description": "Name of the target AI agent to call (see available agents in system prompt). Cannot be a human agent — use send_task instead.",
+                    "description": "The agent_name of the target AI agent to call (see available agents in system prompt). Cannot be a human agent — use send_task instead.",
                 },
                 "task": {
                     "type": "string",
@@ -276,7 +276,7 @@ def _register(registry: Any) -> None:
             "properties": {
                 "agent_name": {
                     "type": "string",
-                    "description": "Name of the target agent (see available agents in system prompt). Works with both AI and human agents.",
+                    "description": "The agent_name of the target agent (see available agents in system prompt). Works with both AI and human agents.",
                 },
                 "task": {
                     "type": "string",

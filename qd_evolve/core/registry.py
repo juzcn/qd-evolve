@@ -75,7 +75,7 @@ class ToolRegistry:
             if isinstance(e, concurrent.futures.TimeoutError):
                 return f"Error: Tool '{tool_name}' timed out after {DEFAULT_TOOL_TIMEOUT}s"
             msg = f"{type(e).__name__}: {e}" if str(e) else type(e).__name__
-            logger.exception("Tools: tool '%s' error: %s", tool_name, msg)
+            logger.error("Tools: tool '%s' error: %s", tool_name, msg)
             return f"Error executing tool '{tool_name}': {msg}"
 
         return result.get("value", "")
