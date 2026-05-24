@@ -159,8 +159,8 @@ def create_agent(name: str, settings: Settings, *, need_a2a: bool | None = None,
     apply_to_cli_registry(cli_registry, loaded_cli_names, agent_name=name)
     apply_to_skill_registry(skill_registry, loaded_skill_names, agent_name=name)
 
-    # A2A tools: only register when running as A2A agent
-    if a2a_on:
+    # A2A tools: only register when running as A2A agent (not in group chat)
+    if a2a_on and not need_gchat:
         from qd_evolve.agent.a2a_tools import register_a2a_tools
         register_a2a_tools()
         logger.debug("Agent [%s]: A2A tools registered (delegate_to, send_task, get_task, cancel_task)", name)
@@ -206,23 +206,30 @@ def create_agent(name: str, settings: Settings, *, need_a2a: bool | None = None,
     template_mgr = PromptTemplateManager()
     template_name = entry.system_prompt_template
 
-    # MQTT mode: prefer mqtt-{template} over a2a-{template}
+    # GChat mode: prefer group-{template} over mqtt/a2a chain
+    if need_gchat:
+        group_prefixed = f"group-{template_name}"
+        if template_mgr.has_template(group_prefixed):
+            template_name = group_prefixed
+
+    # MQTT/A2A chain (skip if gchat already matched a group- template)
     mqtt_on = need_mqtt
-    if mqtt_on:
-        mqtt_prefixed = f"mqtt-{template_name}"
-        if template_mgr.has_template(mqtt_prefixed):
-            template_name = mqtt_prefixed
+    if template_name == entry.system_prompt_template:
+        if mqtt_on:
+            mqtt_prefixed = f"mqtt-{template_name}"
+            if template_mgr.has_template(mqtt_prefixed):
+                template_name = mqtt_prefixed
+            elif a2a_on:
+                prefixed = f"a2a-{template_name}"
+                if template_mgr.has_template(prefixed):
+                    template_name = prefixed
         elif a2a_on:
             prefixed = f"a2a-{template_name}"
             if template_mgr.has_template(prefixed):
                 template_name = prefixed
-    elif a2a_on:
-        prefixed = f"a2a-{template_name}"
-        if template_mgr.has_template(prefixed):
-            template_name = prefixed
 
-    # GChat mode: prefer gchat-{template} over all above
-    if need_gchat:
+    # GChat fallback: gchat-{current_template} (only if group- didn't match)
+    if need_gchat and template_name == entry.system_prompt_template:
         gchat_prefixed = f"gchat-{template_name}"
         if template_mgr.has_template(gchat_prefixed):
             template_name = gchat_prefixed

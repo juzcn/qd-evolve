@@ -22,7 +22,7 @@ from rich.table import Table
 from rich.text import Text
 
 from qd_evolve.cli_utils import AGENT_COLORS, ReplayInput, TeeWriter
-from qd_evolve.core.config import CONFIG_PATH, Settings, load_settings, save_json
+from qd_evolve.core.config import CONFIG_PATH, DEFAULT_BIND_HOST, Settings, load_settings, save_json
 
 from qd_evolve import __version__
 

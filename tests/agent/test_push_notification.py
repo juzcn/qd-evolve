@@ -184,7 +184,8 @@ class TestA2AHeartbeatLoop:
         # With heartbeat_idle_seconds=0, no task should be created
         assert mock_agent._hb_task is None
 
-    def test_start_creates_async_task_when_enabled(self):
+    @pytest.mark.asyncio
+    async def test_start_creates_async_task_when_enabled(self):
         from qd_evolve.agent.agent import Agent
 
         mock_agent = MagicMock(spec=Agent)

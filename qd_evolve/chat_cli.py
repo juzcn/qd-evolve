@@ -278,6 +278,8 @@ async def _async_chat_loop(
 
     iteration_lines: list[str] = []
     output_lines: list[str] = []
+    spinner = None
+    live = None
 
     def _on_status(text: str) -> None:
         iteration_lines.append(text)
@@ -288,6 +290,8 @@ async def _async_chat_loop(
         _refresh()
 
     def _refresh() -> None:
+        if spinner is None or live is None:
+            return
         items = [Text(line, style="bold green") for line in iteration_lines]
         items.append(spinner)
         for line in output_lines:
@@ -485,10 +489,10 @@ def chat(
         raise SystemExit(1)
 
     # 2. Per-process init (skills, CLI tools, bridges, registry injection)
+    chat_agent_name = agent
     init_process(settings, agent_name=chat_agent_name)
 
     # 3. Load the specified agent in-process (pure Agent, no A2A)
-    chat_agent_name = agent
     chat_agent_entry = next((a for a in settings.agents_config.agents if a.name == chat_agent_name), None)
     if chat_agent_entry is None:
         available = [a.name for a in settings.agents_config.agents]
@@ -496,6 +500,10 @@ def chat(
         raise SystemExit(1)
 
     agent_core = create_agent(chat_agent_name, settings=settings, need_a2a=False)
+
+    if chat_agent_entry.is_human:
+        console.print("[red]Error:[/red] Human agents cannot be used in inproc chat.")
+        raise SystemExit(1)
 
     # 4. Startup panel
     prov_name = chat_agent_entry.effective_provider(settings)

@@ -110,7 +110,7 @@ class A2AAgent:
                     except Exception as e:
                         logger.debug("A2A Heartbeat loop error: %s", e)
 
-        self.agent._hb_task = asyncio.ensure_future(_loop())
+        self.agent._hb_task = asyncio.get_running_loop().create_task(_loop())
 
     def stop_heartbeat_loop(self) -> None:
         self.agent.stop_heartbeat_loop()
