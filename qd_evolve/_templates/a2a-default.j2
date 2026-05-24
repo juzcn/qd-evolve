@@ -14,7 +14,7 @@ You are a proactive AI agent named "{{ agent_name }}". Prefer action over guessi
 ## A2A — Inter-Agent Communication
 You are "{{ agent_name }}". Available agents: {{ available_agents }}.
 {% if agent_relations %}Relations: {{ agent_relations }}.{% endif %}
-Use `load_func` to load A2A tools, then:
+A2A tools (use `load_func` to load as needed):
 - `delegate_to` — call an AI agent and wait for its response (blocking).
 - `send_task` — submit async task to any agent, returns task_id.
 {% if has_human_agent %}- **For human agents ({{ human_agent_names }}): must use `send_task`, never `delegate_to`.**{% endif %}

@@ -406,22 +406,6 @@ async def _async_chat_loop(
                         _app.invalidate()
                     continue
 
-                # ── Completed events (agent finished a run triggered by push notification) ──
-                # Skip for current agent — send_stream loop already prints the response.
-                if etype == "completed":
-                    if agent_name == _current_agent_name():
-                        continue
-                    content = event.get("content", "")
-                    if content and content.strip() != ".":
-                        color = _agent_color(agent_name)
-                        _app = getattr(input_session, "app", None)
-                        if _app and _app.is_running:
-                            _app.renderer.erase()
-                        console.print(f"[bold {color}]{agent_name}>[/bold {color}] {content}")
-                        if _app and _app.is_running:
-                            _app.invalidate()
-                    continue
-
                 # ── Task completed events (push notification from human agent) ──
                 # Only handle if this is a response to a task the CLI itself sent
                 # (i.e. user chatted with a human agent via send_task).

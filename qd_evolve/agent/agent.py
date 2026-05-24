@@ -521,8 +521,6 @@ class Agent:
         final_msg: dict[str, Any] = {"role": "assistant", "content": msg.content or ""}
         if reasoning:
             final_msg["reasoning_content"] = reasoning
-            logger.debug("Agent: reasoning (%d chars):\n%s", len(reasoning), reasoning)
-            self._print(f"[bold bright_cyan]Reasoning:[/bold bright_cyan] {reasoning}")
         self.messages.append(final_msg)
         logger.debug("Agent:\n=== LLM Response ===\n%s", self._format_completion_log(response))
         return msg.content or ""
@@ -630,8 +628,6 @@ class Agent:
         final_msg: dict[str, Any] = {"role": "assistant", "content": content or ""}
         if reasoning:
             final_msg["reasoning_content"] = reasoning
-            logger.debug("Agent: reasoning (%d chars):\n%s", len(reasoning), reasoning)
-            self._print(f"[bold bright_cyan]Reasoning:[/bold bright_cyan] {reasoning}")
         self.messages.append(final_msg)
         logger.debug("Agent:\n=== LLM Response (stream) ===\n%s", content)
         return content or ""

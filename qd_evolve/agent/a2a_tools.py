@@ -73,26 +73,26 @@ def on_push_notification(task_id: str, state: str, result: str) -> None:
 # ── Tool handlers ──────────────────────────────────────────────
 
 
-def _delegate_to(agent: str, task: str) -> str:
+def _delegate_to(agent_name: str, task: str) -> str:
     """Blocking: call target Agent, wait for result."""
     transport = _get_transport()
     message = make_text_message("user", task)
 
     # For inproc transport, call agent_core.run() directly (synchronous)
     from qd_evolve.agent.transport import InprocTransport
-    if isinstance(transport._pick(agent), InprocTransport):
+    if isinstance(transport._pick(agent_name), InprocTransport):
         registry = transport._get_registry()
-        agent_node = registry.get(agent)
+        agent_node = registry.get(agent_name)
         if agent_node is None:
             # Try lazy load
             try:
                 from qd_evolve.agent.loader import create_agent
                 from qd_evolve.core.config import load_settings
-                agent_node = create_agent(agent, load_settings())
+                agent_node = create_agent(agent_name, load_settings())
                 registry.register(agent_node)
-                logger.info("delegate_to: lazy-loaded agent '%s'", agent)
+                logger.info("delegate_to: lazy-loaded agent '%s'", agent_name)
             except ValueError as e:
-                return f"Error: Agent '{agent}' not found in config — {e}"
+                return f"Error: Agent '{agent_name}' not found in config — {e}"
 
         # Human agent: reject — must use send_task for async communication
         from qd_evolve.agent.human_agent import HumanAgent
@@ -102,31 +102,31 @@ def _delegate_to(agent: str, task: str) -> str:
         try:
             from qd_evolve.core.config import load_settings
             settings = load_settings()
-            entry = next((a for a in settings.agents_config.agents if a.name == agent), None)
+            entry = next((a for a in settings.agents_config.agents if a.name == agent_name), None)
             prov = entry.effective_provider(settings) if entry else settings.default_provider
             mdl = entry.effective_model(settings) if entry else settings.default_model
             result = agent_node.run(task, provider=prov, model=mdl)
-            logger.info("delegate_to: %s completed (%d chars)", agent, len(result))
+            logger.info("delegate_to: %s completed (%d chars)", agent_name, len(result))
             return result
         except Exception as e:
-            logger.warning("delegate_to: %s failed: %s", agent, e)
-            return f"Error from agent '{agent}': {type(e).__name__}: {e}"
+            logger.warning("delegate_to: %s failed: %s", agent_name, e)
+            return f"Error from agent '{agent_name}': {type(e).__name__}: {e}"
 
     # For remote transport, run send_task
     from_agent = _get_current_agent_name()
     import concurrent.futures
     from qd_evolve.agent.mqtt_transport import MqttTransport
-    remote = transport._pick(agent)
+    remote = transport._pick(agent_name)
     if isinstance(remote, MqttTransport) and remote._loop is not None:
         # MQTT client is bound to its original event loop — must use run_coroutine_threadsafe
         future = asyncio.run_coroutine_threadsafe(
-            remote.send_task(agent, message, from_agent=from_agent), remote._loop
+            remote.send_task(agent_name, message, from_agent=from_agent), remote._loop
         )
         result_task = future.result(timeout=120)
     else:
         # HttpTransport: run async in a new event loop (standard approach)
         with concurrent.futures.ThreadPoolExecutor() as pool:
-            future = pool.submit(asyncio.run, transport.send_task(agent, message))
+            future = pool.submit(asyncio.run, transport.send_task(agent_name, message))
             result_task = future.result(timeout=120)
 
     # Human agent returned input_required — reject
@@ -135,19 +135,19 @@ def _delegate_to(agent: str, task: str) -> str:
 
     if result_task.status.state == TaskState.completed:
         text = _extract_result_text(result_task)
-        logger.info("delegate_to: %s completed (%d chars)", agent, len(text))
+        logger.info("delegate_to: %s completed (%d chars)", agent_name, len(text))
         return text
     elif result_task.status.state == TaskState.failed:
         text = _extract_result_text(result_task)
-        logger.warning("delegate_to: %s failed: %s", agent, text)
-        return f"Error from agent '{agent}': {text}"
+        logger.warning("delegate_to: %s failed: %s", agent_name, text)
+        return f"Error from agent '{agent_name}': {text}"
     return f"Error: unexpected state {result_task.status.state}"
 
 
-def _send_task(agent: str, task: str) -> str:
+def _send_task(agent_name: str, task: str) -> str:
     """Non-blocking: send message to target agent, return task_id immediately."""
     task_id = uuid4().hex
-    _task_store[task_id] = {"target": agent, "state": "submitted", "result": None}
+    _task_store[task_id] = {"target": agent_name, "state": "submitted", "result": None}
 
     transport = _get_transport()
     message = make_text_message("user", task)
@@ -157,7 +157,7 @@ def _send_task(agent: str, task: str) -> str:
     # For MQTT transport: from_agent is passed via User Property (not callback_url)
     # For HTTP transport: callback_url is set for webhook push notifications
     from qd_evolve.agent.mqtt_transport import MqttTransport
-    remote = transport._pick(agent)
+    remote = transport._pick(agent_name)
     if isinstance(remote, MqttTransport):
         # MQTT: from_agent in message metadata + User Property
         if from_agent:
@@ -174,10 +174,10 @@ def _send_task(agent: str, task: str) -> str:
         try:
             if isinstance(remote, MqttTransport) and remote._loop is not None:
                 result_task = asyncio.run_coroutine_threadsafe(
-                    remote.send_task(agent, message, from_agent=from_agent), remote._loop
+                    remote.send_task(agent_name, message, from_agent=from_agent), remote._loop
                 ).result(timeout=120)
             else:
-                result_task = await transport.send_task(agent, message)
+                result_task = await transport.send_task(agent_name, message)
             # Human agent returns input_required — result arrives via push notification
             if result_task.status.state == TaskState.input_required:
                 _task_store[task_id]["state"] = "input_required"
@@ -185,7 +185,7 @@ def _send_task(agent: str, task: str) -> str:
                 remote_task_id = result_task.id
                 if remote_task_id and remote_task_id != task_id:
                     _task_store[remote_task_id] = _task_store[task_id]
-                logger.info("send_task: %s returned input_required (task=%s)", agent, remote_task_id[:8])
+                logger.info("send_task: %s returned input_required (task=%s)", agent_name, remote_task_id[:8])
                 return
             _task_store[task_id]["state"] = result_task.status.state.value
             _task_store[task_id]["result"] = _extract_result_text(result_task)
@@ -203,8 +203,8 @@ def _send_task(agent: str, task: str) -> str:
     except RuntimeError:
         asyncio.run(_watch())
 
-    logger.info("send_task: submitted task %s to %s", task_id, agent)
-    return json.dumps({"task_id": task_id, "state": "submitted", "agent": agent})
+    logger.info("send_task: submitted task %s to %s", task_id, agent_name)
+    return json.dumps({"task_id": task_id, "state": "submitted", "agent_name": agent_name})
 
 
 def _get_task(task_id: str) -> str:
@@ -214,7 +214,7 @@ def _get_task(task_id: str) -> str:
         return json.dumps({"error": f"Task '{task_id}' not found"})
     return json.dumps({
         "task_id": task_id,
-        "agent": entry["target"],
+        "agent_name": entry["target"],
         "state": entry["state"],
         "result": entry["result"],
     })
@@ -249,41 +249,41 @@ def register_a2a_tools() -> None:
 def _register(registry: Any) -> None:
     registry.register(
         name="delegate_to",
-        description="Call another Agent and wait for its response. Blocking call — returns the Agent's output directly.",
+        description="Call an AI agent and wait for its response. Blocking call — returns the agent's output directly. For AI agents only; use send_task for human agents.",
         handler=_delegate_to,
         input_schema={
             "type": "object",
             "properties": {
-                "agent": {
+                "agent_name": {
                     "type": "string",
-                    "description": "Name of the target Agent to call",
+                    "description": "Name of the target AI agent to call (see available agents in system prompt). Cannot be a human agent — use send_task instead.",
                 },
                 "task": {
                     "type": "string",
-                    "description": "The task description or question to send to the target Agent",
+                    "description": "The task description or question to send to the target agent",
                 },
             },
-            "required": ["agent", "task"],
+            "required": ["agent_name", "task"],
         },
     )
 
     registry.register(
         name="send_task",
-        description="Submit a task to another Agent without waiting. Returns a task_id for later status queries via get_task.",
+        description="Submit a task to any agent (AI or human) without waiting. Returns a task_id for later status queries via get_task. Use this for human agents and async workflows.",
         handler=_send_task,
         input_schema={
             "type": "object",
             "properties": {
-                "agent": {
+                "agent_name": {
                     "type": "string",
-                    "description": "Name of the target Agent",
+                    "description": "Name of the target agent (see available agents in system prompt). Works with both AI and human agents.",
                 },
                 "task": {
                     "type": "string",
-                    "description": "The task to send",
+                    "description": "The task description or question to send to the target agent",
                 },
             },
-            "required": ["agent", "task"],
+            "required": ["agent_name", "task"],
         },
     )
 
