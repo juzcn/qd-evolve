@@ -128,6 +128,31 @@ async def _ai_group_display_loop(
         pass
 
 
+async def _display_events_above_prompt(
+    event_queue: asyncio.Queue[dict],
+    prompt_session: Any,
+    member_names: list[str],
+    agent_name: str,
+) -> None:
+    """Print incoming group messages above the prompt, preserving user's partial input."""
+    while True:
+        event = await event_queue.get()
+        if event.get("type") != "group_message":
+            continue
+        from_name = event.get("from_agent", "?")
+        content = event.get("content", "")
+        if not content or not content.strip() or from_name == agent_name:
+            continue
+        _app = getattr(prompt_session, "app", None)
+        if _app and _app.is_running:
+            _app.renderer.erase()
+        idx = member_names.index(from_name) if from_name in member_names else 0
+        color = AGENT_COLORS[idx % len(AGENT_COLORS)]
+        console.print(f"[bold {color}]{from_name}>[/bold {color}] {content}")
+        if _app and _app.is_running:
+            _app.invalidate()
+
+
 async def _human_group_terminal_loop(
     gchat_human: Any,
     transport: Any,
@@ -141,79 +166,44 @@ async def _human_group_terminal_loop(
 
     try:
         while True:
+            # Event display runs concurrently — prints above the prompt line
+            # without interrupting or discarding the user's partial input.
+            event_task = asyncio.ensure_future(
+                _display_events_above_prompt(event_queue, prompt_session, member_names, agent_name),
+            )
             input_task = asyncio.ensure_future(_read_input_async(prompt_session))
-            event_task = asyncio.ensure_future(event_queue.get())
 
             try:
-                done, pending = await asyncio.wait(
-                    [input_task, event_task],
-                    return_when=asyncio.FIRST_COMPLETED,
-                )
+                user_input = await input_task
             except (EOFError, KeyboardInterrupt):
+                event_task.cancel()
+                try:
+                    await event_task
+                except asyncio.CancelledError:
+                    pass
                 console.print("\n[dim]Goodbye![/dim]")
                 return
-
-            # Group message arrived → display
-            if event_task in done:
-                # Gracefully exit prompt_toolkit so the input line is properly cleaned up
-                try:
-                    from prompt_toolkit.application import get_app
-                    _app = get_app()
-                    if _app is not None and _app.is_running:
-                        _app.exit(result="")
-                except Exception:
-                    pass
-
-                for t in pending:
-                    t.cancel()
+            finally:
+                if not event_task.done():
+                    event_task.cancel()
                     try:
-                        await t
-                    except (asyncio.CancelledError, EOFError, KeyboardInterrupt):
+                        await event_task
+                    except asyncio.CancelledError:
                         pass
 
-                try:
-                    event = event_task.result()
-                except Exception:
-                    continue
-
-                if event.get("type") == "group_message":
-                    from_name = event.get("from_agent", "?")
-                    content = event.get("content", "")
-                    if not content or not content.strip() or from_name == agent_name:
-                        continue
-                    idx = member_names.index(from_name) if from_name in member_names else 0
-                    color = AGENT_COLORS[idx % len(AGENT_COLORS)]
-                    console.print(f"[bold {color}]{from_name}>[/bold {color}] {content}")
+            if user_input.startswith("/"):
+                result = await _handle_slash_command(user_input, transport, settings)
+                if result is None:
+                    console.print("[dim]Goodbye![/dim]")
+                    return
+                if result:
+                    console.print(result)
                 continue
 
-            # User input arrived
-            if input_task in done:
-                for t in pending:
-                    t.cancel()
-                    try:
-                        await t
-                    except (asyncio.CancelledError, Exception):
-                        pass
+            if not user_input:
+                continue
 
-                try:
-                    user_input = input_task.result()
-                except (EOFError, KeyboardInterrupt):
-                    console.print("\n[dim]Goodbye![/dim]")
-                    return
-
-                if user_input.startswith("/"):
-                    result = await _handle_slash_command(user_input, transport, settings)
-                    if result is None:
-                        console.print("[dim]Goodbye![/dim]")
-                        return
-                    if result:
-                        console.print(result)
-                    continue
-
-                if not user_input:
-                    continue
-
-                await gchat_human.publish_human_input(user_input)
+            await gchat_human.publish_human_input(user_input)
 
     except (KeyboardInterrupt, EOFError):
         pass
