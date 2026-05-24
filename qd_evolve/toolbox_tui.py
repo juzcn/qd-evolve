@@ -12,10 +12,10 @@ console = Console()
 
 # ── CLI commands (shared by chat_cli and a2a_cli) ────────────────────────
 
-toolbox_app = typer.Typer(help="Toolbox — manage tool state")
+toolbox_app = typer.Typer(help="Toolbox — manage tool state", invoke_without_command=True)
 
 
-@toolbox_app.command()
+@toolbox_app.callback()
 def toolbox(
     toggle: str = typer.Option("", "--toggle", "-t", help="Quick toggle: --toggle <name>"),
     tui: bool = typer.Option(True, "--tui/--no-tui", help="Use Textual TUI (default: on)"),
@@ -144,8 +144,8 @@ def _toolbox_list(args: list[str], agent_name: str | None = None) -> None:
     from qd_evolve.core.config import SKILLS_DIR, CLI_TOOLS_DIR, load_settings
     from tools.bridge import BridgeManager
 
-    settings = load_settings()
-    PAGE_SIZE = settings.ui.page_size
+    import os
+    PAGE_SIZE = max(os.get_terminal_size().lines - 5, 10)
     section_arg = args[0].lower() if args else "all"
 
     # Build data

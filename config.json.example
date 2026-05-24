@@ -1,13 +1,8 @@
 {
-  "_note": "See README.md for full setup instructions. Copy to config.json and fill in your API keys.",
+  "_note": "Copy to config.json and fill in your API keys. See README.md for full setup instructions.",
   "log": {
     "level": "INFO",
     "truncation": 500
-  },
-  "ui": {
-    "page_size": 20,
-    "refresh_per_second": 10,
-    "prompt_refresh_interval": 0.5
   },
   "env_vars": {
     "TQDM_DISABLE": "1",
@@ -53,7 +48,7 @@
         "memory_db": "memory.db",
         "server": {
           "host": "127.0.0.1",
-          "port": 8002
+          "port": 8004
         },
         "toolbox": {
           "tools": {
@@ -74,10 +69,18 @@
           "bridge": {},
           "cli": {},
           "skills": {}
+        },
+        "mqtt": {
+          "username": "",
+          "password": "",
+          "keepalive": 60,
+          "ca_certs": "",
+          "certfile": "",
+          "keyfile": ""
         }
       },
       {
-        "name": "remote",
+        "name": "Sophie",
         "description": "Remote agent for cross-process A2A",
         "provider": "",
         "model": "",
@@ -85,7 +88,7 @@
         "memory_db": null,
         "server": {
           "host": "127.0.0.1",
-          "port": 8003
+          "port": 8002
         },
         "toolbox": {
           "tools": {
@@ -100,25 +103,31 @@
           "bridge": {},
           "cli": {},
           "skills": {}
+        },
+        "mqtt": {
+          "username": "",
+          "password": "",
+          "keepalive": 60,
+          "ca_certs": "",
+          "certfile": "",
+          "keyfile": ""
         }
       },
       {
         "name": "Jun",
         "description": "Human operator for decisions and questions",
         "provider": "human",
-        "model": "",
-        "system_prompt_template": "default",
-        "memory_db": "",
         "server": {
           "host": "127.0.0.1",
-          "port": 8004
+          "port": 8003
         },
-        "toolbox": {
-          "tools": {},
-          "mcp_servers": {},
-          "bridge": {},
-          "cli": {},
-          "skills": {}
+        "mqtt": {
+          "username": "",
+          "password": "",
+          "keepalive": 60,
+          "ca_certs": "",
+          "certfile": "",
+          "keyfile": ""
         }
       }
     ],
@@ -126,7 +135,7 @@
       "relations": [
         {
           "from": "Jack",
-          "to": "remote",
+          "to": "Sophie",
           "mode": "peer"
         }
       ]
@@ -137,15 +146,22 @@
         "port": 8001
       },
       "resubscribe_retry_seconds": 15
+    },
+    "mqtt_broker": {
+      "host": "127.0.0.1",
+      "port": 1883,
+      "will_delay_interval": 0
+    },
+    "gchat": {
+      "reply_delay_min": 2.0,
+      "reply_delay_max": 60.0
     }
   },
   "embeddings_backends": {
     "bge-m3-local": {
       "model_path": "BAAI/bge-m3",
       "dim": 1024,
-      "backend": "sentence-transformers",
-      "llama_n_ctx": 8192,
-      "llama_n_batch": 512
+      "backend": "sentence-transformers"
     }
   },
   "memory_search": {
@@ -160,8 +176,5 @@
   "max_iterations": 20,
   "tool_output_limit": 50000,
   "stream": true,
-  "heartbeat_idle_seconds": 60,
-  "toolbox_defaults": {
-    "timeout": 60
-  }
+  "heartbeat_idle_seconds": 120
 }

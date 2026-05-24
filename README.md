@@ -29,7 +29,7 @@ qd-evolve mqtt serve --agent <name>
 qd-evolve gchat --agent <name>
 
 # Manage tool enable/disable/preload
-qd-evolve toolbox
+qd-evolve toolbox --agent <name>
 ```
 
 ## Architecture
@@ -163,7 +163,7 @@ Requires external Mosquitto v5 broker. Per-agent credentials via `MqttConfig` on
 
 ### Toolbox
 
-Tool enable/disable/preload per agent, managed via `qd-evolve toolbox` (Textual TUI) or by editing `config.json` directly.
+Tool enable/disable/preload per agent, managed via `qd-evolve toolbox --agent <name>` (Textual TUI) or by editing `config.json` directly.
 
 ```json
 {
@@ -291,7 +291,7 @@ qd-evolve/
 │   ├── cli_utils.py         # Shared CLI utilities (ReplayInput, TeeWriter, AGENT_COLORS)
 │   ├── skills.py            # SkillRegistry
 │   ├── cli_tools.py         # CLIRegistry
-│   ├── toolbox_tui.py       # Toolbox manager (Textual TUI)
+│   ├── toolbox_tui.py       # Toolbox manager (Textual TUI + CLI command)
 │   ├── agent/
 │   │   ├── agent.py         # Agent — LLM loop, tools, memory, heartbeat, compression
 │   │   ├── a2a_agent.py     # A2AAgent — wraps Agent, adds A2A identity + events
@@ -310,7 +310,7 @@ qd-evolve/
 │   │   ├── protocol.py      # AgentProtocol ABC
 │   │   └── a2a.py           # A2A models (Task, Message, AgentCard, etc.)
 │   ├── core/
-│   │   ├── config.py        # Settings, AgentEntry, ServerConfig, MqttConfig
+│   │   ├── config.py        # Settings, AgentEntry, ServerConfig, MqttConfig, constants
 │   │   ├── providers.py     # ProviderRegistry — multi-provider, multi-model
 │   │   ├── registry.py      # ToolRegistry — on-demand loading
 │   │   ├── memory.py        # MemoryStore + RecalledMemoryRegistry

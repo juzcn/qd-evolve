@@ -47,22 +47,18 @@ class ToolRegistry:
         if not td.enabled:
             return f"Error: Tool '{tool_name}' is disabled"
 
-        from qd_evolve.core.toolbox import get_default
-        timeout = get_default("timeout", 0)
+        from qd_evolve.core.config import DEFAULT_TOOL_TIMEOUT
 
         try:
-            if timeout > 0:
-                import concurrent.futures
-                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                    future = executor.submit(td.handler, **kwargs)
-                    return future.result(timeout=timeout)
-            return td.handler(**kwargs)
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(td.handler, **kwargs)
+                return future.result(timeout=DEFAULT_TOOL_TIMEOUT)
         except Exception as e:
             if isinstance(e, ImportError):
                 raise
-            import concurrent.futures
             if isinstance(e, concurrent.futures.TimeoutError):
-                return f"Error: Tool '{tool_name}' timed out after {timeout}s"
+                return f"Error: Tool '{tool_name}' timed out after {DEFAULT_TOOL_TIMEOUT}s"
             msg = f"{type(e).__name__}: {e}" if str(e) else type(e).__name__
             logger.exception("Tools: tool '%s' error: %s", tool_name, msg)
             return f"Error executing tool '{tool_name}': {msg}"

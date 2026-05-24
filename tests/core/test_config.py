@@ -18,8 +18,7 @@ from qd_evolve.core.config import (
     TopologyConfig,
     AgentsConfig,
     MemorySearchConfig,
-    UIConfig,
-    load_json,
+        load_json,
     load_settings,
     save_json,
 )
@@ -240,11 +239,6 @@ class TestMemorySearchConfig:
         assert msc.recall_memory_limit == 5
 
 
-class TestUIConfig:
-    def test_defaults(self):
-        uic = UIConfig()
-        assert uic.page_size == 20
-        assert uic.refresh_per_second == 10
 
 
 class TestLogConfig:

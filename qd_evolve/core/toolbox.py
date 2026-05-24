@@ -142,16 +142,6 @@ def get_disabled_bridges(agent_name: str) -> set[str]:
     return disabled
 
 
-# ── tool defaults ─────────────────────────────────────────────
-
-def get_default(key: str, fallback: Any = None) -> Any:
-    """Read a global default value from config.json toolbox_defaults section."""
-    if CONFIG_PATH.is_file():
-        data = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
-        return data.get("toolbox_defaults", {}).get(key, fallback)
-    return fallback
-
-
 # ── migration ──────────────────────────────────────────────────
 
 def migrate_toolbox_to_config() -> None:

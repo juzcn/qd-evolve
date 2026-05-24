@@ -114,6 +114,18 @@ No runtime config changes — edit `config.json` and restart. Exception: registr
 
 `ServerConfig.host` is the connect address (default `127.0.0.1`). Server binds `0.0.0.0` to accept all interfaces. No hardcoded ports — defaults from `DEFAULT_SERVER_HOST`/`DEFAULT_SERVER_PORT` constants.
 
+### Tool Timeout
+
+`DEFAULT_TOOL_TIMEOUT = 60` in `config.py`. All tool calls are wrapped with a timeout via `ThreadPoolExecutor` in `ToolRegistry.call()`. `run_shell` also uses this timeout as default subprocess timeout. Not in `config.json` — edit the constant if needed.
+
+### Toolbox — CLI Direct Command
+
+`qd-evolve toolbox --agent <name>` is a top-level CLI command (Typer callback with `invoke_without_command=True`), not a nested subcommand. No extra `toolbox` keyword needed. Toolbox list pagination auto-adapts to terminal height (`os.get_terminal_size().lines - 5`, minimum 10).
+
+### Config — No UIConfig, No ToolboxDefaults
+
+`UIConfig` and `ToolboxDefaults` were removed — these were single-value configs that nobody would change. `page_size` now auto-adapts to terminal height. Tool timeout is a constant (`DEFAULT_TOOL_TIMEOUT`). No `ui` or `toolbox_defaults` section in `config.json`.
+
 ### API Errors — Caught, Not Fatal
 
 LLM API call failures return an error string instead of crashing. Heartbeat errors caught silently. User stays in the chat loop.

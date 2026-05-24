@@ -73,10 +73,6 @@ class MemorySearchConfig(BaseModel):
     list_all_limit: int = 50
 
 
-class UIConfig(BaseModel):
-    page_size: int = 20
-    refresh_per_second: int = 10
-    prompt_refresh_interval: float = 0.5
 
 
 class LogConfig(BaseModel):
@@ -97,8 +93,7 @@ class ToolboxSection(BaseModel):
     skills: dict[str, str] = {}
 
 
-class ToolboxDefaults(BaseModel):
-    timeout: int = 60
+DEFAULT_TOOL_TIMEOUT = 60
 
 
 class MqttConfig(BaseModel):
@@ -184,7 +179,6 @@ class AgentsConfig(BaseModel):
 
 class Settings(BaseModel):
     log: LogConfig = LogConfig()
-    ui: UIConfig = UIConfig()
     env_vars: dict[str, str] = {}
     providers: list[ProviderConfig] = []
     default_provider: str = ""
@@ -198,7 +192,6 @@ class Settings(BaseModel):
     tool_output_limit: int
     stream: bool = False
     heartbeat_idle_seconds: int = 0
-    toolbox_defaults: ToolboxDefaults = ToolboxDefaults()
 
     def get_provider(self, name: str) -> ProviderConfig | None:
         for p in self.providers:

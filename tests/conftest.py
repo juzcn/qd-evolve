@@ -214,7 +214,6 @@ def toolbox_json(tmp_path: Path) -> Path:
                 },
             ],
         },
-        "toolbox_defaults": {"timeout": 60},
     }
     path = tmp_path / "config.json"
     path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")

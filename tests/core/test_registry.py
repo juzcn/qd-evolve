@@ -175,14 +175,12 @@ class TestDecodeOutput:
 
 
 class TestCallWithTimeout:
-    def test_call_timeout_returns_error(self, registry, monkeypatch):
+    def test_call_timeout_returns_error(self, registry):
         import concurrent.futures
 
         def slow_handler(**kwargs):
             raise concurrent.futures.TimeoutError()
 
         registry.register("slow", "Slow tool", slow_handler)
-        # Set a timeout so the timeout branch is hit
-        monkeypatch.setattr("qd_evolve.core.toolbox.get_default", lambda key, fallback=None: 1 if key == "timeout" else fallback)
         result = registry.call("slow")
         assert "timed out" in result

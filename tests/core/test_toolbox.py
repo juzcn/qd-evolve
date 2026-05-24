@@ -13,8 +13,7 @@ from qd_evolve.core.toolbox import (
     get_disabled,
     get_preloaded,
     get_disabled_bridges,
-    get_default,
-    migrate_toolbox_to_config,
+        migrate_toolbox_to_config,
     state_mark,
     apply_to_tools,
     apply_to_cli_registry,
@@ -25,7 +24,7 @@ from qd_evolve.core.toolbox import (
 )
 
 
-def _make_config(tmp_path: Path, agents: list[dict] | None = None, toolbox_defaults: dict | None = None) -> Path:
+def _make_config(tmp_path: Path, agents: list[dict] | None = None) -> Path:
     """Create a minimal config.json in tmp_path and return its path."""
     data = {
         "max_iterations": 5,
@@ -37,8 +36,6 @@ def _make_config(tmp_path: Path, agents: list[dict] | None = None, toolbox_defau
             "agents": agents or [{"name": "default"}, {"name": "other"}],
         },
     }
-    if toolbox_defaults:
-        data["toolbox_defaults"] = toolbox_defaults
     cfg = tmp_path / "config.json"
     cfg.write_text(json.dumps(data), encoding="utf-8")
     return cfg
@@ -256,48 +253,7 @@ class TestGetDisabledBridges:
         assert result == set()
 
 
-class TestGetDefault:
-    def test_reads_toolbox_defaults(self, tmp_path, monkeypatch):
-        cfg_path = _make_config(tmp_path, toolbox_defaults={"timeout": 120, "retries": 3})
-        import qd_evolve.core.toolbox as tb
-        monkeypatch.setattr(tb, "CONFIG_PATH", cfg_path)
-        assert get_default("timeout") == 120
-        assert get_default("retries") == 3
-
-    def test_fallback_when_missing(self, toolbox_dir):
-        assert get_default("nonexistent", fallback="default_val") == "default_val"
-
-    def test_no_config_file(self, tmp_path, monkeypatch):
-        import qd_evolve.core.toolbox as tb
-        monkeypatch.setattr(tb, "CONFIG_PATH", tmp_path / "nonexistent.json")
-        assert get_default("timeout", fallback=60) == 60
-
-
 class TestMigrateToolbox:
-    def test_migrates_defaults(self, tmp_path, monkeypatch):
-        # Create toolbox.json with defaults
-        tb_data = {
-            "defaults": {"timeout": 90},
-            "agents": {},
-        }
-        tb_path = tmp_path / "toolbox.json"
-        tb_path.write_text(json.dumps(tb_data), encoding="utf-8")
-
-        # Create config.json
-        cfg_path = _make_config(tmp_path)
-        import qd_evolve.core.toolbox as tb
-        monkeypatch.setattr(tb, "CONFIG_PATH", cfg_path)
-        monkeypatch.setattr(tb, "TOOLBOX_MIGRATION_PATH", tb_path)
-
-        migrate_toolbox_to_config()
-
-        # Verify defaults merged
-        cfg_data = json.loads(cfg_path.read_text(encoding="utf-8"))
-        assert cfg_data["toolbox_defaults"]["timeout"] == 90
-
-        # Verify backup created
-        assert (tmp_path / "toolbox.json.bak").exists()
-
     def test_migrates_agent_toolbox(self, tmp_path, monkeypatch):
         agent_toolbox = {"tools": {"fetch": "preload"}, "cli": {}, "skills": {}, "mcp_servers": {}, "bridge": {}}
         tb_data = {
