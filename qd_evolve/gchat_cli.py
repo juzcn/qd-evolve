@@ -293,12 +293,13 @@ def gchat(
     # 8. Startup panel
     agent_type = "human" if is_human else "AI"
     broker_info = f"{broker_cfg.host}:{broker_cfg.port}"
+    hint = "/help for commands, /quit to leave" if is_human else "Agent is running autonomously. Ctrl+C to stop."
     console.print(Panel(
         f"qd-evolve v{__version__} — Group Chat\n\n"
         f"[bold]Agent:[/bold]     {agent} ({agent_type})\n"
         f"[bold]Broker:[/bold]    {broker_info}\n"
         f"[bold]Members:[/bold]   {', '.join(member_names)}\n\n"
-        f"/help for commands, /quit to leave",
+        f"{hint}",
         style="bold green",
     ))
 
