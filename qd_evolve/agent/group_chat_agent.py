@@ -9,6 +9,8 @@ Does not modify MqttAgent source code.
 from __future__ import annotations
 
 import asyncio
+import random
+import time
 from datetime import datetime
 from typing import Any
 
@@ -179,6 +181,14 @@ class GroupChatAgent:
     def _run_and_publish(self, formatted_msg: str) -> None:
         """Run agent with formatted group message, publish if not silent."""
         agent_name = self._agent.card.name
+
+        # Simulate natural reply delay (before thinking)
+        cfg = self._agent.agent.settings.agents_config.gchat
+        if cfg.reply_delay_max > 0:
+            delay = random.uniform(cfg.reply_delay_min, cfg.reply_delay_max)
+            logger.debug("GroupChatAgent: '%s' reply delay %.1fs", agent_name, delay)
+            time.sleep(delay)
+
         try:
             result = self._agent.run(formatted_msg)
         except Exception as e:

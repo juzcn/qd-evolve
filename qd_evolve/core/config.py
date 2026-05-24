@@ -145,6 +145,12 @@ class TopologyConfig(BaseModel):
     relations: list[dict[str, str]] = []
 
 
+class GChatConfig(BaseModel):
+    """Group chat configuration."""
+    reply_delay_min: float = 0.0
+    reply_delay_max: float = 0.0
+
+
 class A2ACLIConfig(BaseModel):
     """A2A chat client configuration — server port for webhook callbacks."""
     server: ServerConfig = ServerConfig(port=0)
@@ -157,6 +163,7 @@ class AgentsConfig(BaseModel):
     topology: TopologyConfig = TopologyConfig()
     a2a_cli: A2ACLIConfig = A2ACLIConfig()
     mqtt_broker: MqttBrokerConfig = MqttBrokerConfig()
+    gchat: GChatConfig = GChatConfig()
 
     @model_validator(mode="after")
     def _validate_ports(self) -> "AgentsConfig":

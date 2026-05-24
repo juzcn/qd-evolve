@@ -9,7 +9,7 @@ from qd_evolve.agent.a2a import AgentCard, AgentCapabilities
 from qd_evolve.agent.group_chat_agent import GroupChatAgent
 from qd_evolve.agent.group_chat_transport import GroupChatTransport
 from qd_evolve.agent.server import TaskStore
-from qd_evolve.core.config import MqttConfig
+from qd_evolve.core.config import GChatConfig, MqttConfig
 
 
 def _make_group_chat_agent(run_return="response"):
@@ -23,6 +23,8 @@ def _make_group_chat_agent(run_return="response"):
     mock_inner._hb_task = None
     mock_inner.settings = MagicMock()
     mock_inner.settings.heartbeat_idle_seconds = 0
+    mock_inner.settings.agents_config = MagicMock()
+    mock_inner.settings.agents_config.gchat = GChatConfig()
     mock_inner.registry = MagicMock()
     mock_inner.providers = MagicMock()
     mock_inner.messages = []
@@ -157,6 +159,52 @@ class TestRunAndPublish:
         gca._loop = None
         gca._run_and_publish("hello")
         # Should not crash, just log and return
+
+
+# ── reply delay ────────────────────────────────────────────────────
+
+
+class TestGroupChatAgentReplyDelay:
+    def test_no_delay_by_default(self):
+        gca, mqtt_agent, a2a, mock_inner, _, _ = _make_group_chat_agent()
+        mock_inner._running = False
+        mock_inner.settings.agents_config.gchat = GChatConfig()
+        with patch("qd_evolve.agent.group_chat_agent.time.sleep") as mock_sleep:
+            gca._run_and_publish("hello")
+            mock_sleep.assert_not_called()
+        a2a.run.assert_called_once_with("hello")
+
+    def test_delay_applied_when_configured(self):
+        gca, mqtt_agent, a2a, mock_inner, _, _ = _make_group_chat_agent()
+        mock_inner._running = False
+        mock_inner.settings.agents_config.gchat = GChatConfig(reply_delay_min=2.0, reply_delay_max=5.0)
+        with patch("qd_evolve.agent.group_chat_agent.time.sleep") as mock_sleep:
+            gca._run_and_publish("hello")
+            mock_sleep.assert_called_once()
+            delay = mock_sleep.call_args[0][0]
+            assert 2.0 <= delay <= 5.0
+        a2a.run.assert_called_once_with("hello")
+
+    def test_delay_before_run(self):
+        """Delay happens before agent.run(), not after."""
+        gca, mqtt_agent, a2a, mock_inner, _, _ = _make_group_chat_agent()
+        mock_inner._running = False
+        mock_inner.settings.agents_config.gchat = GChatConfig(reply_delay_min=1.0, reply_delay_max=1.0)
+        call_order = []
+        mock_sleep = lambda s: call_order.append("sleep")
+        original_run = a2a.run
+        a2a.run = lambda t: (call_order.append("run"), original_run(t))[1]
+        with patch("qd_evolve.agent.group_chat_agent.time.sleep", side_effect=mock_sleep):
+            gca._run_and_publish("hello")
+        assert call_order == ["sleep", "run"]
+
+    def test_zero_max_means_no_delay(self):
+        gca, mqtt_agent, a2a, mock_inner, _, _ = _make_group_chat_agent()
+        mock_inner._running = False
+        mock_inner.settings.agents_config.gchat = GChatConfig(reply_delay_min=5.0, reply_delay_max=0.0)
+        with patch("qd_evolve.agent.group_chat_agent.time.sleep") as mock_sleep:
+            gca._run_and_publish("hello")
+            mock_sleep.assert_not_called()
 
 
 # ── heartbeat_check ────────────────────────────────────────────────
