@@ -366,4 +366,4 @@ qd-evolve/
 
 ## License
 
-Private
+MIT

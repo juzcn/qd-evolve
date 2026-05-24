@@ -3,6 +3,7 @@ name = "qd-evolve"
 version = "0.1.0"
 description = "AI agent with tool use, structured logging, and CLI interface"
 readme = "README.md"
+license = "MIT"
 requires-python = ">=3.13"
 dependencies = [
     "anthropic>=0.104.1",
