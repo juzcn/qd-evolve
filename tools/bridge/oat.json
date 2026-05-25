@@ -4,6 +4,11 @@
     "repo": "https://github.com/Open-Agent-Tools/basic-open-agent-tools",
     "loadout": "coder"
   },
+  "boat-docs": {
+    "package": "basic_open_agent_tools",
+    "repo": "https://github.com/Open-Agent-Tools/basic-open-agent-tools",
+    "loadout": "docs"
+  },
   "coat": {
     "package": "coding_open_agent_tools",
     "repo": "https://github.com/Open-Agent-Tools/coding-open-agent-tools",
