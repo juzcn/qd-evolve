@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import typer
+from pydantic import ValidationError
 from rich.console import Console
 
 from qd_evolve.core.toolbox import get_state, set_state, state_mark
@@ -260,7 +261,11 @@ def _build_data(connect_bridges: bool = True, agent_name: str | None = None) -> 
     from tools.bridge import BridgeManager, BridgeEntry
 
     categories: dict[str, list[tuple[str, str, str]]] = {}
-    settings = load_settings()
+    try:
+        settings = load_settings()
+    except ValidationError as e:
+        console.print(f"[red]Config error:[/red] {e}")
+        raise SystemExit(1)
 
     # Inject env_vars from config into os.environ (needed for MCP $VAR expansion)
     import os as _os

@@ -17,6 +17,7 @@ if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 import typer
+from pydantic import ValidationError
 from qd_evolve.core.logger import logger
 from rich.console import Console, Group
 from rich.live import Live
@@ -708,7 +709,11 @@ def serve(
 
     # 1. Config & logging
     setup_logging("WARNING", log_dir=LOG_DIR_PATH)
-    settings = load_settings()
+    try:
+        settings = load_settings()
+    except ValidationError as e:
+        console.print(f"[red]Config error:[/red] {e}")
+        raise SystemExit(1)
     setup_logging(settings.log.level, log_dir=LOG_DIR_PATH)
 
     # Inject env_vars
@@ -859,7 +864,11 @@ def chat(
 
     # 1. Config & logging
     setup_logging("WARNING", log_dir=LOG_DIR_PATH)
-    settings = load_settings()
+    try:
+        settings = load_settings()
+    except ValidationError as e:
+        console.print(f"[red]Config error:[/red] {e}")
+        raise SystemExit(1)
     setup_logging(settings.log.level, log_dir=LOG_DIR_PATH)
 
     # Inject env_vars from config into os.environ

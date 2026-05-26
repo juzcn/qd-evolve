@@ -15,6 +15,7 @@ from rich.text import Text
 
 from qd_evolve import __version__
 from qd_evolve.cli_utils import ReplayInput, TeeWriter
+from pydantic import ValidationError
 from qd_evolve.core.config import CONFIG_PATH, Settings, load_settings, save_json
 from qd_evolve.core.logger import logger
 from qd_evolve.core.providers import ProviderRegistry
@@ -476,7 +477,11 @@ def chat(
 
     # 1. Config & logging
     setup_logging("WARNING", log_dir=LOG_DIR_PATH)
-    settings = load_settings()
+    try:
+        settings = load_settings()
+    except ValidationError as e:
+        console.print(f"[red]Config error:[/red] {e}")
+        raise SystemExit(1)
     setup_logging(settings.log.level, log_dir=LOG_DIR_PATH)
 
     # Inject env_vars from config into os.environ
