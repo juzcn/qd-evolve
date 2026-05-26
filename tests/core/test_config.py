@@ -117,7 +117,6 @@ class TestAgentEntry:
         assert ae.description == ""
         assert ae.provider == ""
         assert ae.model == ""
-        assert ae.system_prompt_template == "default"
         assert ae.memory_db == "memory.db"
         assert ae.server.host == ""
 

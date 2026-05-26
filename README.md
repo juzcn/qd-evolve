@@ -94,7 +94,6 @@ Three API types: `openai-completions`, `openai-response`, `anthropic`. Set at pr
         "description": "Plans and delegates tasks",
         "provider": "openai",
         "model": "gpt-4o",
-        "system_prompt_template": "default",
         "memory_db": "planner.db",
         "server": { "host": "127.0.0.1", "port": 8001 },
         "toolbox": { "tools": {}, "bridge": { "oat:boat": "enabled" } }

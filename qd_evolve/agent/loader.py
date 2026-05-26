@@ -204,35 +204,15 @@ def create_agent(name: str, settings: Settings, *, need_a2a: bool | None = None,
 
     # ── System prompt via template ────────────────────────────
     template_mgr = PromptTemplateManager()
-    template_name = entry.system_prompt_template
 
-    # GChat mode: prefer group-{template} over mqtt/a2a chain
     if need_gchat:
-        group_prefixed = f"group-{template_name}"
-        if template_mgr.has_template(group_prefixed):
-            template_name = group_prefixed
-
-    # MQTT/A2A chain (skip if gchat already matched a group- template)
-    mqtt_on = need_mqtt
-    if template_name == entry.system_prompt_template:
-        if mqtt_on:
-            mqtt_prefixed = f"mqtt-{template_name}"
-            if template_mgr.has_template(mqtt_prefixed):
-                template_name = mqtt_prefixed
-            elif a2a_on:
-                prefixed = f"a2a-{template_name}"
-                if template_mgr.has_template(prefixed):
-                    template_name = prefixed
-        elif a2a_on:
-            prefixed = f"a2a-{template_name}"
-            if template_mgr.has_template(prefixed):
-                template_name = prefixed
-
-    # GChat fallback: gchat-{current_template} (only if group- didn't match)
-    if need_gchat and template_name == entry.system_prompt_template:
-        gchat_prefixed = f"gchat-{template_name}"
-        if template_mgr.has_template(gchat_prefixed):
-            template_name = gchat_prefixed
+        template_name = "group-default"
+    elif need_mqtt:
+        template_name = "mqtt-default"
+    elif a2a_on:
+        template_name = "a2a-default"
+    else:
+        template_name = "default"
 
     system_prompt = template_mgr.render(
         template_name,

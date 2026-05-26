@@ -118,7 +118,6 @@ class AgentEntry(BaseModel):
     description: str = ""
     provider: str = ""
     model: str = ""
-    system_prompt_template: str = "default"
     memory_db: str | None = DEFAULT_MEMORY_DB
     server: ServerConfig = ServerConfig()
     toolbox: ToolboxSection = ToolboxSection()
