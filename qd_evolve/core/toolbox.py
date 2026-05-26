@@ -30,6 +30,9 @@ def _load(agent_name: str) -> dict[str, Any]:
 
 
 def _save(section_data: dict[str, Any], agent_name: str) -> None:
+    from qd_evolve.core.config import ToolboxSection
+    ToolboxSection.model_validate(section_data)
+
     if CONFIG_PATH.is_file():
         data = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
     else:

@@ -67,7 +67,7 @@ class EmbeddingsBackend(BaseModel):
 
 class MemorySearchConfig(BaseModel):
     embeddings_backend: str = ""
-    auto_recall: bool = True
+    auto_recall: bool = False
     auto_recall_top_k: int = 1
     recall_memory_limit: int = 5
     list_all_limit: int = 50

@@ -233,7 +233,7 @@ class TestSettings:
 class TestMemorySearchConfig:
     def test_defaults(self):
         msc = MemorySearchConfig()
-        assert msc.auto_recall is True
+        assert msc.auto_recall is False
         assert msc.auto_recall_top_k == 1
         assert msc.recall_memory_limit == 5
 
