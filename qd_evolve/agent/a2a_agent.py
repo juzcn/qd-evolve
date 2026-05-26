@@ -44,6 +44,9 @@ class A2AAgent:
 
     def heartbeat_check(self, idle_seconds: int) -> str:
         """A2A heartbeat: idle check only. Push notifications are handled by agent.run() directly."""
+        if self.agent._running:
+            logger.debug("A2A Heartbeat: skipped, agent is busy")
+            return None
         if self.agent._template_mgr is not None:
             msg = self.agent._template_mgr.render("a2a-heartbeat", idle_seconds=idle_seconds,
                                                    now=datetime.now().strftime("%Y-%m-%d %A %H:%M:%S"))
