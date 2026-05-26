@@ -130,6 +130,7 @@ class TestA2AHeartbeatCheck:
         mock_tmpl.render.return_value = "heartbeat msg"
 
         mock_agent = MagicMock(spec=Agent)
+        mock_agent._running = False
         mock_agent._template_mgr = mock_tmpl
         mock_agent.run.return_value = "."
 
@@ -150,6 +151,7 @@ class TestA2AHeartbeatCheck:
         mock_tmpl.render.return_value = "you got a reply"
 
         mock_agent = MagicMock(spec=Agent)
+        mock_agent._running = False
         mock_agent._template_mgr = mock_tmpl
         mock_agent.run.return_value = "Thanks for the reply"
 
