@@ -204,7 +204,7 @@ def _send_task(agent_name: str, task: str) -> str:
         asyncio.run(_watch())
 
     logger.info("send_task: submitted task %s to %s", task_id, agent_name)
-    return json.dumps({"task_id": task_id, "state": "submitted", "agent_name": agent_name})
+    return json.dumps({"task_id": task_id, "state": "submitted", "agent": agent_name})
 
 
 def _get_task(task_id: str) -> str:
@@ -214,7 +214,7 @@ def _get_task(task_id: str) -> str:
         return json.dumps({"error": f"Task '{task_id}' not found"})
     return json.dumps({
         "task_id": task_id,
-        "agent_name": entry["target"],
+        "agent": entry["target"],
         "state": entry["state"],
         "result": entry["result"],
     })

@@ -6,10 +6,36 @@
   },
   "env_vars": {
     "TQDM_DISABLE": "1",
+    "SERPER_API_KEY": "YOUR_SERPER_API_KEY",
+    "BAIDU_API_KEY": "YOUR_BAIDU_API_KEY",
+    "TAVILY_API_KEY": "YOUR_TAVILY_API_KEY",
     "PYTHONIOENCODING": "utf-8",
     "PYTHONUTF8": "1"
   },
   "providers": [
+    {
+      "name": "baiduqianfancodingplan",
+      "api_key": "YOUR_BAIDU_QIANFAN_API_KEY",
+      "base_url": "https://qianfan.baidubce.com/v2/coding",
+      "api": "openai-completions",
+      "models": [
+        {
+          "name": "qianfan-code-latest",
+          "reasoning": false,
+          "input": [
+            "text"
+          ],
+          "cost": {
+            "input": 0.0025,
+            "output": 0.01,
+            "cache_read": 0.0,
+            "cache_write": 0.0
+          },
+          "context_window": 98304,
+          "max_tokens": 65536
+        }
+      ]
+    },
     {
       "name": "deepseek",
       "api_key": "YOUR_DEEPSEEK_API_KEY",
@@ -30,12 +56,50 @@
           },
           "context_window": 1000000,
           "max_tokens": 131072
+        },
+        {
+          "name": "deepseek-v4-flash",
+          "reasoning": true,
+          "input": [
+            "text"
+          ],
+          "cost": {
+            "input": 0.28,
+            "output": 1.1,
+            "cache_read": 0.07,
+            "cache_write": 0.56
+          },
+          "context_window": 1000000,
+          "max_tokens": 131072
+        }
+      ]
+    },
+    {
+      "name": "astroncodingplan",
+      "api_key": "YOUR_ASTRON_API_KEY",
+      "base_url": "https://maas-coding-api.cn-huabei-1.xf-yun.com/v2",
+      "api": "openai-completions",
+      "models": [
+        {
+          "name": "astron-code-latest",
+          "reasoning": false,
+          "input": [
+            "text"
+          ],
+          "cost": {
+            "input": 0.0,
+            "output": 0.0,
+            "cache_read": 0.0,
+            "cache_write": 0.0
+          },
+          "context_window": 92160,
+          "max_tokens": 32768
         }
       ]
     }
   ],
   "default_provider": "deepseek",
-  "default_model": "deepseek-v4-pro",
+  "default_model": "deepseek-v4-flash",
   "agents_config": {
     "chat_agent": "Jack",
     "agents": [
@@ -44,7 +108,6 @@
         "description": "Default qd-evolve agent",
         "provider": "",
         "model": "",
-        "system_prompt_template": "default",
         "memory_db": "memory.db",
         "server": {
           "host": "127.0.0.1",
@@ -57,7 +120,12 @@
             "load_skill": "preload",
             "load_func": "preload",
             "run_python": "preload",
+            "read_file": "disabled",
+            "write_file": "disabled",
+            "list_directory": "disabled",
+            "execute_shell_command": "disabled",
             "run_shell": "preload",
+            "fetch": "disabled",
             "install_func": "preload",
             "register_func": "preload",
             "install_skill": "preload",
@@ -77,14 +145,14 @@
           "ca_certs": "",
           "certfile": "",
           "keyfile": ""
-        }
+        },
+        "wechat_session": null
       },
       {
         "name": "Sophie",
-        "description": "Remote agent for cross-process A2A",
-        "provider": "",
-        "model": "",
-        "system_prompt_template": "default",
+        "description": "Test agent for cross-process A2A",
+        "provider": "deepseek",
+        "model": "deepseek-v4-flash",
         "memory_db": null,
         "server": {
           "host": "127.0.0.1",
@@ -97,7 +165,12 @@
             "load_skill": "preload",
             "load_func": "preload",
             "run_python": "preload",
-            "run_shell": "preload"
+            "read_file": "disabled",
+            "write_file": "disabled",
+            "list_directory": "disabled",
+            "execute_shell_command": "disabled",
+            "run_shell": "preload",
+            "fetch": "disabled"
           },
           "mcp_servers": {},
           "bridge": {},
@@ -111,16 +184,26 @@
           "ca_certs": "",
           "certfile": "",
           "keyfile": ""
-        }
+        },
+        "wechat_session": null
       },
       {
         "name": "Jun",
-        "description": "Human operator for decisions and questions",
-        "provider": "human",
+        "description": "Human operator via WeChat",
+        "provider": "wechat-human",
+        "model": "",
+        "memory_db": "memory.db",
         "server": {
           "host": "127.0.0.1",
           "port": 8003
         },
+        "toolbox": {
+          "tools": {},
+          "mcp_servers": {},
+          "bridge": {},
+          "cli": {},
+          "skills": {}
+        },
         "mqtt": {
           "username": "",
           "password": "",
@@ -128,17 +211,30 @@
           "ca_certs": "",
           "certfile": "",
           "keyfile": ""
+        },
+        "wechat_session": {
+          "bot_token": "YOUR_BOT_TOKEN",
+          "base_url": "https://ilinkai.weixin.qq.com",
+          "saved_at": 0
         }
       },
       {
-        "name": "WechatUser",
-        "description": "Human operator via WeChat iLink bridge",
+        "name": "Huizi",
+        "description": "Human operator via WeChat",
         "provider": "wechat-human",
+        "model": "",
+        "memory_db": "memory.db",
         "server": {
           "host": "127.0.0.1",
           "port": 8005
         },
-        "wechat_session": null,
+        "toolbox": {
+          "tools": {},
+          "mcp_servers": {},
+          "bridge": {},
+          "cli": {},
+          "skills": {}
+        },
         "mqtt": {
           "username": "",
           "password": "",
@@ -146,6 +242,42 @@
           "ca_certs": "",
           "certfile": "",
           "keyfile": ""
+        },
+        "wechat_session": {
+          "bot_token": "YOUR_BOT_TOKEN",
+          "base_url": "https://ilinkai.weixin.qq.com",
+          "saved_at": 0
+        }
+      },
+      {
+        "name": "Freud",
+        "description": "Human",
+        "provider": "human",
+        "model": "",
+        "memory_db": "memory.db",
+        "server": {
+          "host": "127.0.0.1",
+          "port": 8005
+        },
+        "toolbox": {
+          "tools": {},
+          "mcp_servers": {},
+          "bridge": {},
+          "cli": {},
+          "skills": {}
+        },
+        "mqtt": {
+          "username": "",
+          "password": "",
+          "keepalive": 60,
+          "ca_certs": "",
+          "certfile": "",
+          "keyfile": ""
+        },
+        "wechat_session": {
+          "bot_token": "YOUR_BOT_TOKEN",
+          "base_url": "https://ilinkai.weixin.qq.com",
+          "saved_at": 0
         }
       }
     ],
@@ -179,7 +311,16 @@
     "bge-m3-local": {
       "model_path": "BAAI/bge-m3",
       "dim": 1024,
-      "backend": "sentence-transformers"
+      "backend": "sentence-transformers",
+      "llama_n_ctx": 0,
+      "llama_n_batch": 0
+    },
+    "bge-m3-gguf": {
+      "model_path": "path/to/bge-m3-q4_k_m.gguf",
+      "dim": 1024,
+      "backend": "llama-cpp-python",
+      "llama_n_ctx": 8192,
+      "llama_n_batch": 512
     }
   },
   "memory_search": {
@@ -194,5 +335,5 @@
   "max_iterations": 20,
   "tool_output_limit": 50000,
   "stream": true,
-  "heartbeat_idle_seconds": 120
+  "heartbeat_idle_seconds": 1800
 }
