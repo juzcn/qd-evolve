@@ -2,8 +2,7 @@
 
 Multi-agent AI framework with A2A protocol support, group chat, persistent memory, and extensible tool system.
 
-- [DESIGN.md](DESIGN.md) — design philosophy, trade-offs, invariants
-- [IMPLEMENTATION.md](IMPLEMENTATION.md) — architecture, module map, class hierarchy, data flow, code patterns
+- [DESIGN.md](DESIGN.md) — design philosophy, invariants, architecture, implementation
 
 ## Quick Start
 
@@ -29,6 +28,7 @@ qd-evolve mqtt
 qd-evolve mqtt serve --agent <name>
 
 # Group chat — WeChat-style multi-agent group (requires Mosquitto v5 broker)
+# Supports: AI agents, terminal human agents, WeChat human agents
 qd-evolve gchat --agent <name>
 
 # Manage tool enable/disable/preload
@@ -44,7 +44,7 @@ qd-evolve toolbox --agent <name>
 | MQTT | `qd-evolve mqtt` | MQTT v5 + in-proc | Multi-agent over MQTT |
 | GChat | `qd-evolve gchat` | MQTT v5 (group topics) | WeChat-style group chat |
 
-Each system is fully independent — no protocol fallback between them. See [IMPLEMENTATION.md](IMPLEMENTATION.md) for the full architecture.
+Each system is fully independent — no protocol fallback between them. See [DESIGN.md](DESIGN.md) for the full architecture.
 
 ## Configuration
 
@@ -104,6 +104,12 @@ Three API types: `openai-completions`, `openai-response`, `anthropic`. Set at pr
         "description": "Human for approvals",
         "provider": "human",
         "server": { "host": "127.0.0.1", "port": 8002 }
+      },
+      {
+        "name": "wechat_user",
+        "description": "Human via WeChat iLink",
+        "provider": "wechat-human",
+        "server": { "host": "127.0.0.1", "port": 8003 }
       }
     ],
     "topology": { "relations": [] }
@@ -111,7 +117,7 @@ Three API types: `openai-completions`, `openai-response`, `anthropic`. Set at pr
 }
 ```
 
-Per-agent provider/model with global fallback. `provider: "human"` identifies human agents. Each agent has its own memory DB, server config, and toolbox state.
+Per-agent provider/model with global fallback. `provider: "human"` for terminal human agents, `"wechat-human"` for WeChat iLink bridge. Each agent has its own memory DB, server config, and toolbox state. WeChat human agents persist their session token via the `wechat_session` field.
 
 ### MQTT Broker
 
@@ -195,7 +201,8 @@ Full [A2A v1.0](https://google.github.io/A2A/) implementation:
 WeChat-style multi-agent group via MQTT. All configured agents form a single group.
 
 - **AI agents**: Background loop processes `@mentions`, runs agent in parallel, publishes responses
-- **Human agents**: Interactive terminal for group messages
+- **Terminal human agents** (`provider: "human"`): Interactive prompt — type messages, see group activity
+- **WeChat human agents** (`provider: "wechat-human"`): Bidirectional WeChat iLink bridge — long-poll for incoming WeChat messages, forward group responses back to WeChat. QR login on startup, session persisted to `config.json`
 - `@all` mentions everyone; specific `@agent_name` directs to one agent
 
 ## Project Layout
@@ -210,7 +217,7 @@ qd-evolve/
 └── pyproject.toml   # Dependencies and build config
 ```
 
-See [IMPLEMENTATION.md](IMPLEMENTATION.md) for architecture and full module map.
+See [DESIGN.md](DESIGN.md) for architecture and full module map.
 
 ## Requirements
 

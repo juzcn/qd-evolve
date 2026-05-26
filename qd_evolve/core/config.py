@@ -123,10 +123,15 @@ class AgentEntry(BaseModel):
     server: ServerConfig = ServerConfig()
     toolbox: ToolboxSection = ToolboxSection()
     mqtt: MqttConfig = MqttConfig()
+    wechat_session: dict | None = None
 
     @property
     def is_human(self) -> bool:
-        return self.provider == "human"
+        return self.provider in ("human", "wechat-human")
+
+    @property
+    def is_wechat_human(self) -> bool:
+        return self.provider == "wechat-human"
 
     def effective_provider(self, settings: Settings) -> str:
         return self.provider or settings.default_provider
@@ -234,3 +239,11 @@ def load_settings(path: Path | str | None = None) -> Settings:
         return Settings.model_validate(data)
     logger.debug("Config: file %s not found, using defaults", p)
     return Settings()
+
+
+def save_settings(settings: Settings, path: Path | str | None = None) -> None:
+    p = Path(path) if path else CONFIG_PATH
+    data = settings.model_dump(mode="json", exclude_none=False)
+    with open(p, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    logger.debug("Config: saved to %s", p)

@@ -21,7 +21,7 @@ from rich.text import Text
 
 from qd_evolve import __version__
 from qd_evolve.cli_utils import AGENT_COLORS
-from qd_evolve.core.config import Settings, load_settings
+from qd_evolve.core.config import Settings, load_settings, save_settings
 from qd_evolve.core.logger import logger
 
 gchat_app = typer.Typer(help="Group chat — 微信群式多 agent 群聊")
@@ -88,7 +88,12 @@ async def _handle_slash_command(cmd: str, transport: Any, settings: Settings) ->
         table.add_column("Type", style="bold")
         table.add_column("Status")
         for i, a in enumerate(agents, 1):
-            a_type = "human" if a.is_human else "AI"
+            if a.is_wechat_human:
+                a_type = "WeChat human"
+            elif a.is_human:
+                a_type = "terminal human"
+            else:
+                a_type = "AI"
             try:
                 status = await transport.get_agent_status(a.name)
             except Exception:
@@ -151,6 +156,60 @@ async def _display_events_above_prompt(
         console.print(f"[bold {color}]{from_name}>[/bold {color}] {content}")
         if _app and _app.is_running:
             _app.invalidate()
+
+
+async def _wechat_human_display_loop(
+    gchat_wechat: Any,
+    settings: Settings,
+    agent_name: str = "",
+) -> None:
+    """Terminal display for WeChat human agents: show group messages + slash commands.
+    Messages go to/from WeChat, not terminal input."""
+    member_names = [a.name for a in settings.agents_config.agents]
+    event_queue = gchat_wechat.event_queue
+    prompt_session = _make_prompt_session(gchat_wechat._agent.card.name)
+
+    console.print("[dim]WeChat bridge active. Messages are sent/received via WeChat. Type /quit to exit.[/dim]")
+
+    try:
+        while True:
+            event_task = asyncio.ensure_future(
+                _display_events_above_prompt(event_queue, prompt_session, member_names, agent_name),
+            )
+            input_task = asyncio.ensure_future(_read_input_async(prompt_session))
+
+            try:
+                user_input = await input_task
+            except (EOFError, KeyboardInterrupt):
+                event_task.cancel()
+                try:
+                    await event_task
+                except asyncio.CancelledError:
+                    pass
+                console.print("\n[dim]Goodbye![/dim]")
+                return
+            finally:
+                if not event_task.done():
+                    event_task.cancel()
+                    try:
+                        await event_task
+                    except asyncio.CancelledError:
+                        pass
+
+            if user_input.startswith("/"):
+                result = await _handle_slash_command(user_input, gchat_wechat._transport, settings)
+                if result is None:
+                    console.print("[dim]Goodbye![/dim]")
+                    return
+                if result:
+                    console.print(result)
+                continue
+
+            if user_input:
+                console.print("[dim]Messages are sent via WeChat. Type /help for commands.[/dim]")
+
+    except (KeyboardInterrupt, EOFError):
+        pass
 
 
 async def _human_group_terminal_loop(
@@ -223,6 +282,8 @@ def gchat(
     from qd_evolve.agent.group_chat_transport import GroupChatTransport
     from qd_evolve.agent.group_chat_agent import GroupChatAgent
     from qd_evolve.agent.group_chat_human import GroupChatHuman
+    from qd_evolve.agent.group_chat_wechat_human import GroupChatWechatHuman
+    from qd_evolve.bridge.wechat_clawbot_client import WechatClawbotClient
     from qd_evolve.core.prompts import PromptTemplateManager
 
     # 1. Config & logging
@@ -242,10 +303,14 @@ def gchat(
         console.print(f"[red]Error:[/red] Agent '{agent}' not found. Available: {', '.join(available)}")
         raise SystemExit(1)
     is_human = entry.is_human
+    is_wechat = entry.is_wechat_human
 
-    # 3. Init process (AI agents only)
+    # 3. Init process (AI agents only) + WeChat client init
+    wechat_client = None
     if not is_human:
         init_process(settings, agent_name=agent)
+    elif is_wechat:
+        wechat_client = WechatClawbotClient()
 
     # 4. Create agent with gchat mode
     agent_core = create_agent(agent, settings, need_a2a=True, need_mqtt=True, need_gchat=True)
@@ -286,14 +351,27 @@ def gchat(
     template_mgr = PromptTemplateManager()
 
     if is_human:
-        gchat_agent = GroupChatHuman(agent_core, group_transport, member_names)
+        if is_wechat:
+            gchat_agent = GroupChatWechatHuman(agent_core, group_transport, member_names, wechat_client)
+        else:
+            gchat_agent = GroupChatHuman(agent_core, group_transport, member_names)
     else:
         gchat_agent = GroupChatAgent(agent_core, group_transport, member_names, template_mgr)
 
     # 8. Startup panel
-    agent_type = "human" if is_human else "AI"
+    if is_wechat:
+        agent_type = "WeChat Human"
+    elif is_human:
+        agent_type = "terminal human"
+    else:
+        agent_type = "AI"
     broker_info = f"{broker_cfg.host}:{broker_cfg.port}"
-    hint = "/help for commands, /quit to leave" if is_human else "Agent is running autonomously. Ctrl+C to stop."
+    if is_wechat:
+        hint = "Messages go to/from WeChat. /help for commands, /quit to leave"
+    elif is_human:
+        hint = "/help for commands, /quit to leave"
+    else:
+        hint = "Agent is running autonomously. Ctrl+C to stop."
     console.print(Panel(
         f"qd-evolve v{__version__} — Group Chat\n\n"
         f"[bold]Agent:[/bold]     {agent} ({agent_type})\n"
@@ -305,10 +383,27 @@ def gchat(
 
     # 9. Run
     async def _run() -> None:
+        if is_wechat:
+            if await wechat_client.try_restore_session(entry.wechat_session):
+                console.print("[green]WeChat session restored.[/green]")
+            else:
+                console.print("[dim]Waiting for WeChat login...[/dim]")
+                try:
+                    login_result = await wechat_client.login()
+                except Exception as e:
+                    console.print(f"[red]Error:[/red] WeChat login failed — {e}")
+                    return
+                await wechat_client.start(login_result["bot_token"], login_result.get("baseurl", ""))
+                entry.wechat_session = wechat_client.get_session_dict()
+                save_settings(settings)
+                console.print("[green]WeChat login successful![/green]")
+
         try:
             await group_transport.connect()
         except Exception as e:
             console.print(f"[red]Error:[/red] Failed to connect to MQTT broker at {broker_info} — {e}")
+            if is_wechat:
+                await wechat_client.stop()
             return
 
         try:
@@ -316,10 +411,15 @@ def gchat(
         except Exception as e:
             console.print(f"[red]Error:[/red] Failed to start agent — {e}")
             await group_transport.disconnect()
+            if is_wechat:
+                await wechat_client.stop()
             return
 
         if is_human:
-            await _human_group_terminal_loop(gchat_agent, group_transport, settings, agent_name=agent)
+            if is_wechat:
+                await _wechat_human_display_loop(gchat_agent, settings, agent_name=agent)
+            else:
+                await _human_group_terminal_loop(gchat_agent, group_transport, settings, agent_name=agent)
         else:
             gchat_agent.start_heartbeat_loop()
             await _ai_group_display_loop(gchat_agent, settings)

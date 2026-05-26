@@ -129,6 +129,24 @@
           "certfile": "",
           "keyfile": ""
         }
+      },
+      {
+        "name": "WechatUser",
+        "description": "Human operator via WeChat iLink bridge",
+        "provider": "wechat-human",
+        "server": {
+          "host": "127.0.0.1",
+          "port": 8005
+        },
+        "wechat_session": null,
+        "mqtt": {
+          "username": "",
+          "password": "",
+          "keepalive": 60,
+          "ca_certs": "",
+          "certfile": "",
+          "keyfile": ""
+        }
       }
     ],
     "topology": {
