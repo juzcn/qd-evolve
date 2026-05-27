@@ -242,10 +242,11 @@ class Agent:
                     raise ValueError(f"Unsupported api_type: {self._api_type}")
             except Exception as e:
                 logger.error("Agent: API call failed: %s", e)
+                msg = self._format_api_error(e)
                 if self._on_event:
-                    self._on_event({"type": "error", "content": f"API error: {type(e).__name__}: {e}"})
+                    self._on_event({"type": "error", "content": msg})
                 self.messages.pop()  # remove the user message we just appended
-                return f"API error: {type(e).__name__}: {e}"
+                return msg
 
             if self.memory:
                 self._compress_messages()
@@ -256,6 +257,28 @@ class Agent:
             if self._on_event:
                 self._on_event({"type": "completed", "content": result})
             return result
+
+    def _format_api_error(self, e: Exception) -> str:
+        """Return a human-readable error message for an API exception."""
+        name = type(e).__name__
+        provider = self._provider_name or "AI"
+
+        friendly: dict[str, str] = {
+            "APIConnectionError": f"Cannot reach {provider} API — network or proxy issue. Check your connection.",
+            "APITimeoutError": f"{provider} API request timed out. The service may be overloaded; retry later.",
+            "AuthenticationError": f"{provider} API authentication failed — check your API key.",
+            "RateLimitError": f"{provider} API rate limit hit. Pause and try again.",
+            "InternalServerError": f"{provider} API server error. The service may be down.",
+            "BadRequestError": f"Bad request to {provider} API: {e}",
+            "UnprocessableEntityError": f"Bad request to {provider} API: {e}",
+            "PermissionDeniedError": f"Access denied by {provider} API — check your account permissions.",
+            "NotFoundError": f"{provider} API — resource not found: {e}",
+            "ConflictError": f"{provider} API conflict: {e}",
+            "APIResponseValidationError": f"{provider} API returned an unexpected response: {e}",
+        }
+        if name in friendly:
+            return f"API error ({name}): {friendly[name]}"
+        return f"API error ({name}): {e}"
 
     def _compress_messages(self) -> None:
         prov = self.providers.get(self._provider_name)
@@ -514,7 +537,16 @@ class Agent:
                 logger.info("Agent: tool call: %s(%s)",tc.function.name, json.dumps(args, ensure_ascii=False))
                 args_brief = json.dumps(args, ensure_ascii=False)[:60]
                 self._update_status(f"Tool: {tc.function.name}({args_brief})")
-                output = self.registry.call(tc.function.name, **args)
+                try:
+                    output = self.registry.call(tc.function.name, **args)
+                except Exception as exc:
+                    logger.error("Agent: tool call failed: %s(%s): %s", tc.function.name, args_brief, exc)
+                    self.messages.append({
+                        "role": "tool",
+                        "tool_call_id": tc.id,
+                        "content": f"Error: tool execution failed: {exc}",
+                    })
+                    continue
                 limit = self.settings.tool_output_limit
                 if len(output) > limit:
                     output = output[:limit] + "\n... (truncated)"
@@ -622,7 +654,16 @@ class Agent:
                 logger.info("Agent: tool call: %s(%s)", name, json.dumps(args, ensure_ascii=False))
                 args_brief = json.dumps(args, ensure_ascii=False)[:60]
                 self._update_status(f"Tool: {name}({args_brief})")
-                output = self.registry.call(name, **args)
+                try:
+                    output = self.registry.call(name, **args)
+                except Exception as exc:
+                    logger.error("Agent: tool call failed: %s(%s): %s", name, args_brief, exc)
+                    self.messages.append({
+                        "role": "tool",
+                        "tool_call_id": tc["id"],
+                        "content": f"Error: tool execution failed: {exc}",
+                    })
+                    continue
                 limit = self.settings.tool_output_limit
                 if len(output) > limit:
                     output = output[:limit] + "\n... (truncated)"
@@ -676,7 +717,17 @@ class Agent:
                 logger.info("Agent: tool call: %s(%s)",item.name, json.dumps(args, ensure_ascii=False))
                 args_brief = json.dumps(args, ensure_ascii=False)[:60]
                 self._update_status(f"Tool: {item.name}({args_brief})")
-                result = self.registry.call(item.name, **args)
+                try:
+                    result = self.registry.call(item.name, **args)
+                except Exception as exc:
+                    logger.error("Agent: tool call failed: %s(%s): %s", item.name, args_brief, exc)
+                    self.messages.append({"role": "assistant", "content": None, "tool_calls": [item]})
+                    self.messages.append({
+                        "type": "function_call_output",
+                        "call_id": item.call_id,
+                        "output": f"Error: tool execution failed: {exc}",
+                    })
+                    continue
                 limit = self.settings.tool_output_limit
                 if len(result) > limit:
                     result = result[:limit] + "\n... (truncated)"
@@ -750,7 +801,16 @@ class Agent:
                 logger.info("Agent: tool call: %s(%s)",block.name, json.dumps(block.input, ensure_ascii=False))
                 args_brief = json.dumps(block.input, ensure_ascii=False)[:60]
                 self._update_status(f"Tool: {block.name}({args_brief})")
-                output = self.registry.call(block.name, **block.input)
+                try:
+                    output = self.registry.call(block.name, **block.input)
+                except Exception as exc:
+                    logger.error("Agent: tool call failed: %s(%s): %s", block.name, args_brief, exc)
+                    results.append({
+                        "type": "tool_result",
+                        "tool_use_id": block.id,
+                        "content": f"Error: tool execution failed: {exc}",
+                    })
+                    continue
                 limit = self.settings.tool_output_limit
                 if len(output) > limit:
                     output = output[:limit] + "\n... (truncated)"
