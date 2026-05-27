@@ -136,18 +136,21 @@ class Agent:
         self._hb_event = asyncio.Event()
 
         async def _loop() -> None:
-            while True:
-                try:
-                    await asyncio.wait_for(self._hb_event.wait(), timeout=self._hb_idle_seconds)
-                    # touch_heartbeat() set the event — reset idle timer, don't fire
-                    self._hb_event.clear()
-                except asyncio.TimeoutError:
-                    # No touch for idle_seconds — fire heartbeat
-                    self._hb_event.clear()
+            try:
+                while True:
                     try:
-                        await asyncio.to_thread(self.heartbeat_check, self._hb_idle_seconds)
-                    except Exception as e:
-                        logger.debug("Heartbeat loop error: %s", e)
+                        await asyncio.wait_for(self._hb_event.wait(), timeout=self._hb_idle_seconds)
+                        # touch_heartbeat() set the event — reset idle timer, don't fire
+                        self._hb_event.clear()
+                    except asyncio.TimeoutError:
+                        # No touch for idle_seconds — fire heartbeat
+                        self._hb_event.clear()
+                        try:
+                            await asyncio.to_thread(self.heartbeat_check, self._hb_idle_seconds)
+                        except Exception as e:
+                            logger.debug("Heartbeat loop error: %s", e)
+            except asyncio.CancelledError:
+                pass  # clean shutdown
 
         self._hb_task = asyncio.ensure_future(_loop())
 
@@ -159,6 +162,17 @@ class Agent:
     def stop_heartbeat_loop(self) -> None:
         if self._hb_task and not self._hb_task.done():
             self._hb_task.cancel()
+
+            async def _cleanup(task: asyncio.Task) -> None:
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+
+            try:
+                asyncio.ensure_future(_cleanup(self._hb_task))
+            except RuntimeError:
+                pass  # no running event loop
 
     def run(
         self,

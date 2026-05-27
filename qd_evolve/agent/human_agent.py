@@ -81,15 +81,29 @@ class HumanAgent:
             return
 
         async def _loop() -> None:
-            while True:
-                await asyncio.sleep(idle_seconds)
-                self._push_event({"type": "heartbeat_silent"})
+            try:
+                while True:
+                    await asyncio.sleep(idle_seconds)
+                    self._push_event({"type": "heartbeat_silent"})
+            except asyncio.CancelledError:
+                pass  # clean shutdown, task exits normally instead of via exception
 
         self._hb_task = asyncio.ensure_future(_loop())
 
     def stop_heartbeat_loop(self) -> None:
         if self._hb_task and not self._hb_task.done():
             self._hb_task.cancel()
+
+            async def _cleanup(task: asyncio.Task) -> None:
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+
+            try:
+                asyncio.ensure_future(_cleanup(self._hb_task))
+            except RuntimeError:
+                pass  # no running event loop
 
     # ── Human-specific methods ───────────────────────────────────────
 
