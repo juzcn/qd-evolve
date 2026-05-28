@@ -18,11 +18,15 @@ class Agent:
                  preload_tools: set[str] | None = None,
                  preload_skills: set[str] | None = None,
                  preload_cli: set[str] | None = None,
-                 template_mgr: Any = None) -> None:
+                 template_mgr: Any = None,
+                 template_name: str = "",
+                 template_context: dict[str, Any] | None = None) -> None:
         self.settings = settings
         self.registry = registry
         self.default_system_prompt = default_system_prompt
         self._template_mgr = template_mgr
+        self._template_name = template_name
+        self._template_context = template_context or {}
         self._active_tools: set[str] = set()
         self._always_active: set[str] = preload_tools or set()
         self.providers = providers
@@ -414,24 +418,8 @@ class Agent:
             logger.info("Agent:   Memory [%s] user: %s | assistant: %s (distance: %s)",
                         entry.session_id, u, a, entry.distance)
 
-        # Rebuild entire memory section from registry
         memory_text = self._recalled.format_section()
-        marker = "\n## Relevant Past Conversations\n"
-        next_section = "\n## "
-        idx = system_prompt.find(marker)
-        if idx >= 0:
-            end = system_prompt.find(next_section, idx + len(marker))
-            if end < 0:
-                end = len(system_prompt)
-            system_prompt = system_prompt[:idx] + marker + memory_text + "\n" + system_prompt[end:]
-        else:
-            first = system_prompt.find(next_section)
-            if first >= 0:
-                system_prompt = system_prompt[:first] + marker + memory_text + "\n" + system_prompt[first:]
-            else:
-                system_prompt += marker + memory_text + "\n"
-
-        return system_prompt
+        return self._template_mgr.render(self._template_name, memory_section=memory_text, **self._template_context)
 
     def _run_anthropic(self, client: Any, system_prompt: str, max_tokens: int, _iter: int = 0) -> str:
         if _iter > 0:

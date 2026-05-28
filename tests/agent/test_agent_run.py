@@ -193,9 +193,19 @@ class TestAutoRecall:
         mock_memory.recall.return_value = [entry]
         agent_core.memory = mock_memory
 
-        prompt = "## Section 1\nSome text\n## Section 2\nMore text"
-        result = agent_core._auto_recall("hello", prompt)
-        assert "Relevant Past Conversations" in result
+        mock_tmpl = MagicMock()
+        mock_tmpl.render.return_value = "rendered prompt with memory"
+        agent_core._template_mgr = mock_tmpl
+        agent_core._template_name = "default"
+        agent_core._template_context = {}
+
+        result = agent_core._auto_recall("hello", "original prompt")
+        assert result == "rendered prompt with memory"
+        mock_tmpl.render.assert_called_once()
+        call_kwargs = mock_tmpl.render.call_args[1]
+        assert call_kwargs["memory_section"]
+        assert "question" in call_kwargs["memory_section"]
+        assert "answer" in call_kwargs["memory_section"]
 
     def test_auto_recall_failure_returns_unchanged(self, agent_core):
         agent_core.settings.memory_search.auto_recall = True

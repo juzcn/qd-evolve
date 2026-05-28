@@ -214,29 +214,29 @@ def create_agent(name: str, settings: Settings, *, need_a2a: bool | None = None,
     else:
         template_name = "default"
 
-    system_prompt = template_mgr.render(
-        template_name,
-        unpreloaded_skills=unloaded_skills,
-        unpreloaded_cli=unloaded_cli,
-        unloaded_tools=unloaded_tools,
-        preloaded_skills=active_skills_content,
-        preloaded_cli=active_cli_content,
-        os_name=platform.system(),
-        python_cmd="python",
-        cwd=str(Path.cwd()),
-        skills_dir=SKILLS_DIR,
-        agent_name=entry.name,
-        available_agents=", ".join(a.name for a in settings.agents_config.agents),
-        agent_relations=", ".join(
+    template_context = {
+        "unpreloaded_skills": unloaded_skills,
+        "unpreloaded_cli": unloaded_cli,
+        "unloaded_tools": unloaded_tools,
+        "preloaded_skills": active_skills_content,
+        "preloaded_cli": active_cli_content,
+        "os_name": platform.system(),
+        "python_cmd": "python",
+        "cwd": str(Path.cwd()),
+        "skills_dir": SKILLS_DIR,
+        "agent_name": entry.name,
+        "available_agents": ", ".join(a.name for a in settings.agents_config.agents),
+        "agent_relations": ", ".join(
             f"{r['from']}→{r['to']} ({r.get('mode', 'peer')})"
             for r in settings.agents_config.topology.relations
         ) if settings.agents_config.topology.relations else "",
-        has_human_agent=any(a.is_human for a in settings.agents_config.agents),
-        human_agent_names=", ".join(a.name for a in settings.agents_config.agents if a.is_human),
-        mqtt_broker_host=settings.agents_config.mqtt_broker.host,
-        mqtt_broker_port=settings.agents_config.mqtt_broker.port,
-        group_members=", ".join(a.name for a in settings.agents_config.agents),
-    )
+        "has_human_agent": any(a.is_human for a in settings.agents_config.agents),
+        "human_agent_names": ", ".join(a.name for a in settings.agents_config.agents if a.is_human),
+        "mqtt_broker_host": settings.agents_config.mqtt_broker.host,
+        "mqtt_broker_port": settings.agents_config.mqtt_broker.port,
+        "group_members": ", ".join(a.name for a in settings.agents_config.agents),
+    }
+    system_prompt = template_mgr.render(template_name, **template_context)
     logger.debug("Agent [%s]: system prompt assembled (%d chars), template=%s\n%s", name, len(system_prompt), template_name, system_prompt)
 
     # ── Memory ────────────────────────────────────────────────
@@ -253,6 +253,8 @@ def create_agent(name: str, settings: Settings, *, need_a2a: bool | None = None,
         preload_skills=loaded_skill_names,
         preload_cli=loaded_cli_names,
         template_mgr=template_mgr,
+        template_name=template_name,
+        template_context=template_context,
     )
 
     # ── Provider/model ────────────────────────────────────────
