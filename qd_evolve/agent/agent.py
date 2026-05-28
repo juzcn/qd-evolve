@@ -493,6 +493,7 @@ class Agent:
             if reasoning:
                 logger.debug("Agent: reasoning (%d chars):\n%s", len(reasoning), reasoning)
                 self._print(f"[bold bright_cyan]Reasoning:[/bold bright_cyan] {reasoning}")
+                self._tc_buffer.append(f"[iter {self.iteration}] Reasoning:\n{reasoning}")
 
         if msg.tool_calls:
             msg_dict: dict[str, Any] = {
@@ -611,6 +612,7 @@ class Agent:
         if reasoning:
             logger.debug("Agent: reasoning (%d chars):\n%s", len(reasoning), reasoning)
             self._print(f"[bold bright_cyan]Reasoning:[/bold bright_cyan] {reasoning}")
+            self._tc_buffer.append(f"[iter {self.iteration}] Reasoning:\n{reasoning}")
 
         if usage:
             self._track_tokens_openai_completion(usage)

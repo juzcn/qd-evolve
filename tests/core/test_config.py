@@ -21,6 +21,11 @@ from qd_evolve.core.config import (
         load_json,
     load_settings,
     save_json,
+    save_settings,
+    A2ACLIConfig,
+    MqttBrokerConfig,
+    MqttConfig,
+    GChatConfig,
 )
 
 
@@ -148,6 +153,24 @@ class TestAgentEntry:
         ae = AgentEntry(name="remote")
         assert ae.server.host == ""
         assert ae.server.port == 0
+
+    def test_is_human(self):
+        assert AgentEntry(name="h", provider="human").is_human is True
+        assert AgentEntry(name="w", provider="wechat-human").is_human is True
+        assert AgentEntry(name="a", provider="openai").is_human is False
+
+    def test_is_wechat_human(self):
+        assert AgentEntry(name="w", provider="wechat-human").is_wechat_human is True
+        assert AgentEntry(name="h", provider="human").is_wechat_human is False
+
+    def test_mqtt_config_defaults(self):
+        ae = AgentEntry(name="mqtt_agent")
+        assert ae.mqtt.username == ""
+        assert ae.mqtt.keepalive == 60
+
+    def test_wechat_session(self):
+        ae = AgentEntry(name="wx", wechat_session={"room_id": "test"})
+        assert ae.wechat_session == {"room_id": "test"}
 
 
 class TestSettings:
@@ -321,3 +344,102 @@ class TestEmbeddingsBackend:
         eb = EmbeddingsBackend(model_path="model.bin", dim=384, backend="llama-cpp-python", llama_n_ctx=512, llama_n_batch=256)
         assert eb.backend == "llama-cpp-python"
         assert eb.llama_n_ctx == 512
+
+
+class TestAgentsConfigPortValidation:
+    def test_duplicate_agent_ports_raises(self):
+        with pytest.raises(ValueError, match="Duplicate server ports"):
+            AgentsConfig(
+                chat_agent="default",
+                agents=[
+                    AgentEntry(name="a1", server=ServerConfig(port=8000)),
+                    AgentEntry(name="a2", server=ServerConfig(port=8000)),
+                ],
+            )
+
+    def test_agent_cli_port_conflict_raises(self):
+        with pytest.raises(ValueError, match="Duplicate server ports"):
+            AgentsConfig(
+                chat_agent="default",
+                agents=[AgentEntry(name="a1", server=ServerConfig(port=8000))],
+                a2a_cli=A2ACLIConfig(server=ServerConfig(port=8000)),
+            )
+
+    def test_no_duplicate_ports_passes(self):
+        ac = AgentsConfig(
+            chat_agent="default",
+            agents=[
+                AgentEntry(name="a1", server=ServerConfig(port=8000)),
+                AgentEntry(name="a2", server=ServerConfig(port=8001)),
+            ],
+        )
+        assert len(ac.agents) == 2
+
+    def test_zero_ports_ignored(self):
+        ac = AgentsConfig(
+            chat_agent="default",
+            agents=[
+                AgentEntry(name="a1", server=ServerConfig(port=0)),
+                AgentEntry(name="a2", server=ServerConfig(port=0)),
+            ],
+        )
+        assert len(ac.agents) == 2
+
+
+class TestSaveSettings:
+    def test_save_creates_file(self, tmp_path):
+        s = Settings(max_iterations=5, tool_output_limit=1000)
+        path = tmp_path / "out_config.json"
+        save_settings(s, path)
+        assert path.exists()
+        data = json.loads(path.read_text(encoding="utf-8"))
+        assert data["max_iterations"] == 5
+
+    def test_save_default_path(self, monkeypatch, tmp_path):
+        s = Settings(max_iterations=5, tool_output_limit=1000)
+        import qd_evolve.core.config as config_mod
+        monkeypatch.setattr(config_mod, "CONFIG_PATH", tmp_path / "default_out.json")
+        save_settings(s)
+        assert (tmp_path / "default_out.json").exists()
+
+
+class TestMqttBrokerConfig:
+    def test_defaults(self):
+        mc = MqttBrokerConfig()
+        assert mc.host == ""
+        assert mc.port == 0
+
+    def test_custom(self):
+        mc = MqttBrokerConfig(host="mqtt.local", port=1883, will_delay_interval=5)
+        assert mc.host == "mqtt.local"
+        assert mc.port == 1883
+
+
+class TestMqttConfig:
+    def test_defaults(self):
+        mc = MqttConfig()
+        assert mc.keepalive == 60
+
+    def test_tls_config(self):
+        mc = MqttConfig(ca_certs="/path/ca.pem", certfile="/path/cert.pem", keyfile="/path/key.pem")
+        assert mc.ca_certs == "/path/ca.pem"
+        assert mc.certfile == "/path/cert.pem"
+
+
+class TestGChatConfig:
+    def test_defaults(self):
+        gc = GChatConfig()
+        assert gc.reply_delay_min == 0.0
+        assert gc.reply_delay_max == 0.0
+
+    def test_custom(self):
+        gc = GChatConfig(reply_delay_min=0.5, reply_delay_max=2.0)
+        assert gc.reply_delay_min == 0.5
+        assert gc.reply_delay_max == 2.0
+
+
+class TestA2ACLIConfig:
+    def test_defaults(self):
+        ac = A2ACLIConfig()
+        assert ac.server.port == 0
+        assert ac.resubscribe_retry_seconds == 15

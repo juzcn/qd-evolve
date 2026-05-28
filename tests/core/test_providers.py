@@ -113,6 +113,21 @@ class TestProvider:
         mock_cls.assert_called_once_with(api_key="sk", base_url="https://api.deepseek.com")
         assert client is mock_instance
 
+    @patch("anthropic.Anthropic")
+    def test_create_client_anthropic_with_base_url(self, mock_cls):
+        mock_instance = MagicMock()
+        mock_cls.return_value = mock_instance
+        pc = ProviderConfig(name="anthro", api_key="sk-ant", api="anthropic", base_url="https://api.anthropic.example.com")
+        p = Provider(pc)
+        client = p.create_client()
+        mock_cls.assert_called_once_with(api_key="sk-ant", base_url="https://api.anthropic.example.com")
+        assert client is mock_instance
+
+    def test_get_api_type_returns_api_type(self):
+        pc = ProviderConfig(name="test", api_key="sk", api="anthropic")
+        p = Provider(pc)
+        assert p.get_api_type("any-model") == "anthropic"
+
 
 class TestProviderRegistry:
     def test_get_by_name(self, providers):

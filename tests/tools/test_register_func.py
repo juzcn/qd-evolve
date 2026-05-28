@@ -151,3 +151,19 @@ class TestAddToPyproject:
         with patch("qd_evolve.tools.register_func.get_registry", return_value=mock_registry):
             from qd_evolve.tools.register_func import _add_to_pyproject
             _add_to_pyproject(["requests>=2.0"])  # should not crash
+
+    def test_invalid_toml_handled(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        pyproject = tmp_path / "pyproject.toml"
+        pyproject.write_text("invalid toml {{{", encoding="utf-8")
+
+        mock_registry = MagicMock()
+        with patch("qd_evolve.tools.register_func.get_registry", return_value=mock_registry):
+            from qd_evolve.tools.register_func import _add_to_pyproject
+            _add_to_pyproject(["requests>=2.0"])  # should not crash
+
+    def test_perm_func_dir(self):
+        from qd_evolve.tools.register_func import _perm_func_dir
+        from qd_evolve.core.config import FUNC_TOOLS_DIR
+        result = _perm_func_dir()
+        assert result == Path.cwd() / FUNC_TOOLS_DIR

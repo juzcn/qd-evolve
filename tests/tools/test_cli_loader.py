@@ -35,3 +35,11 @@ class TestLoadCli:
             from qd_evolve.tools.cli_loader import _load_cli
             result = _load_cli("anything")
             assert "not initialized" in result
+
+    def test_set_cli_registry(self):
+        from qd_evolve.tools.cli_loader import set_cli_registry
+        mock_reg = MagicMock()
+        set_cli_registry(mock_reg)
+        from qd_evolve.tools import cli_loader as mod
+        assert mod._cli_registry == mock_reg
+        mod._cli_registry = None

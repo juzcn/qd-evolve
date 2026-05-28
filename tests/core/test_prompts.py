@@ -43,6 +43,15 @@ class TestCombinedLoader:
         with pytest.raises(TemplateNotFound):
             loader.get_source(None, "nonexistent.j2")
 
+    def test_fallback_none_skipped(self, tmp_path):
+        primary = tmp_path / "primary"
+        primary.mkdir()
+        (primary / "test.j2").write_text("Primary content", encoding="utf-8")
+        # Pass None primary to exercise the "d is None" continue path
+        loader = _CombinedLoader(None, primary)
+        source, _, _ = loader.get_source(None, "test.j2")
+        assert "Primary content" in source
+
 
 class TestPromptTemplateManager:
     def test_render_builtin_default(self):

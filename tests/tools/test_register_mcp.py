@@ -60,3 +60,9 @@ class TestRegisterMcp:
             from qd_evolve.tools.register_mcp import _register_mcp
             result = _register_mcp("myserver")
             assert "already exists" in result
+
+    def test_perm_mcp_dir(self):
+        from qd_evolve.tools.register_mcp import _perm_mcp_dir
+        from qd_evolve.core.config import MCP_DIR
+        result = _perm_mcp_dir()
+        assert result == Path.cwd() / MCP_DIR

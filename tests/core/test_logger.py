@@ -61,3 +61,15 @@ class TestSetupLogging:
         assert len(log_files) >= 1
         content = log_files[0].read_text(encoding="utf-8")
         assert "test message" in content
+
+
+class TestSharedFileHandlerError:
+    def test_emit_handles_write_error(self, tmp_path):
+        log_file = tmp_path / "test.log"
+        handler = SharedFileHandler(str(log_file))
+        # Break the baseFilename to trigger IOError
+        handler.baseFilename = str(tmp_path / "nonexistent_dir" / "test.log")
+        record = logging.LogRecord("test", logging.INFO, "", 0, "should fail", (), None)
+        # Should not raise — error is handled via handleError
+        handler.emit(record)
+        handler.close()

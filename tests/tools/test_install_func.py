@@ -93,6 +93,28 @@ class TestInstallFunc:
                 deps = json.loads(deps_file.read_text(encoding="utf-8"))
                 assert deps["pip_packages"] == ["requests>=2.0"]
 
+    def test_pip_install_fallback_no_uv(self, tmp_path, monkeypatch):
+        monkeypatch.setattr("qd_evolve.tools.staging._staging_base", lambda: tmp_path / ".qd_evolve" / "staging")
+        from qd_evolve.tools.staging import ensure_staging_dirs
+        ensure_staging_dirs()
+
+        mock_registry = MagicMock()
+        with patch("qd_evolve.tools.install_func.get_registry", return_value=mock_registry):
+            with patch("shutil.which", return_value=None):
+                with patch("subprocess.check_call") as mock_call:
+                    from qd_evolve.tools.install_func import _install_func
+                    result = _install_func(
+                        name="my_tool",
+                        description="desc",
+                        input_schema={},
+                        python_code="    return ''",
+                        pip_packages=["requests"],
+                    )
+                    assert "installed" in result
+                    mock_call.assert_called_once()
+                    args = mock_call.call_args[0][0]
+                    assert "pip" in args[-3]
+
     def test_spec_creation_failure(self, tmp_path, monkeypatch):
         monkeypatch.setattr("qd_evolve.tools.staging._staging_base", lambda: tmp_path / ".qd_evolve" / "staging")
         from qd_evolve.tools.staging import ensure_staging_dirs

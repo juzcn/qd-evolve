@@ -33,3 +33,11 @@ class TestLoadSkill:
             from qd_evolve.tools.skill_loader import _load_skill
             result = _load_skill("anything")
             assert "not initialized" in result
+
+    def test_set_skill_registry(self):
+        from qd_evolve.tools.skill_loader import set_skill_registry
+        mock_reg = MagicMock()
+        set_skill_registry(mock_reg)
+        from qd_evolve.tools import skill_loader as mod
+        assert mod._skill_registry == mock_reg
+        mod._skill_registry = None

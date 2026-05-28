@@ -321,3 +321,72 @@ class TestLoadSave:
 
         loaded = _load(AGENT)
         assert loaded["tools"]["new_tool"] == "disabled"
+
+    def test_save_without_config_json(self, tmp_path, monkeypatch):
+        import qd_evolve.core.toolbox as tb
+        nonexistent = tmp_path / "nonexistent_config.json"
+        monkeypatch.setattr(tb, "CONFIG_PATH", nonexistent)
+
+        data = {"tools": {"echo": "preload"}, "cli": {}, "skills": {}, "mcp_servers": {}, "bridge": {}}
+        _save(data, "new_agent")
+
+        assert nonexistent.exists()
+
+    def test_set_state_new_section(self, toolbox_dir):
+        assert set_state("skills", "myskill", "preload", agent_name=AGENT) is True
+        assert get_state("skills", "myskill", agent_name=AGENT) == "preload"
+
+    def test_apply_to_skill_preload(self, toolbox_dir):
+        set_state("skills", "myskill", "preload", agent_name=AGENT)
+        mock_skill = MagicMock()
+        mock_skill.name = "myskill"
+        mock_registry = MagicMock()
+        mock_registry.get_all_skills.return_value = [mock_skill]
+        mock_registry._disabled = set()
+
+        preload = set()
+        apply_to_skill_registry(mock_registry, preload, agent_name=AGENT)
+        assert "myskill" in preload
+
+    def test_apply_to_skill_enabled(self, toolbox_dir):
+        mock_skill = MagicMock()
+        mock_skill.name = "enabled_skill"
+        mock_registry = MagicMock()
+        mock_registry.get_all_skills.return_value = [mock_skill]
+        mock_registry._disabled = {"other_disabled"}
+
+        preload = set()
+        apply_to_skill_registry(mock_registry, preload, agent_name=AGENT)
+        assert "enabled_skill" not in preload
+        assert "other_disabled" in mock_registry._disabled  # not cleared
+
+    def test_migrate_no_config_json(self, tmp_path, monkeypatch):
+        tb_path = tmp_path / "toolbox.json"
+        tb_path.write_text(json.dumps({"defaults": {}, "agents": {}}), encoding="utf-8")
+
+        nonexistent_cfg = tmp_path / "nonexistent_config.json"
+        import qd_evolve.core.toolbox as tb
+        monkeypatch.setattr(tb, "CONFIG_PATH", nonexistent_cfg)
+        monkeypatch.setattr(tb, "TOOLBOX_MIGRATION_PATH", tb_path)
+
+        # Should not raise — just return
+        migrate_toolbox_to_config()
+
+    def test_migrate_defaults(self, tmp_path, monkeypatch):
+        tb_data = {
+            "defaults": {"fetch": "preload", "run_shell": "disabled"},
+            "agents": {},
+        }
+        tb_path = tmp_path / "toolbox.json"
+        tb_path.write_text(json.dumps(tb_data), encoding="utf-8")
+
+        cfg_path = _make_config(tmp_path, agents=[{"name": "default"}])
+        import qd_evolve.core.toolbox as tb
+        monkeypatch.setattr(tb, "CONFIG_PATH", cfg_path)
+        monkeypatch.setattr(tb, "TOOLBOX_MIGRATION_PATH", tb_path)
+
+        migrate_toolbox_to_config()
+
+        cfg_data = json.loads(cfg_path.read_text(encoding="utf-8"))
+        assert cfg_data["toolbox_defaults"]["fetch"] == "preload"
+        assert cfg_data["toolbox_defaults"]["run_shell"] == "disabled"

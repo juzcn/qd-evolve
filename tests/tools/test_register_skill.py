@@ -65,3 +65,9 @@ class TestRegisterSkill:
             from qd_evolve.tools.register_skill import _register_skill
             result = _register_skill("my-skill")
             assert "already exists" in result
+
+    def test_perm_skill_dir(self):
+        from qd_evolve.tools.register_skill import _perm_skill_dir
+        from qd_evolve.core.config import SKILLS_DIR
+        result = _perm_skill_dir()
+        assert result == Path.cwd() / SKILLS_DIR

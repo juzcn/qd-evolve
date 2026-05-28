@@ -254,3 +254,124 @@ class TestParseTimeRangeDirect:
     def test_whitespace_handling(self, memory_store):
         start, end = memory_store._parse_time_range("  today  ")
         assert start is not None
+
+
+class TestCreateEmbedder:
+    def test_sentence_transformers_backend(self):
+        from qd_evolve.core.memory import _create_embedder
+        from qd_evolve.core.config import EmbeddingsBackend
+
+        backend = EmbeddingsBackend(model_path="fake-model", dim=384)
+        with patch("qd_evolve.core.memory.SentenceTransformerEmbedder") as MockST:
+            _create_embedder(backend)
+            MockST.assert_called_once_with("fake-model")
+
+    def test_llama_cpp_backend(self):
+        from qd_evolve.core.memory import _create_embedder
+        from qd_evolve.core.config import EmbeddingsBackend
+
+        backend = EmbeddingsBackend(model_path="fake-model", dim=384, backend="llama-cpp-python", llama_n_ctx=512, llama_n_batch=256)
+        with patch("qd_evolve.core.memory.LlamaCppEmbedder") as MockLC:
+            _create_embedder(backend)
+            MockLC.assert_called_once_with("fake-model", n_ctx=512, n_batch=256)
+
+
+class TestMemoryStoreExtended:
+    def test_save_with_process(self, memory_store):
+        mid = memory_store.save("hello", "world", process="step1: done\nstep2: done")
+        assert mid > 0
+
+    def test_delete_returns_true(self, memory_store):
+        mid = memory_store.save("hello", "world")
+        result = memory_store.delete(mid)
+        assert result is True
+        # Verify it was actually deleted
+        assert len(memory_store.list_all()) == 0
+
+    def test_recall_last_session(self, memory_store):
+        memory_store.save("old q", "old a")
+        with patch("qd_evolve.core.memory.datetime", _ControllableDatetime(datetime.now() + timedelta(seconds=2))):
+            memory_store.new_session()
+        entries = memory_store.recall(time_range="last_session", limit=5)
+        assert len(entries) >= 1
+
+    def test_recall_last_session_no_prev(self, memory_store):
+        entries = memory_store.recall(time_range="last_session", limit=5)
+        assert entries == []
+
+    def test_recall_time_range_only_no_query(self, memory_store):
+        memory_store.save("some q", "some a")
+        with patch("qd_evolve.core.memory.datetime", _ControllableDatetime(datetime.now() + timedelta(seconds=2))):
+            memory_store.new_session()
+        entries = memory_store.recall(time_range="today", limit=5)
+        assert isinstance(entries, list)
+
+    def test_recall_semantic_search_failure_handled(self, memory_store):
+        memory_store.save("test q", "test a")
+        with patch("qd_evolve.core.memory.datetime", _ControllableDatetime(datetime.now() + timedelta(seconds=2))):
+            memory_store.new_session()
+        with patch.object(memory_store, "_encode", side_effect=Exception("embedding failed")):
+            entries = memory_store.recall(query="test", limit=5)
+            assert isinstance(entries, list)
+
+    def test_close_stores_and_closes_db(self, memory_store):
+        memory_store.save("test", "test")
+        memory_store.close()
+
+    def test_close_with_llama_cpp_exception(self, tmp_path, mock_embedder):
+        from qd_evolve.core.memory import MemoryStore, LlamaCppEmbedder
+        from qd_evolve.core.config import EmbeddingsBackend
+
+        backend = EmbeddingsBackend(model_path="fake-model", dim=384)
+        db_path = str(tmp_path / "close_test.db")
+
+        with patch("qd_evolve.core.memory._create_embedder") as mock_create:
+            mock_llama = MagicMock()
+            mock_llama._llm.close.side_effect = Exception("close error")
+            mock_create.return_value = mock_llama
+
+            with patch("qd_evolve.core.memory.isinstance", return_value=True):
+                store = MemoryStore(db_path, backend, list_all_limit=50)
+                store.close()
+
+    def test_recall_with_time_range_boundaries(self, memory_store):
+        memory_store.save("bounded q", "bounded a")
+        with patch("qd_evolve.core.memory.datetime", _ControllableDatetime(datetime.now() + timedelta(seconds=2))):
+            memory_store.new_session()
+        entries = memory_store.recall(keywords=["bounded"], time_range="last_7d", limit=5)
+        assert isinstance(entries, list)
+
+    def test_recall_query_with_time_range(self, memory_store):
+        """Hit semantic search time-range filtering (start/end clauses)."""
+        memory_store.save("old question", "old answer")
+        with patch("qd_evolve.core.memory.datetime", _ControllableDatetime(datetime.now() + timedelta(seconds=5))):
+            memory_store.new_session()
+        # Use a future time_range so the old data is before the range = no results
+        entries = memory_store.recall(query="question", time_range="last_7d", limit=5)
+        assert isinstance(entries, list)
+
+    def test_recall_access_stats_failure_handled(self, memory_store):
+        memory_store.save("stats q", "stats a")
+        with patch("qd_evolve.core.memory.datetime", _ControllableDatetime(datetime.now() + timedelta(seconds=2))):
+            memory_store.new_session()
+
+        # Replace _db with a wrapper object whose execute delegates then raises on UPDATE
+        real_db = memory_store._db
+
+        class _DbWrapper:
+            def __getattr__(self, name):
+                return getattr(real_db, name)
+
+            def execute(self, sql, params=None):
+                if isinstance(sql, str) and sql.strip().upper().startswith("UPDATE"):
+                    raise Exception("update failed")
+                if params is None:
+                    return real_db.execute(sql)
+                return real_db.execute(sql, params)
+
+        memory_store._db = _DbWrapper()
+        try:
+            entries = memory_store.recall(keywords=["stats"], limit=5)
+            assert len(entries) == 1
+        finally:
+            memory_store._db = real_db

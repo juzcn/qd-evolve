@@ -341,7 +341,7 @@ class TestRunCompletedEvent:
         with patch.object(agent_core.providers, "get", return_value=mock_prov):
             agent_core.run("hello")
 
-        mock_memory.save.assert_called_once_with("hello", "response")
+        mock_memory.save.assert_called_once_with("hello", "response", process=None)
 
     def test_memory_save_failure_handled(self, agent_core):
         mock_memory = MagicMock()

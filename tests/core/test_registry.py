@@ -1,5 +1,8 @@
 """Tests for qd_evolve.core.registry — ToolRegistry, ToolDef, definitions, call."""
 
+import importlib
+from unittest.mock import patch
+
 import pytest
 
 from qd_evolve.core.registry import ToolRegistry, ToolDef, decode_output
@@ -184,3 +187,54 @@ class TestCallWithTimeout:
         registry.register("slow", "Slow tool", slow_handler)
         result = registry.call("slow")
         assert "timed out" in result
+
+    def test_call_runtime_error_on_thread_start(self, registry):
+        registry.register("echo", "Echo", lambda s: s)
+        import threading
+        with patch.object(threading.Thread, "start", side_effect=RuntimeError("cannot start thread")):
+            result = registry.call("echo", s="hello")
+        assert "unavailable" in result
+
+    def test_call_actual_timeout(self, registry):
+        def very_slow(**kwargs):
+            import time
+            time.sleep(999)
+
+        registry.register("slow", "Very slow tool", very_slow)
+        import threading
+        with patch.object(threading.Thread, "join", return_value=None), \
+             patch.object(threading.Thread, "is_alive", return_value=True):
+            result = registry.call("slow")
+        assert "timed out" in result
+
+
+class TestDiscoverTools:
+    def test_discover_system_tools_error_handled(self, registry, tmp_path):
+        with patch("importlib.import_module", side_effect=ImportError("module not found")):
+            registry.discover_tools()
+
+    def test_discover_func_tools_error_handled(self, registry, tmp_path):
+        func_dir = tmp_path / "func"
+        func_dir.mkdir()
+        (func_dir / "broken.py").write_text("syntax error here !!!", encoding="utf-8")
+
+        import qd_evolve.core.config as config_mod
+        with patch.object(config_mod, "FUNC_TOOLS_DIR", str(func_dir)):
+            registry.discover_tools()
+
+    def test_get_registry_singleton(self):
+        from qd_evolve.core.registry import get_registry, _registry
+        # Reset singleton
+        import qd_evolve.core.registry as reg_mod
+        reg_mod._registry = None
+        r = get_registry()
+        assert r is not None
+
+    def test_discover_staging_error_handled(self, registry, tmp_path):
+        staging = tmp_path / ".qd_evolve" / "staging" / "func"
+        staging.mkdir(parents=True)
+        (staging / "broken_staged.py").write_text("!!! not valid python !!!", encoding="utf-8")
+
+        from qd_evolve.tools import staging as staging_mod
+        with patch.object(staging_mod, "staging_func_dir", return_value=staging):
+            registry.discover_tools()
