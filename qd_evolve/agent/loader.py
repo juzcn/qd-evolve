@@ -144,6 +144,7 @@ def create_agent(name: str, settings: Settings, *, need_a2a: bool | None = None,
 
     # A2A mode: auto-detect (>1 agent) or explicit override
     a2a_on = _a2a_enabled(settings) if need_a2a is None else need_a2a
+    mqtt_on = need_mqtt
 
     # ── Toolbox state (per-agent) ─────────────────────────────
     from qd_evolve.core.toolbox import (
