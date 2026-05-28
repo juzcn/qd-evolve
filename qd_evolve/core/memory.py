@@ -142,9 +142,13 @@ class MemoryStore:
     def _encode(self, text: str) -> np.ndarray:
         return self._embedder.encode(text)
 
-    def save(self, user_msg: str, assistant_msg: str) -> int:
+    def save(self, user_msg: str, assistant_msg: str, process: str | None = None) -> int:
         key = datetime.now().isoformat(timespec="seconds")
-        content = f"user: {user_msg}\nassistant: {assistant_msg}"
+        parts = [f"user: {user_msg}"]
+        if process:
+            parts.append(f"process:\n{process}")
+        parts.append(f"assistant: {assistant_msg}")
+        content = "\n".join(parts)
 
         cursor = self._db.execute(
             "INSERT INTO memories (key, session_id, user_msg, assistant_msg, content) VALUES (?, ?, ?, ?, ?)",

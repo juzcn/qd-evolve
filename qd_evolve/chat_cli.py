@@ -199,17 +199,11 @@ async def _handle_slash_command(
         entries = memory.list_all()
         if not entries:
             return "  (no memories saved)"
-        table = Table(title="Memories", show_header=True)
-        table.add_column("#", style="dim")
-        table.add_column("Key", style="bold")
-        table.add_column("Session", style="dim")
-        table.add_column("Last Access", style="dim")
-        table.add_column("AC", style="dim", justify="right")
-        table.add_column("User", style="cyan")
-        table.add_column("Assistant")
         for e in entries:
-            table.add_row(str(e.id), e.key, e.session_id, e.accessed_at or "-", str(e.access_count), e.user_msg, e.assistant_msg)
-        console.print(table)
+            console.print(f"[bold cyan]#{e.id}[/bold cyan] [dim]{e.key}[/dim]")
+            console.print(f"  [dim]session:[/dim] {e.session_id}  [dim]access:[/dim] {e.accessed_at or '-'}  [dim]count:[/dim] {e.access_count}")
+            console.print(f"  {e.content}")
+            console.print()
         return ""
     if name == "/cli":
         cli_registry.reload()
@@ -557,6 +551,9 @@ app.add_typer(mqtt_app, name="mqtt")
 
 from qd_evolve.toolbox_tui import toolbox_app
 app.add_typer(toolbox_app, name="toolbox")
+
+from qd_evolve.memory_tui import memory_app
+app.add_typer(memory_app, name="memory")
 
 from qd_evolve.gchat_cli import gchat_app
 app.add_typer(gchat_app, name="gchat")

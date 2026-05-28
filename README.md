@@ -33,6 +33,9 @@ qd-evolve gchat --agent <name>
 
 # Manage tool enable/disable/preload
 qd-evolve toolbox --agent <name>
+
+# Browse and search conversation memories
+qd-evolve memory --agent <name>
 ```
 
 ## Four Systems
@@ -167,7 +170,7 @@ Three states: `enabled` (on-demand schema), `preload` (schema at startup), `disa
 | `/agents` | Switch agent |
 | `/tools` | List tools |
 | `/load <tool>` | Load tool schema |
-| `/recall <query>` | Search memory |
+| `/memory` | List saved memories with full content |
 | `/compress` | Force context compression |
 | `/clear` | Clear conversation |
 | `/help` | Show help |
@@ -213,6 +216,7 @@ qd-evolve/
 ├── templates/       # User Jinja2 template overrides
 ├── tests/           # pytest suite
 ├── config.json      # All configuration
+├── memory.db        # Conversation memory (SQLite + sqlite-vec)
 └── pyproject.toml   # Dependencies and build config
 ```
 

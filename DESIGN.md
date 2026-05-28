@@ -45,7 +45,7 @@ These are the constraints that every change must preserve:
 3. **No more than one remote transport at a time.** In-process + HTTP, or in-process + MQTT, never both.
 4. **MQTT transport is sole-consumer.** Group chat gets its own transport connection.
 5. **Human and AI agents share the same protocol.** The transport layer doesn't distinguish them.
-6. **Memory is save + recall only.** No forgetting curves, no episodic structures, no automatic categorization.
+6. **Memory is save + recall + process capture.** Each save records the full Q/A along with the tool call process (name, parameters, success/failure). No forgetting curves, no episodic structures, no automatic categorization.
 7. **Configuration is one file.** No env vars, no scattered config.
 8. **Security is physical, not digital.** No software permission system that the model could reason past.
 
@@ -116,6 +116,8 @@ Five tool categories:
 
 SQLite + `sqlite-vec` with BGE-M3 embeddings. Two operations: `save` (insert + embed) and `recall` (embed query → cosine similarity → top-k). Auto-recall queries memory before each LLM call, injecting results into the system prompt. Deduplicated across turns via `RecalledMemoryRegistry`. Context compression truncates old Q/A pairs when tokens exceed threshold.
 
+**Process capture**: `save()` accepts an optional `process` string recording each tool call in the iteration chain — name, parameters, and success/failure (tool results excluded). This enriches the `content` field for semantic recall without schema changes.
+
 ### Multi-Agent Communication
 
 Two mechanisms: **direct tasking** (send task → lifecycle: submitted→working→completed/failed/canceled/input_required) and **group chat** (all agents subscribe to `/chat` topics, `@mentions` direct attention, no coordinator). Built on A2A v1.0: agent discovery, task management, SSE streaming, push notifications.
@@ -145,6 +147,7 @@ qd_evolve/
 ├── skills.py                # SkillRegistry
 ├── cli_tools.py             # CLIRegistry
 ├── toolbox_tui.py           # Textual TUI for toolbox management
+├── memory_tui.py            # Textual TUI for memory browsing and search
 ├── core/
 │   ├── config.py            # Settings, AgentEntry, ServerConfig, MqttConfig (pydantic)
 │   ├── providers.py         # Provider + ProviderRegistry
@@ -253,8 +256,8 @@ _run_inner(user_input, system, provider, model):
        a. Create API client (openai or anthropic)
        b. Build tool definitions from registry (active + preload)
        c. Call LLM (dispatch by api_type)
-       d. If text response → save to memory, compress, return
-       e. If tool calls → execute via ToolRegistry.call(), append results, continue
+       d. If text response → save to memory (with process capture), compress, return
+       e. If tool calls → record name/params/success via _record_tool_call(), execute via ToolRegistry.call(), append results, continue
        f. If max_iterations exceeded → return error
 ```
 
@@ -494,7 +497,7 @@ Standalone async client for the WeChat iLink ClawBot protocol. Extracted from Si
 
 ### Entry Point
 
-`qd_evolve/__main__.py` registers typer subcommands: default (chat), `a2a`, `mqtt`, `gchat`, `toolbox`.
+`qd_evolve/__main__.py` registers typer subcommands: default (chat), `a2a`, `mqtt`, `gchat`, `toolbox`, `memory`.
 
 ### Chat Loop Pattern (all CLIs)
 

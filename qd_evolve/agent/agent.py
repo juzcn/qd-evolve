@@ -212,6 +212,7 @@ class Agent:
         self.touch_heartbeat()
         self.messages.append({"role": "user", "content": user_input})
         self.iteration = 0
+        self._tc_buffer: list[str] = []
         self._log_limit = self.settings.log.truncation
         logger.info("Agent: user input: %s", user_input)
 
@@ -255,7 +256,8 @@ class Agent:
             if self.memory:
                 self._compress_messages()
                 try:
-                    self.memory.save(user_input, result)
+                    process = "\n".join(self._tc_buffer) if self._tc_buffer else None
+                    self.memory.save(user_input, result, process=process)
                 except Exception as e:
                     logger.warning("Agent: memory.save failed: %s", e)
             if self._on_event:
@@ -516,6 +518,7 @@ class Agent:
                     args = json.loads(tc.function.arguments)
                 except json.JSONDecodeError as e:
                     logger.error("Agent: malformed tool call arguments from LLM: %s(%s)", tc.function.name, tc.function.arguments[:200])
+                    self._record_tool_call(tc.function.name, {"raw": tc.function.arguments[:200]}, success=False, error=f"malformed JSON: {e}")
                     self.messages.append({
                         "role": "tool",
                         "tool_call_id": tc.id,
@@ -529,6 +532,7 @@ class Agent:
                     output = self.registry.call(tc.function.name, **args)
                 except Exception as exc:
                     logger.error("Agent: tool call failed: %s(%s): %s", tc.function.name, args_brief, exc)
+                    self._record_tool_call(tc.function.name, args, success=False, error=str(exc))
                     self.messages.append({
                         "role": "tool",
                         "tool_call_id": tc.id,
@@ -541,6 +545,7 @@ class Agent:
                 logger.info("Agent: tool result: %s -> %s", tc.function.name,
                             self._trunc(str(output)))
                 self._activate_tool(tc.function.name, args, output)
+                self._record_tool_call(tc.function.name, args, success=True)
                 self.messages.append({
                     "role": "tool",
                     "tool_call_id": tc.id,
@@ -632,6 +637,7 @@ class Agent:
                     args = json.loads(tc["function"]["arguments"])
                 except json.JSONDecodeError as e:
                     logger.error("Agent: malformed tool call arguments from LLM: %s(%s)", tc["function"]["name"], tc["function"]["arguments"][:200])
+                    self._record_tool_call(tc["function"]["name"], {"raw": tc["function"]["arguments"][:200]}, success=False, error=f"malformed JSON: {e}")
                     self.messages.append({
                         "role": "tool",
                         "tool_call_id": tc["id"],
@@ -646,6 +652,7 @@ class Agent:
                     output = self.registry.call(name, **args)
                 except Exception as exc:
                     logger.error("Agent: tool call failed: %s(%s): %s", name, args_brief, exc)
+                    self._record_tool_call(name, args, success=False, error=str(exc))
                     self.messages.append({
                         "role": "tool",
                         "tool_call_id": tc["id"],
@@ -657,6 +664,7 @@ class Agent:
                     output = output[:limit] + "\n... (truncated)"
                 logger.info("Agent: tool result: %s -> %s", name, self._trunc(str(output)))
                 self._activate_tool(name, args, output)
+                self._record_tool_call(name, args, success=True)
                 self.messages.append({
                     "role": "tool",
                     "tool_call_id": tc["id"],
@@ -693,6 +701,7 @@ class Agent:
                     args = json.loads(item.arguments)
                 except json.JSONDecodeError as e:
                     logger.error("Agent: malformed tool call arguments from LLM: %s(%s)", item.name, item.arguments[:200])
+                    self._record_tool_call(item.name, {"raw": item.arguments[:200]}, success=False, error=f"malformed JSON: {e}")
                     self.messages.append({
                         "role": "assistant", "content": None, "tool_calls": [item],
                     })
@@ -709,6 +718,7 @@ class Agent:
                     result = self.registry.call(item.name, **args)
                 except Exception as exc:
                     logger.error("Agent: tool call failed: %s(%s): %s", item.name, args_brief, exc)
+                    self._record_tool_call(item.name, args, success=False, error=str(exc))
                     self.messages.append({"role": "assistant", "content": None, "tool_calls": [item]})
                     self.messages.append({
                         "type": "function_call_output",
@@ -722,6 +732,7 @@ class Agent:
                 logger.info("Agent: tool result: %s -> %s", item.name,
                             self._trunc(str(result)))
                 self._activate_tool(item.name, args, result)
+                self._record_tool_call(item.name, args, success=True)
                 self.messages.append({"role": "assistant", "content": None, "tool_calls": [item]})
                 self.messages.append({
                     "type": "function_call_output",
@@ -782,6 +793,11 @@ class Agent:
             if name:
                 self._loaded_cli_names.add(name)
 
+    def _record_tool_call(self, name: str, args: dict, success: bool, error: str | None = None) -> None:
+        params = ", ".join(f"{k}={json.dumps(v, ensure_ascii=False)}" for k, v in args.items())
+        mark = "✓" if success else f"✗ {error}"
+        self._tc_buffer.append(f"[iter {self.iteration}] {name}({params}) {mark}")
+
     def _execute_tools_anthropic(self, content: list) -> list[dict]:
         results: list[dict] = []
         for block in content:
@@ -793,6 +809,7 @@ class Agent:
                     output = self.registry.call(block.name, **block.input)
                 except Exception as exc:
                     logger.error("Agent: tool call failed: %s(%s): %s", block.name, args_brief, exc)
+                    self._record_tool_call(block.name, block.input, success=False, error=str(exc))
                     results.append({
                         "type": "tool_result",
                         "tool_use_id": block.id,
@@ -805,6 +822,7 @@ class Agent:
                 logger.info("Agent: tool result: %s -> %s", block.name,
                             self._trunc(str(output)))
                 self._activate_tool(block.name, block.input, output)
+                self._record_tool_call(block.name, block.input, success=True)
                 results.append({
                     "type": "tool_result",
                     "tool_use_id": block.id,
