@@ -96,7 +96,7 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Vertical, Horizontal
 from textual.screen import ModalScreen
-from textual.widgets import DataTable, Footer, Header, Input, Static
+from textual.widgets import DataTable, Footer, Header, Input, RichLog, Static
 
 from qd_evolve.core.memory import MemoryStore, MemoryEntry
 
@@ -176,14 +176,14 @@ class MemoryApp(App):
                 Static("", id="status-bar"),
                 DataTable(id="results", cursor_type="row"),
             ),
-            Static("", id="content-panel"),
+            RichLog(id="content-panel", highlight=True, markup=True, wrap=True),
         )
         yield Footer()
 
     def _load_entries(self) -> None:
-        if self._query:
+        if self._query or self._time_range:
             self._entries = self._store.recall(
-                query=self._query,
+                query=self._query or None,
                 time_range=self._time_range or None,
                 limit=self._limit,
             )
@@ -207,12 +207,14 @@ class MemoryApp(App):
             table.add_row(str(i), e.key[:19], user_preview, asst_preview)
 
         table.styles.width = "50%"
-        content_panel = self.query_one("#content-panel", Static)
+        content_panel = self.query_one("#content-panel", RichLog)
         content_panel.styles.width = "50%"
 
         status = self.query_one("#status-bar", Static)
         if self._query:
             status.update(f"[bold]Search:[/bold] '{self._query}'  |  {len(self._entries)} results  |  limit={self._limit}  |  time_range={self._time_range or 'all'}")
+        elif self._time_range:
+            status.update(f"[bold]Browse by time[/bold]  |  {len(self._entries)} entries  |  limit={self._limit}  |  time_range={self._time_range}")
         else:
             status.update(f"[bold]Browse all[/bold]  |  {len(self._entries)} entries  |  limit={self._limit}")
 
@@ -222,16 +224,14 @@ class MemoryApp(App):
             table.move_cursor(row=saved_row)
 
     def _show_content(self, row_idx: int) -> None:
-        panel = self.query_one("#content-panel", Static)
+        panel = self.query_one("#content-panel", RichLog)
         if row_idx < len(self._entries):
             e = self._entries[row_idx]
-            lines = [
-                f"[bold]#{e.id}[/bold] [dim]{e.key}[/dim]",
-                f"[dim]session: {e.session_id}  access: {e.accessed_at or '-'}  count: {e.access_count}[/dim]",
-                "",
-                str(e.content),
-            ]
-            panel.update("\n".join(lines))
+            panel.clear()
+            panel.write(f"[bold]#{e.id}[/bold] [dim]{e.key}[/dim]")
+            panel.write(f"[dim]session: {e.session_id}  access: {e.accessed_at or '-'}  count: {e.access_count}[/dim]")
+            panel.write("")
+            panel.write(str(e.content))
 
     # ── actions ──────────────────────────────────────────────────────────
 

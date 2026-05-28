@@ -773,17 +773,20 @@ def serve(
             console.print(f"[red]Error:[/red] Cannot bind to {bind_host}:{port} — {e}")
             console.print("[dim]Another process may be using this port. Kill it or change the port in config.json.[/dim]")
             return
-        if is_human:
-            agent_core.start_heartbeat_loop(settings.heartbeat_idle_seconds)
-            await _human_terminal_loop(agent_core, settings)
-        else:
-            agent_core.start_heartbeat_loop()
-            # Block until Ctrl+C
-            stop_event = asyncio.Event()
-            try:
+        try:
+            if is_human:
+                agent_core.start_heartbeat_loop(settings.heartbeat_idle_seconds)
+                await _human_terminal_loop(agent_core, settings)
+            else:
+                agent_core.start_heartbeat_loop()
+                # Block until Ctrl+C
+                stop_event = asyncio.Event()
                 await stop_event.wait()
-            except KeyboardInterrupt:
-                pass
+        except KeyboardInterrupt:
+            pass
+        finally:
+            agent_core.stop_heartbeat_loop()
+            await server.stop()
 
     try:
         asyncio.run(_run())
