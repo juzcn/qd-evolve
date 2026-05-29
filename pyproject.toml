@@ -1,10 +1,23 @@
 [project]
 name = "qd-evolve"
 version = "0.1.0"
-description = "AI agent with tool use, structured logging, and CLI interface"
+description = "Multi-agent AI framework with A2A protocol support, group chat, persistent memory, and extensible tool system"
 readme = "README.md"
 license = "MIT"
+authors = [
+    { name = "juzcn", email = "zhangjun@cueb.edu.cn" },
+]
+keywords = ["ai", "agent", "multi-agent", "a2a", "llm", "mqtt", "group-chat"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
 requires-python = ">=3.13"
+
 dependencies = [
     "anthropic>=0.104.1",
     "pydantic>=2.11",
@@ -30,6 +43,11 @@ dependencies = [
     "aiohttp>=3.13.5",
     "aiomqtt>=2.5.1",
 ]
+
+[project.urls]
+Homepage = "https://github.com/juzcn/qd-evolve"
+Repository = "https://github.com/juzcn/qd-evolve"
+Issues = "https://github.com/juzcn/qd-evolve/issues"
 
 [project.optional-dependencies]
 boat = ["basic-open-agent-tools[all]>=1.3"]

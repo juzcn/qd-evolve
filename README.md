@@ -1,5 +1,7 @@
 # QD-Evolve
 
+[![PyPI version](https://img.shields.io/pypi/v/qd-evolve)](https://pypi.org/project/qd-evolve/)
+
 Multi-agent AI framework with A2A protocol support, group chat, persistent memory, and extensible tool system.
 
 - [DESIGN.md](DESIGN.md) — design philosophy, invariants, architecture, implementation
@@ -8,38 +10,37 @@ Multi-agent AI framework with A2A protocol support, group chat, persistent memor
 
 ### Prerequisites
 
-- **Python 3.13+** — required by `requires-python`
-- **[uv](https://docs.astral.sh/uv/)** — packaging tool used for dependency management. Install with:
-  ```powershell
-  powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
-  ```
-  Or on macOS/Linux:
-  ```bash
-  curl -LsSf https://astral.sh/uv/install.sh | sh
-  ```
+- **Python 3.13+**
 - **Mosquitto v5 broker** (MQTT/GChat mode only) — [download](https://mosquitto.org/download/)
 
-### Setup
+### Install from PyPI
 
 ```bash
-# 1. Clone the repository
+pip install qd-evolve
+
+# Or with uv
+uv add qd-evolve
+
+# Optional: BOAT bridge extras
+pip install qd-evolve[boat]
+```
+
+### Install from source
+
+```bash
 git clone https://github.com/juzcn/qd-evolve
 cd qd-evolve
 
-# 2. Create virtual environment and install all dependencies
+# Install dependencies
 uv sync
 
-# Optional: install BOAT bridge extras
+# Optional: BOAT bridge extras
 uv sync --extra boat
-
-# 3. Configure
-#    Copy and edit the example below, or start from scratch.
-#    Edit config.json with your API keys and models.
 ```
 
 ### Configuration
 
-Minimal `config.json` for single-agent chat:
+Create a `config.json` in your working directory. Minimal setup for single-agent chat:
 
 ```json
 {
@@ -66,7 +67,6 @@ See [Configuration](#configuration-1) below for full multi-agent, MQTT, and tool
 ### Verify
 
 ```bash
-# Start single-agent chat — should see the prompt
 qd-evolve
 ```
 
