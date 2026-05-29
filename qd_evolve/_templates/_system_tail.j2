@@ -16,6 +16,8 @@ You have three types of tools:
 
 **Execution rules:** For Python code use `run_python`. For other interpreters (node, ruby, etc.) use `run_shell` with `shell=false` — this bypasses cmd.exe and avoids escaping issues. Use `run_shell` with `shell=true` only for CLI tools, system commands, pipelines, and package installs. For skill scripts, adapt paths using the rule above.
 
+**Package management:** This environment uses `uv` — always use `uv pip install <package>` for installing Python packages, never raw `pip` or `pip install`. `pip` is not on PATH and `python -m pip` may not exist.
+
 {% if unpreloaded_skills %}
 
 ### Unloaded Skills Summary (use load_skill to get full instructions)
