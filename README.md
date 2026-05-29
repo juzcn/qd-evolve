@@ -4,14 +4,75 @@ Multi-agent AI framework with A2A protocol support, group chat, persistent memor
 
 - [DESIGN.md](DESIGN.md) — design philosophy, invariants, architecture, implementation
 
+## Installation
+
+### Prerequisites
+
+- **Python 3.13+** — required by `requires-python`
+- **[uv](https://docs.astral.sh/uv/)** — packaging tool used for dependency management. Install with:
+  ```powershell
+  powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+  ```
+  Or on macOS/Linux:
+  ```bash
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+  ```
+- **Mosquitto v5 broker** (MQTT/GChat mode only) — [download](https://mosquitto.org/download/)
+
+### Setup
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/juzcn/qd-evolve
+cd qd-evolve
+
+# 2. Create virtual environment and install all dependencies
+uv sync
+
+# Optional: install BOAT bridge extras
+uv sync --extra boat
+
+# 3. Configure
+#    Copy and edit the example below, or start from scratch.
+#    Edit config.json with your API keys and models.
+```
+
+### Configuration
+
+Minimal `config.json` for single-agent chat:
+
+```json
+{
+  "default_provider": "openai",
+  "default_model": "gpt-4o",
+  "max_iterations": 20,
+  "tool_output_limit": 8000,
+  "providers": [
+    {
+      "name": "openai",
+      "api_key": "sk-...",
+      "base_url": "https://api.openai.com/v1",
+      "api": "openai-completions",
+      "models": [
+        { "name": "gpt-4o", "context_window": 128000, "max_tokens": 4096 }
+      ]
+    }
+  ]
+}
+```
+
+See [Configuration](#configuration-1) below for full multi-agent, MQTT, and toolbox setup.
+
+### Verify
+
+```bash
+# Start single-agent chat — should see the prompt
+qd-evolve
+```
+
 ## Quick Start
 
 ```bash
-# Install
-uv sync
-
-# Configure — edit config.json with your API keys and models
-
 # Single-agent chat
 qd-evolve
 
@@ -225,6 +286,7 @@ See [DESIGN.md](DESIGN.md) for architecture and full module map.
 ## Requirements
 
 - Python 3.13+
+- [uv](https://docs.astral.sh/uv/) for dependency management
 - External Mosquitto v5 broker (MQTT/GChat mode only)
 - API keys for configured providers
 
