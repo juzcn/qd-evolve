@@ -95,7 +95,7 @@ def _memory_list(store) -> None:
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.screen import ModalScreen
-from textual.widgets import DataTable, Footer, Header, Input, RichLog, Static
+from textual.widgets import DataTable, Footer, Header, Input, Static, TextArea
 
 from qd_evolve.core.memory import MemoryStore, MemoryEntry
 
@@ -172,7 +172,7 @@ class MemoryApp(App):
         yield Header()
         yield Static("", id="status-bar")
         yield DataTable(id="results", cursor_type="row")
-        yield RichLog(id="detail-pane", highlight=True, markup=True, wrap=True, auto_scroll=False)
+        yield TextArea(id="detail-pane", read_only=True, soft_wrap=True, show_line_numbers=False)
         yield Footer()
 
     def _load_entries(self) -> None:
@@ -215,15 +215,15 @@ class MemoryApp(App):
             table.move_cursor(row=saved_row)
 
     def _show_content(self, row_idx: int) -> None:
-        pane = self.query_one("#detail-pane", RichLog)
+        pane = self.query_one("#detail-pane", TextArea)
         if row_idx < len(self._entries):
             e = self._entries[row_idx]
-            pane.clear()
-            pane.write(f"[bold]#{e.id}[/bold] [dim]{e.key}[/dim]")
-            score_str = f"  [bold yellow]score: {1.0 - e.distance / 2.0:.0%}[/bold yellow]" if e.distance is not None else ""
-            pane.write(f"[dim]session: {e.session_id}  access: {e.accessed_at or '-'}  count: {e.access_count}{score_str}[/dim]")
-            pane.write("")
-            pane.write(str(e.content))
+            lines = [f"#{e.id} {e.key}"]
+            score_str = f"  score: {1.0 - e.distance / 2.0:.0%}" if e.distance is not None else ""
+            lines.append(f"session: {e.session_id}  access: {e.accessed_at or '-'}  count: {e.access_count}{score_str}")
+            lines.append("")
+            lines.append(str(e.content))
+            pane.load_text("\n".join(lines))
 
     # ── actions ──────────────────────────────────────────────────────────
 
