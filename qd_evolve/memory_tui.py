@@ -94,7 +94,6 @@ def _memory_list(store) -> None:
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Vertical, Horizontal
 from textual.screen import ModalScreen
 from textual.widgets import DataTable, Footer, Header, Input, RichLog, Static
 
@@ -171,13 +170,9 @@ class MemoryApp(App):
 
     def compose(self) -> ComposeResult:
         yield Header()
-        yield Horizontal(
-            Vertical(
-                Static("", id="status-bar"),
-                DataTable(id="results", cursor_type="row"),
-            ),
-            RichLog(id="content-panel", highlight=True, markup=True, wrap=True),
-        )
+        yield Static("", id="status-bar")
+        yield DataTable(id="results", cursor_type="row")
+        yield RichLog(id="detail-pane", highlight=True, markup=True, wrap=True)
         yield Footer()
 
     def _load_entries(self) -> None:
@@ -197,18 +192,14 @@ class MemoryApp(App):
 
         if not table.columns:
             table.add_column("#", width=4)
-            table.add_column("Key", width=20)
-            table.add_column("User", width=40)
-            table.add_column("Assistant", width=40)
+            table.add_column("Key")
+            table.add_column("Score", width=7)
+            table.add_column("Content")
 
         for i, e in enumerate(self._entries, 1):
-            user_preview = e.user_msg.replace("\n", " ")[:60]
-            asst_preview = e.assistant_msg.replace("\n", " ")[:60]
-            table.add_row(str(i), e.key[:19], user_preview, asst_preview)
-
-        table.styles.width = "50%"
-        content_panel = self.query_one("#content-panel", RichLog)
-        content_panel.styles.width = "50%"
+            score = f"{1.0 - e.distance / 2.0:.0%}" if e.distance is not None else "-"
+            detail = e.content.replace("\n", " ¶ ")[:120]
+            table.add_row(str(i), e.key, score, detail)
 
         status = self.query_one("#status-bar", Static)
         if self._query:
@@ -224,14 +215,15 @@ class MemoryApp(App):
             table.move_cursor(row=saved_row)
 
     def _show_content(self, row_idx: int) -> None:
-        panel = self.query_one("#content-panel", RichLog)
+        pane = self.query_one("#detail-pane", RichLog)
         if row_idx < len(self._entries):
             e = self._entries[row_idx]
-            panel.clear()
-            panel.write(f"[bold]#{e.id}[/bold] [dim]{e.key}[/dim]")
-            panel.write(f"[dim]session: {e.session_id}  access: {e.accessed_at or '-'}  count: {e.access_count}[/dim]")
-            panel.write("")
-            panel.write(str(e.content))
+            pane.clear()
+            pane.write(f"[bold]#{e.id}[/bold] [dim]{e.key}[/dim]")
+            score_str = f"  [bold yellow]score: {1.0 - e.distance / 2.0:.0%}[/bold yellow]" if e.distance is not None else ""
+            pane.write(f"[dim]session: {e.session_id}  access: {e.accessed_at or '-'}  count: {e.access_count}{score_str}[/dim]")
+            pane.write("")
+            pane.write(str(e.content))
 
     # ── actions ──────────────────────────────────────────────────────────
 
