@@ -9,13 +9,12 @@
 - Platform: {{ os_name }}
 - Python command: `{{ python_cmd }}`
 - Working directory: `{{ cwd }}` — all relative paths resolve here
-- Skills directory: `{{ skills_dir }}`
 - Package manager: `uv` — use `uv pip install <package>`, never `pip` or `python -m pip`
 
 **Execution rules:**
 - Python code → `run_python`. Other interpreters (node, ruby, etc.) → `run_shell` with `shell=false` (bypasses cmd.exe, avoids escaping issues).
 - CLI tools, system commands, pipelines, package installs → `run_shell` with `shell=true`.
-- When a skill references paths like `python3 skills/foo/bar.py`, adapt to: `{{ python_cmd }} {{ skills_dir }}/foo/bar.py`. Always relative paths, never absolute.
+- Skill scripts use `python3` in examples — replace with `{{ python_cmd }}`. Paths are relative to project root, no adaptation needed.
 
 ## Toolbox
 You have three types of tools:

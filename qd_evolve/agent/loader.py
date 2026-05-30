@@ -224,7 +224,6 @@ def create_agent(name: str, settings: Settings, *, need_a2a: bool | None = None,
         "os_name": platform.system(),
         "python_cmd": "python",
         "cwd": str(Path.cwd()),
-        "skills_dir": SKILLS_DIR,
         "agent_name": entry.name,
         "available_agents": ", ".join(a.name for a in settings.agents_config.agents),
         "agent_relations": ", ".join(

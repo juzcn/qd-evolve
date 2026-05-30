@@ -10,7 +10,7 @@ from pydantic import BaseModel, model_validator
 CONFIG_PATH = Path("config.json")
 
 # Project directory constants — not user-configurable
-SKILLS_DIR = "tools/skills"
+SKILLS_DIR = "skills"
 CLI_TOOLS_DIR = "tools/cli"
 FUNC_TOOLS_DIR = "tools/func"
 MCP_DIR = "tools/mcp"

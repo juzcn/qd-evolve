@@ -103,7 +103,7 @@ Five tool categories:
 | System | `qd_evolve/tools/` | Yes | Auto-discovered, schema on demand |
 | A2A | `qd_evolve/agent/a2a_tools.py` | Yes | Registered when A2A enabled |
 | Func | `tools/func/` | Yes | Hot-loadable `.py` files |
-| Skills | `tools/skills/` | No | SKILL.md, injected into prompt |
+| Skills | `skills/` | No | SKILL.md, injected into prompt |
 | CLI | `tools/cli/` | No | YAML definitions, via `run_shell` |
 
 **On-demand loading**: tools start with name + description. Full schema loaded only when the model calls `load_func`/`load_skill`/`load_cli`. Tools move from unloaded to active for subsequent turns.
@@ -285,7 +285,7 @@ Each path recursively calls itself for tool turns, incrementing an `_iter` count
 
 Called once. Sets up module-level singletons:
 
-1. `SkillRegistry` — scans `tools/skills/` for SKILL.md files
+1. `SkillRegistry` — scans `skills/` for SKILL.md files
 2. `CLIRegistry` — scans `tools/cli/` for YAML definitions
 3. `BridgeManager.connect_all()` — auto-discovers bridge modules in `tools/bridge/_*.py`, calls each bridge's `discover()` then `connect()`
 4. Injects registries into loader tools (`skill_loader`, `install_skill`, `cli_loader`)
@@ -387,7 +387,7 @@ Five install/register pairs:
 |-------------------|-------------------|--------|
 | `install_func` | `register_func` | `tools/func/*.py` |
 | `install_mcp` | `register_mcp` | `tools/mcp/*.json` |
-| `install_skill` | `register_skill` | `tools/skills/*/SKILL.md` |
+| `install_skill` | `register_skill` | `skills/*/SKILL.md` |
 
 Install writes to `.qd_evolve/staging/`, register copies from staging to the target directory and updates `config.json` toolbox state. Both work at runtime without restart.
 
