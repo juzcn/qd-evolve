@@ -20,18 +20,10 @@ LOG_DIR = "logs"
 DEFAULT_BIND_HOST = "0.0.0.0"
 
 
-class ModelCost(BaseModel):
-    input: float = 0.0
-    output: float = 0.0
-    cache_read: float = 0.0
-    cache_write: float = 0.0
-
-
 class ModelConfig(BaseModel):
     name: str = ""
     reasoning: bool = False
     input: list[str] = ["text"]
-    cost: ModelCost = ModelCost()
     context_window: int = 0
     max_tokens: int
 

@@ -11,7 +11,6 @@ from qd_evolve.core.config import (
     LogConfig,
     MCPServerConfig,
     ModelConfig,
-    ModelCost,
     ProviderConfig,
     ServerConfig,
     Settings,
@@ -31,20 +30,6 @@ from qd_evolve.core.config import (
 
 # ── Pydantic model tests ────────────────────────────────────────────
 
-class TestModelCost:
-    def test_defaults(self):
-        mc = ModelCost()
-        assert mc.input == 0.0
-        assert mc.output == 0.0
-        assert mc.cache_read == 0.0
-        assert mc.cache_write == 0.0
-
-    def test_custom_values(self):
-        mc = ModelCost(input=0.01, output=0.03)
-        assert mc.input == 0.01
-        assert mc.output == 0.03
-
-
 class TestModelConfig:
     def test_required_field(self):
         mc = ModelConfig(max_tokens=100)
@@ -59,7 +44,6 @@ class TestModelConfig:
             name="gpt-4o",
             reasoning=True,
             input=["text", "image"],
-            cost=ModelCost(input=0.01, output=0.03),
             context_window=128000,
             max_tokens=4096,
         )
