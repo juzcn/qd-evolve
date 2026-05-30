@@ -172,7 +172,7 @@ class MemoryApp(App):
         yield Header()
         yield Static("", id="status-bar")
         yield DataTable(id="results", cursor_type="row")
-        yield RichLog(id="detail-pane", highlight=True, markup=True, wrap=True)
+        yield RichLog(id="detail-pane", highlight=True, markup=True, wrap=True, auto_scroll=False)
         yield Footer()
 
     def _load_entries(self) -> None:

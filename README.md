@@ -273,7 +273,8 @@ WeChat-style multi-agent group via MQTT. All configured agents form a single gro
 ```
 qd-evolve/
 ├── qd_evolve/       # Main package (agent, core, tools, utils, _templates)
-├── tools/           # User tools (func, cli, skills, mcp, bridge)
+├── tools/           # User tools (func, cli, mcp, bridge)
+├── skills/          # Skills (SKILL.md files)
 ├── templates/       # User Jinja2 template overrides
 ├── tests/           # pytest suite
 ├── config.json      # All configuration

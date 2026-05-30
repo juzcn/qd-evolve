@@ -1,4 +1,5 @@
-﻿
+"""Execute commands directly — no shell layer, clean argument handling."""
+
 import shlex
 import subprocess
 
@@ -10,19 +11,20 @@ registry.register(
     name="run_shell",
     description=(
         "Execute a command and return stdout/stderr. "
-        "Set shell=false to bypass cmd.exe (preferred for calling interpreters: python, node, ruby, etc. 鈥?avoids escaping issues). "
-        "Set shell=true for CLI tools, pipelines, redirects, and system commands."
+        "The command is split safely with shlex and executed directly — no shell involved, "
+        "so there are no escaping or quoting issues. "
+        "Does NOT support shell features (pipes, redirects, env vars). "
+        "For Python code, prefer run_python instead."
     ),
     input_schema={
         "type": "object",
         "properties": {
             "command": {
                 "type": "string",
-                "description": "The command to execute. With shell=true: a shell command string (pipes, redirects OK). With shell=false: a command line like 'python -c \"...\"' or 'node -e \"...\"' 鈥?will be split safely.",
-            },
-            "shell": {
-                "type": "boolean",
-                "description": "Whether to run through the system shell. Default true. Set false when calling interpreters (python, node, ruby) to avoid cmd.exe escaping issues.",
+                "description": (
+                    "The command to execute, e.g. 'python script.py --arg value' or 'node -e \"...\"'. "
+                    "Will be split safely into arguments — no shell escaping needed."
+                ),
             },
             "timeout": {
                 "type": "integer",
@@ -33,28 +35,23 @@ registry.register(
     },
     handler=lambda **kwargs: _run_shell(
         kwargs.get("command") or kwargs.get("cmd", ""),
-        kwargs.get("shell", True),
         kwargs.get("timeout", None),
     ),
 )
 
 
-def _run_shell(command: str, shell: bool = True, timeout: int | None = None) -> str:
+def _run_shell(command: str, timeout: int | None = None) -> str:
     import locale
 
     if timeout is None:
         from qd_evolve.core.config import DEFAULT_TOOL_TIMEOUT
+
         timeout = DEFAULT_TOOL_TIMEOUT
 
     try:
-        if shell:
-            result = subprocess.run(command, shell=True, capture_output=True, timeout=timeout)
-        else:
-            args = shlex.split(command)
-            result = subprocess.run(args, capture_output=True, timeout=timeout)
+        args = shlex.split(command)
+        result = subprocess.run(args, capture_output=True, timeout=timeout)
     except FileNotFoundError as e:
-        if not shell:
-            return f"Command not found: {e}\n(hint: this is a CLI tool 鈥?try shell=true to use the system PATH)"
         return f"Command not found: {e}"
     except subprocess.TimeoutExpired:
         return f"Command timed out after {timeout}s"
@@ -77,6 +74,7 @@ def _run_shell(command: str, shell: bool = True, timeout: int | None = None) -> 
 
     if result.returncode != 0:
         parts.append(f"Exit code: {result.returncode}")
+        raise RuntimeError("\n".join(parts))
 
     if not parts:
         parts.append(f"(no output, exit code: {result.returncode})")

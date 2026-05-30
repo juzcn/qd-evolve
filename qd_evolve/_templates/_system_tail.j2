@@ -12,8 +12,7 @@
 - Package manager: `uv` — use `uv pip install <package>`, never `pip` or `python -m pip`
 
 **Execution rules:**
-- Python code → `run_python`. Other interpreters (node, ruby, etc.) → `run_shell` with `shell=false` (bypasses cmd.exe, avoids escaping issues).
-- CLI tools, system commands, pipelines, package installs → `run_shell` with `shell=true`.
+- Python code → `run_python`. Other interpreters / script files / CLI tools / package installs → `run_shell` (executes directly, no shell escaping issues).
 - Skill scripts use `python3` in examples — replace with `{{ python_cmd }}`. Paths are relative to project root, no adaptation needed.
 
 ## Toolbox
