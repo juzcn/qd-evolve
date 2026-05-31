@@ -30,7 +30,7 @@ Tools start invisible to the model, revealed only when needed. The trade-off: ex
 
 ### One config file
 
-No environment variables, no CLI config, no database-backed settings. The trade-off: less flexible for containerized deployment where env vars are idiomatic. The bet: simplicity and discoverability matter more for a framework meant to be understood and modified.
+Framework settings live in `config.json` with sensible defaults — only overrides need to be specified. Tool API keys (Serper, Baidu, Tavily) go in its `env_vars` section. No CLI config commands, no `.env` files. The trade-off: less flexible for containerized deployment where env vars are idiomatic. The bet: simplicity and discoverability matter more for a framework meant to be understood and modified.
 
 ### Physical isolation over software security
 
@@ -46,7 +46,7 @@ These are the constraints that every change must preserve:
 4. **MQTT transport is sole-consumer.** Group chat gets its own transport connection.
 5. **Human and AI agents share the same protocol.** The transport layer doesn't distinguish them.
 6. **Memory is save + recall + process capture.** Each save records the full Q/A along with the tool call process (name, parameters, success/failure). No forgetting curves, no episodic structures, no automatic categorization.
-7. **Configuration is one file.** No env vars, no scattered config.
+7. **Configuration is one file.** Framework settings live in config.json. Tool API keys go in its `env_vars` section.
 8. **Security is physical, not digital.** No software permission system that the model could reason past.
 
 ## Architecture
@@ -124,7 +124,7 @@ Two mechanisms: **direct tasking** (send task → lifecycle: submitted→working
 
 ### Configuration
 
-Single `config.json` file. No env vars. Each agent gets its own provider, model, memory DB, server binding, and toolbox state. Global defaults as fallback. `provider: "human"` identifies terminal human agents; `provider: "wechat-human"` identifies WeChat iLink bridge human agents. WeChat human agents persist their session token in the `wechat_session` field.
+Single `config.json` file. Most fields have sensible defaults in the Pydantic models — config.json only needs to specify overrides. Each agent gets its own provider, model, memory DB, server binding, and toolbox state. Global defaults as fallback. `provider: "human"` identifies terminal human agents; `provider: "wechat-human"` identifies WeChat iLink bridge human agents. WeChat human agents persist their session token in the `wechat_session` field. `env_vars` maps environment variables for tool API keys (Serper, Baidu, Tavily).
 
 ### Templates
 
@@ -149,7 +149,7 @@ qd_evolve/
 ├── toolbox_tui.py           # Textual TUI for toolbox management
 ├── memory_tui.py            # Textual TUI for memory browsing and search
 ├── core/
-│   ├── config.py            # Settings, AgentEntry, ServerConfig, MqttConfig (pydantic)
+│   ├── config.py            # Settings, AgentEntry, ServerConfig, MqttBrokerConfig (pydantic)
 │   ├── providers.py         # Provider + ProviderRegistry
 │   ├── registry.py          # ToolRegistry + ToolDef (on-demand loading)
 │   ├── memory.py            # MemoryStore (SQLite + sqlite-vec), RecalledMemoryRegistry
@@ -229,16 +229,15 @@ All config models live in `qd_evolve/core/config.py`:
 
 | Model | Purpose |
 |-------|---------|
-| `Settings` | Root config. Providers, agents, memory, thresholds, stream, heartbeat. |
-| `AgentEntry` | Per-agent: name, description, provider, model, memory_db, server, toolbox, mqtt. `is_human` is `provider == "human"`. |
+| `Settings` | Root config. Providers, agents, memory, stream, heartbeat. Most fields have defaults — config.json only needs overrides. |
+| `AgentEntry` | Per-agent: name, description, provider, model, memory_db, server, toolbox. `is_human` is `provider == "human"`. |
 | `ProviderConfig` | API key, base URL, api type (openai-completions/openai-response/anthropic), models. |
-| `ModelConfig` | Context window, max_tokens, reasoning flag, cost tracking. |
+| `ModelConfig` | Context window, max_tokens, reasoning flag. |
 | `ServerConfig` | host, port. |
-| `MqttConfig` | Per-agent MQTT: username, password, keepalive, TLS paths. |
-| `MqttBrokerConfig` | Broker host, port, will_delay_interval. |
+| `MqttBrokerConfig` | Broker host, port. |
 | `ToolboxSection` | Per-agent tool state: five dicts mapping name→state. |
 | `MCPServerConfig` | MCP server: command, args, env, type (stdio/sse/http/ws), url, headers, timeout. |
-| `EmbeddingsBackend` | model_path, dim, backend (sentence-transformers/llama-cpp-python). |
+| `EmbeddingsBackend` | model_path, dim, backend (sentence-transformers/llama-cpp-python), llama_n_ctx, llama_n_batch. |
 | `MemorySearchConfig` | auto_recall, auto_recall_top_k, recall_memory_limit. |
 
 Validation: `AgentsConfig._validate_ports` rejects duplicate ports at model init.

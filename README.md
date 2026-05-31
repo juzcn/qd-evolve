@@ -46,8 +46,6 @@ Create a `config.json` in your working directory. Minimal setup for single-agent
 {
   "default_provider": "openai",
   "default_model": "gpt-4o",
-  "max_iterations": 20,
-  "tool_output_limit": 8000,
   "providers": [
     {
       "name": "openai",
@@ -124,31 +122,38 @@ All configuration via `config.json`. No CLI config commands, no `.env` files.
 {
   "default_provider": "openai",
   "default_model": "gpt-4o",
-  "providers": {
-    "openai": {
+  "providers": [
+    {
+      "name": "openai",
       "api_key": "sk-...",
       "base_url": "https://api.openai.com/v1",
       "api": "openai-completions",
-      "models": {
-        "gpt-4o": { "context_window": 128000, "cost": { "input": 2.5, "output": 10 } }
-      }
+      "models": [
+        { "name": "gpt-4o", "context_window": 128000, "max_tokens": 4096 }
+      ]
     },
-    "anthropic": {
+    {
+      "name": "anthropic",
       "api_key": "sk-ant-...",
       "api": "anthropic",
-      "models": { "claude-sonnet-4-6": { "context_window": 200000 } }
+      "models": [
+        { "name": "claude-sonnet-4-6", "context_window": 200000, "max_tokens": 8192 }
+      ]
     },
-    "deepseek": {
+    {
+      "name": "deepseek",
       "api_key": "...",
-      "base_url": "https://api.deepseek.com/v1",
+      "base_url": "https://api.deepseek.com",
       "api": "openai-completions",
-      "models": { "deepseek-r1": { "reasoning": true } }
+      "models": [
+        { "name": "deepseek-v4-pro", "reasoning": true, "context_window": 1000000, "max_tokens": 131072 }
+      ]
     }
-  }
+  ]
 }
 ```
 
-Three API types: `openai-completions`, `openai-response`, `anthropic`. Set at provider level via `api` field. Streaming is global (`stream` field). Reasoning/thinking is per-model (`reasoning: true`). Per-model cost tracking via `ModelCost`.
+Three API types: `openai-completions`, `openai-response`, `anthropic`. Set at provider level via `api` field. Streaming is global (`stream` field). Reasoning/thinking is per-model (`reasoning: true`).
 
 ### Multi-Agent
 
@@ -164,7 +169,7 @@ Three API types: `openai-completions`, `openai-response`, `anthropic`. Set at pr
         "model": "gpt-4o",
         "memory_db": "planner.db",
         "server": { "host": "127.0.0.1", "port": 8001 },
-        "toolbox": { "tools": {}, "bridge": { "oat:boat": "enabled" } }
+        "toolbox": { "tools": {} }
       },
       {
         "name": "human",
@@ -178,8 +183,7 @@ Three API types: `openai-completions`, `openai-response`, `anthropic`. Set at pr
         "provider": "wechat-human",
         "server": { "host": "127.0.0.1", "port": 8003 }
       }
-    ],
-    "topology": { "relations": [] }
+    ]
   }
 }
 ```
@@ -193,14 +197,13 @@ Per-agent provider/model with global fallback. `provider: "human"` for terminal 
   "agents_config": {
     "mqtt_broker": {
       "host": "127.0.0.1",
-      "port": 1883,
-      "will_delay_interval": 5
+      "port": 1883
     }
   }
 }
 ```
 
-Requires external Mosquitto v5 broker. Per-agent credentials via `MqttConfig` on each `AgentEntry`.
+Requires external Mosquitto v5 broker.
 
 ### Toolbox
 
