@@ -1,6 +1,7 @@
 # QD-Evolve
 
 [![PyPI version](https://img.shields.io/pypi/v/qd-evolve)](https://pypi.org/project/qd-evolve/)
+[中文版](README_zh.md)
 
 Multi-agent AI framework with A2A protocol support, group chat, persistent memory, and extensible tool system.
 
