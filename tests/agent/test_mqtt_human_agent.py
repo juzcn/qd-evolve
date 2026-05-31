@@ -5,10 +5,9 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from qd_evolve.agent.a2a import AgentCard, Message, Part, TaskState, make_text_message
+from qd_evolve.agent.a2a import Message, Part, TaskState
 from qd_evolve.agent.human_agent import HumanAgent
 from qd_evolve.agent.mqtt_human_agent import MqttHumanAgent
-from qd_evolve.agent.server import TaskStore
 from qd_evolve.core.config import MqttConfig
 
 

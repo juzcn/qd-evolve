@@ -1,9 +1,7 @@
 """Tests for qd_evolve.core.logger — SharedFileHandler, setup_logging."""
 
 import logging
-from pathlib import Path
 
-import pytest
 
 from qd_evolve.core.logger import SharedFileHandler, setup_logging
 

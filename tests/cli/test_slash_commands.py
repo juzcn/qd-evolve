@@ -1,6 +1,5 @@
 """Tests for SLASH_COMMANDS validation — ensures consistency and completeness."""
 
-import pytest
 
 from qd_evolve.chat_cli import SLASH_COMMANDS
 

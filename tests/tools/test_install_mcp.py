@@ -1,14 +1,11 @@
 """Tests for qd_evolve.tools.install_mcp — install_mcp handler."""
 
-import json
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 
 class TestInstallMcp:
     def test_install_creates_staging_file(self, tmp_path, monkeypatch):
-        import qd_evolve.tools.install_mcp  # ensure submodule attr exists for patch()
         monkeypatch.setattr("qd_evolve.tools.staging._staging_base", lambda: tmp_path / ".qd_evolve" / "staging")
         from qd_evolve.tools.staging import ensure_staging_dirs
         ensure_staging_dirs()
@@ -89,7 +86,7 @@ class TestInstallMcp:
 
 class TestSetStagedBridges:
     def test_set_staged_bridges(self):
-        from qd_evolve.tools.install_mcp import set_staged_bridges, _staged_bridges
+        from qd_evolve.tools.install_mcp import set_staged_bridges
         mock_bridge = MagicMock()
         set_staged_bridges([mock_bridge])
         from qd_evolve.tools import install_mcp as mod

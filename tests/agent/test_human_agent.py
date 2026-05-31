@@ -1,6 +1,5 @@
 """Tests for qd_evolve.agent.human_agent — HumanAgent logic."""
 
-import asyncio
 
 import pytest
 

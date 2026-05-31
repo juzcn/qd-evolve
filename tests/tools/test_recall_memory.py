@@ -2,7 +2,6 @@
 
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 from qd_evolve.core.memory import MemoryEntry
 
@@ -72,7 +71,7 @@ class TestRecallMemory:
 
         with patch("qd_evolve.tools.recall_memory._memory_store", mock_store):
             from qd_evolve.tools.recall_memory import _recall_memory
-            result = _recall_memory(query="q", limit=10)
+            _recall_memory(query="q", limit=10)
             mock_store.recall.assert_called_once_with(query="q", keywords=None, time_range=None, limit=10)
 
     def test_recall_with_access_stats(self):

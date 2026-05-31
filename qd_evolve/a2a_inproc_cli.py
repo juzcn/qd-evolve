@@ -24,7 +24,6 @@ from qd_evolve.cli_utils import AGENT_COLORS, ReplayInput, TeeWriter
 from pydantic import ValidationError
 from qd_evolve.core.config import CONFIG_PATH, Settings, load_settings, save_json
 from qd_evolve.core.logger import logger
-from qd_evolve.core.providers import ProviderRegistry
 
 a2a_inproc_app = typer.Typer(help="A2A in-process — multi-agent chat, no network server", invoke_without_command=True)
 console = Console()

@@ -1,11 +1,10 @@
 """Tests for qd_evolve.core.registry — ToolRegistry, ToolDef, definitions, call."""
 
-import importlib
 from unittest.mock import patch
 
 import pytest
 
-from qd_evolve.core.registry import ToolRegistry, ToolDef, decode_output
+from qd_evolve.core.registry import ToolDef, decode_output
 
 
 class TestToolDef:
@@ -223,7 +222,7 @@ class TestDiscoverTools:
             registry.discover_tools()
 
     def test_get_registry_singleton(self):
-        from qd_evolve.core.registry import get_registry, _registry
+        from qd_evolve.core.registry import get_registry
         # Reset singleton
         import qd_evolve.core.registry as reg_mod
         reg_mod._registry = None

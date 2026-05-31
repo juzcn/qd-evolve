@@ -1,11 +1,8 @@
 """Tests for qd_evolve.utils.adk_schema — Google ADK to OpenAI JSON Schema conversion."""
 
-import types
-import typing
 from typing import Any, Optional
 from unittest.mock import MagicMock
 
-import pytest
 
 from qd_evolve.utils.adk_schema import google_adk_to_openai_schema, _annotation_to_json_type
 

@@ -1,8 +1,6 @@
 """Tests for qd_evolve.tools.staging — staging area path functions."""
 
-from pathlib import Path
 
-import pytest
 
 from qd_evolve.tools.staging import (
     staging_func_dir,

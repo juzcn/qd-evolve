@@ -9,12 +9,10 @@ import pytest
 
 from qd_evolve.agent.a2a import (
     AgentCard,
-    AgentCapabilities,
     Task,
     TaskState,
     TaskStatus,
     make_text_message,
-    make_task_with_text,
 )
 from qd_evolve.agent.a2a_agent import A2AAgent
 from qd_evolve.agent.server import TaskStore
@@ -173,7 +171,6 @@ class TestA2AHeartbeatLoop:
     def test_start_uses_own_heartbeat_check(self):
         """Verify start_heartbeat_loop creates a task that calls A2AAgent.heartbeat_check."""
         from qd_evolve.agent.agent import Agent
-        from qd_evolve.core.config import Settings
 
         mock_agent = MagicMock(spec=Agent)
         mock_agent.settings = MagicMock()
@@ -383,7 +380,7 @@ class TestServerPushNotification:
                 ),
             )
             params = {"task": task.model_dump()}
-            result = await server._tasks_push_notification(params)
+            await server._tasks_push_notification(params)
 
         # _task_store should be updated via on_push_notification
         assert a2a_module._task_store["pn-test-id"]["state"] == "completed"

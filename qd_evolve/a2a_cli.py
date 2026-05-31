@@ -296,7 +296,6 @@ async def _async_chat_loop(
             console.print(f"  {name} HTTP {port_info} — {status}")
 
     await _check_all_online()
-    chat_name = _current_agent_name()
 
     def _is_current_agent_online() -> bool:
         return online_status.get(_current_agent_name()) is True
@@ -343,7 +342,6 @@ async def _async_chat_loop(
 
     input_task = None
     pending_task_id: str | None = None
-    quitting = False
 
     try:
       while True:
@@ -498,7 +496,6 @@ async def _async_chat_loop(
             result = await _handle_slash_command(user_input, settings, router, agent_entry=_current_agent_entry(), online_status=online_status)
             if result is None:
                 console.print("[dim]Goodbye![/dim]")
-                quitting = True
                 break
             if result:
                 console.print(result)
@@ -873,7 +870,6 @@ def chat(
         raise ValueError("a2a_cli.server.host is required for A2A chat mode")
     if not a2a_cli_cfg.server.port:
         raise ValueError("a2a_cli.server.port is required for A2A chat mode")
-    connect_host = a2a_cli_cfg.server.host
     port = a2a_cli_cfg.server.port
 
     agents = settings.agents_config.agents

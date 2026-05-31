@@ -1,14 +1,13 @@
 """Tests for qd_evolve.agent.group_chat_human — _listen_group_chat, publish_human_input, delegation."""
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from qd_evolve.agent.a2a import AgentCard
 from qd_evolve.agent.group_chat_human import GroupChatHuman
 from qd_evolve.agent.group_chat_transport import GroupChatTransport
-from qd_evolve.core.config import MqttConfig
 
 
 def _make_group_chat_human():

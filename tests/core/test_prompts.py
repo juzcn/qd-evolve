@@ -1,7 +1,6 @@
 """Tests for qd_evolve.core.prompts — PromptTemplateManager, _CombinedLoader."""
 
 import pytest
-from pathlib import Path
 
 from qd_evolve.core.prompts import PromptTemplateManager, _CombinedLoader
 

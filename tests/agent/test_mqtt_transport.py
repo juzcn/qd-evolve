@@ -8,7 +8,6 @@ from qd_evolve.agent.a2a import (
     Task,
     TaskState,
     TaskStatus,
-    make_text_message,
     make_task_with_text,
 )
 from qd_evolve.agent.mqtt_transport import (
@@ -185,8 +184,8 @@ class TestMqttTransportEventSubscribers:
     def test_subscribe_multiple(self):
         config = MqttConfig()
         t = MqttTransport("localhost", 1883, config, "cli")
-        q1 = t.subscribe_agent_events("agent1")
-        q2 = t.subscribe_agent_events("agent1")
+        t.subscribe_agent_events("agent1")
+        t.subscribe_agent_events("agent1")
         assert len(t._event_subscribers["agent1"]) == 2
 
     def test_unsubscribe(self):

@@ -3,7 +3,7 @@
 import pytest
 
 from qd_evolve.agent.loader import get_agent_entry, _a2a_enabled, get_skill_registry, get_cli_registry
-from qd_evolve.core.config import AgentEntry, AgentsConfig, ServerConfig, Settings, TopologyConfig
+from qd_evolve.core.config import AgentEntry, AgentsConfig, ServerConfig, TopologyConfig
 
 
 class TestGetAgentEntry:

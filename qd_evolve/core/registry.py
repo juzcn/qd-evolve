@@ -163,7 +163,7 @@ class ToolRegistry:
             module_name = f"qd_evolve.tools.{py_file.stem}"
             try:
                 importlib.import_module(module_name)
-            except Exception as e:
+            except Exception:
                 logger.exception("Tools: failed to load tool module %s", module_name)
 
         # User func tools — tools/func/*.py (add/delete files to add/remove tools)

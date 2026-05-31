@@ -180,7 +180,7 @@ class HumanAgent:
                 except Exception:
                     logger.debug("HumanAgent [%s]: webhook POST failed for %s", self.card.name, callback_url, exc_info=True)
             try:
-                loop = asyncio.get_running_loop()
+                asyncio.get_running_loop()
                 asyncio.ensure_future(_post())
             except RuntimeError:
                 asyncio.run(_post())

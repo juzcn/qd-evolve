@@ -382,7 +382,6 @@ async def _async_chat_loop(
 
     input_task = None
     pending_task_id: str | None = None
-    quitting = False
 
     try:
       while True:
@@ -524,7 +523,6 @@ async def _async_chat_loop(
             result = await _handle_slash_command(user_input, settings, transport, agent_entry=_current_agent_entry())
             if result is None:
                 console.print("[dim]Goodbye![/dim]")
-                quitting = True
                 if input_task and not input_task.done():
                     input_task.cancel()
                 break

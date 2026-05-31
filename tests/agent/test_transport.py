@@ -4,13 +4,9 @@ import pytest
 
 from qd_evolve.agent.a2a import (
     AgentCard,
-    AgentCapabilities,
-    AgentExtension,
     Message,
     Part,
-    Task,
     TaskState,
-    TaskStatus,
     make_text_message,
 )
 from uuid import uuid4
@@ -102,7 +98,7 @@ class TestTransportRouter:
         inproc = InprocTransport()
         inproc._registry = mock_reg
         http = HttpTransport()
-        router = TransportRouter(inproc, http)
+        TransportRouter(inproc, http)
 
         card = await inproc.get_extended_agent_card("helper")
         assert card.capabilities.extended_agent_card is True

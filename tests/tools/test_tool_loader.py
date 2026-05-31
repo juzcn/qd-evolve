@@ -1,9 +1,8 @@
 """Tests for qd_evolve.tools.tool_loader — load_func handler."""
 
 import json
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-import pytest
 
 
 class TestLoadFunc:

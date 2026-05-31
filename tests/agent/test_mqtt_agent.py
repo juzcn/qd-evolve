@@ -1,13 +1,12 @@
 """Tests for qd_evolve.agent.mqtt_agent — _extract_text, delegation, heartbeat_check, heartbeat loop."""
 
 import asyncio
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
-from qd_evolve.agent.a2a import AgentCard, Message, Part, make_text_message
+from qd_evolve.agent.a2a import AgentCard, Message, Part
 from qd_evolve.agent.a2a_agent import A2AAgent
-from qd_evolve.agent.agent import Agent
 from qd_evolve.agent.mqtt_agent import MqttAgent
 from qd_evolve.agent.server import TaskStore
 from qd_evolve.core.config import MqttConfig
@@ -144,7 +143,7 @@ class TestMqttAgentHeartbeatCheck:
         mock_tmpl = MagicMock()
         mock_tmpl.render.return_value = "mqtt heartbeat msg"
         mock_inner._template_mgr = mock_tmpl
-        result = mqtt.heartbeat_check(60)
+        mqtt.heartbeat_check(60)
         mock_tmpl.render.assert_called_once()
         call_args = mock_tmpl.render.call_args
         assert call_args[0][0] == "mqtt-heartbeat"

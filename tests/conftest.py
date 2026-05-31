@@ -12,7 +12,6 @@ from qd_evolve.core.config import (
     EmbeddingsBackend,
     ModelConfig,
     ProviderConfig,
-    ServerConfig,
     Settings,
 )
 from qd_evolve.core.memory import MemoryStore, RecalledMemoryRegistry

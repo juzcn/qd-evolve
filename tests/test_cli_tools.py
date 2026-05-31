@@ -1,8 +1,6 @@
 """Tests for qd_evolve.cli_tools — CLIRegistry, YAML discovery."""
 
-from pathlib import Path
 
-import pytest
 
 from qd_evolve.cli_tools import CLIRegistry, CLIToolDef
 

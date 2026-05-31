@@ -20,7 +20,6 @@ from qd_evolve.core.toolbox import (
     apply_to_skill_registry,
     _load,
     _save,
-    CONFIG_PATH as _ORIG_CONFIG_PATH,
 )
 
 

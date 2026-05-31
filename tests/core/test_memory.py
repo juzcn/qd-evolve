@@ -3,10 +3,8 @@
 from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch
 
-import numpy as np
-import pytest
 
-from qd_evolve.core.memory import MemoryEntry, RecalledMemoryRegistry
+from qd_evolve.core.memory import MemoryEntry
 
 
 class _ControllableDatetime:
@@ -139,7 +137,7 @@ class TestMemoryStore:
         memory_store.save("old q", "old a")
         with patch("qd_evolve.core.memory.datetime", _ControllableDatetime(datetime.now() + timedelta(seconds=2))):
             memory_store.new_session()
-        entries = memory_store.recall(query="old", limit=5)
+        memory_store.recall(query="old", limit=5)
         # With mock embedder (zeros), semantic search may return results
         # Keyword search should find it
         entries_kw = memory_store.recall(keywords=["old"], limit=5)
@@ -319,7 +317,7 @@ class TestMemoryStoreExtended:
         memory_store.close()
 
     def test_close_with_llama_cpp_exception(self, tmp_path, mock_embedder):
-        from qd_evolve.core.memory import MemoryStore, LlamaCppEmbedder
+        from qd_evolve.core.memory import MemoryStore
         from qd_evolve.core.config import EmbeddingsBackend
 
         backend = EmbeddingsBackend(model_path="fake-model", dim=384)

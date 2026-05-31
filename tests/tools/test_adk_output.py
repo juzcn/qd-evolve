@@ -2,7 +2,6 @@
 
 import json
 
-import pytest
 
 from qd_evolve.utils.adk_output import normalize_output, _normalize_dict, make_handler
 

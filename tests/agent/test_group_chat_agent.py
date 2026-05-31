@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from qd_evolve.agent.a2a import AgentCard, AgentCapabilities
+from qd_evolve.agent.a2a import AgentCard
 from qd_evolve.agent.group_chat_agent import GroupChatAgent
 from qd_evolve.agent.group_chat_transport import GroupChatTransport
 from qd_evolve.agent.server import TaskStore

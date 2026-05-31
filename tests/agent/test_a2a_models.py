@@ -1,6 +1,5 @@
 """Tests for qd_evolve.agent.a2a — A2A protocol pydantic models and helpers."""
 
-import pytest
 
 from qd_evolve.agent.a2a import (
     AgentCard,
@@ -9,7 +8,6 @@ from qd_evolve.agent.a2a import (
     AgentProvider,
     AgentSkill,
     Artifact,
-    AuthInfo,
     FileContent,
     Message,
     Part,

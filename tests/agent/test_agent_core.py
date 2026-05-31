@@ -8,7 +8,6 @@ from qd_evolve.agent.agent import Agent
 from qd_evolve.agent.a2a_agent import A2AAgent
 from qd_evolve.agent.a2a import AgentCard, AgentCapabilities
 from qd_evolve.agent.server import TaskStore
-from qd_evolve.core.config import Settings
 
 
 @pytest.fixture

@@ -142,7 +142,7 @@ def _toolbox_list(args: list[str], agent_name: str | None = None) -> None:
     from qd_evolve.core.registry import get_registry
     from qd_evolve.skills import SkillRegistry
     from qd_evolve.cli_tools import CLIRegistry
-    from qd_evolve.core.config import SKILLS_DIR, CLI_TOOLS_DIR, load_settings
+    from qd_evolve.core.config import SKILLS_DIR, CLI_TOOLS_DIR
     from tools.bridge import BridgeManager
 
     import os

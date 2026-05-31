@@ -89,8 +89,8 @@ class TestGroupChatTransportSubscribe:
         mock_transport = MagicMock()
         config = MqttConfig()
         t = GroupChatTransport(mock_transport, "localhost", 1883, config, "test")
-        q1 = t.subscribe_group_chat("agent1")
-        q2 = t.subscribe_group_chat("agent1")
+        t.subscribe_group_chat("agent1")
+        t.subscribe_group_chat("agent1")
         assert len(t._group_subscribers["agent1"]) == 2
 
     def test_unsubscribe_nonexistent_agent(self):

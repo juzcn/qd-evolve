@@ -13,7 +13,6 @@ import io
 import json
 import logging
 import random
-import re
 import time
 import urllib.request
 from urllib.parse import quote

@@ -1,8 +1,6 @@
 """Tests for qd_evolve.skills — SkillRegistry, SKILL.md parsing."""
 
-from pathlib import Path
 
-import pytest
 
 from qd_evolve.skills import SkillInfo, SkillRegistry, _parse_frontmatter
 

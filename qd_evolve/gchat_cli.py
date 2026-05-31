@@ -7,7 +7,6 @@ incoming group messages and publishes keyboard input to the group.
 
 import asyncio
 import sys
-from pathlib import Path
 from typing import Any
 
 # Windows: aiomqtt requires SelectorEventLoop
@@ -18,12 +17,10 @@ import typer
 from pydantic import ValidationError
 from rich.console import Console
 from rich.panel import Panel
-from rich.text import Text
 
 from qd_evolve import __version__
 from qd_evolve.cli_utils import AGENT_COLORS
 from qd_evolve.core.config import Settings, load_settings, save_settings
-from qd_evolve.core.logger import logger
 
 gchat_app = typer.Typer(help="Group chat — 微信群式多 agent 群聊")
 console = Console()
@@ -276,7 +273,7 @@ def gchat(
 ) -> None:
     """Join the group chat as the specified agent."""
     from qd_evolve.core.logger import setup_logging
-    from qd_evolve.core.config import LOG_DIR as LOG_DIR_PATH, MqttConfig
+    from qd_evolve.core.config import LOG_DIR as LOG_DIR_PATH
     from qd_evolve.agent import create_agent, init_process
     from qd_evolve.agent.loader import get_agent_entry
     from qd_evolve.agent.mqtt_transport import MqttTransport

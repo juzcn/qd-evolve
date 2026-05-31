@@ -245,7 +245,7 @@ def _send_task(agent_name: str, task: str) -> str:
             _task_store[task_id]["result"] = f"{type(e).__name__}: {e}"
 
     try:
-        loop = asyncio.get_running_loop()
+        asyncio.get_running_loop()
         asyncio.ensure_future(_watch())
     except RuntimeError:
         asyncio.run(_watch())

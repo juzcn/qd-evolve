@@ -6,11 +6,7 @@ import pytest
 
 from qd_evolve.agent.a2a import (
     AgentCard,
-    AgentCapabilities,
-    AgentExtension,
     Message,
-    Part,
-    Task,
     TaskState,
     TaskStatus,
     make_text_message,

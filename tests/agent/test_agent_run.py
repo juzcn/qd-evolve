@@ -1,17 +1,13 @@
 """Tests for qd_evolve.agent.agent — Agent run logic, memory, heartbeat, formatting."""
 
-import asyncio
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from qd_evolve.agent.agent import Agent
 from qd_evolve.core.config import (
     AgentEntry, EmbeddingsBackend, MemorySearchConfig,
-    ModelConfig, ProviderConfig, Settings,
 )
-from qd_evolve.core.providers import ProviderRegistry
-from qd_evolve.core.registry import ToolRegistry
 
 
 @pytest.fixture
@@ -150,7 +146,7 @@ class TestRunProviderModelResolution:
         mock_prov = _make_mock_prov()
 
         with patch.object(agent_core.providers, "get", return_value=mock_prov):
-            result = agent_core.run("hello")
+            agent_core.run("hello")
 
         assert agent_core._provider_name == "test"
         assert agent_core._model == "test-model"
@@ -312,7 +308,7 @@ class TestFormatCompletionLog:
         response = MagicMock()
         response.choices = []
 
-        result = agent_core._format_completion_log(response)
+        agent_core._format_completion_log(response)
         # Should handle gracefully
 
 
