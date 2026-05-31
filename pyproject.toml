@@ -1,6 +1,6 @@
 [project]
 name = "qd-evolve"
-version = "0.1.2"
+version = "0.1.3"
 description = "Multi-agent AI framework with A2A protocol support, group chat, persistent memory, and extensible tool system"
 readme = "README.md"
 license = "MIT"
