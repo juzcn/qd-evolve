@@ -160,7 +160,7 @@
         }
       },
       {
-        "name": "Huizi",
+        "name": "Rose",
         "description": "Human operator via WeChat",
         "provider": "wechat-human",
         "model": "",
