@@ -252,8 +252,13 @@ class InprocTransport:
                         status=TaskStatus(state=TaskState.working),
                         metadata={"type": "ping"},
                     ))
-        except (asyncio.CancelledError, GeneratorExit):
+        except GeneratorExit:
             pass
+        except asyncio.CancelledError:
+            # Re-raise so the caller (event worker) can handle cancellation.
+            # Silencing it would cause the worker to loop forever —
+            # the task is cancelled but the coroutine never terminates.
+            raise
         finally:
             agent_node.unsubscribe_events(queue)
 
@@ -515,7 +520,7 @@ class TransportRouter:
     """
 
     def __init__(self, inproc: InprocTransport | None,
-                 remote: HttpTransport | MqttTransport) -> None:
+                 remote: HttpTransport | MqttTransport | None = None) -> None:
         self._inproc = inproc
         self._remote = remote
 
@@ -533,6 +538,8 @@ class TransportRouter:
                 pass
 
         # 2. Remote transport (HTTP or MQTT — never mixed)
+        if self._remote is None:
+            raise ValueError(f"Agent '{target}' not found in process and no remote transport configured")
         logger.debug("TransportRouter: '%s' -> remote (%s)", target, type(self._remote).__name__)
         return self._remote
 
@@ -562,8 +569,12 @@ class TransportRouter:
             yield sr
 
     async def is_online(self, target: str) -> bool:
-        transport = self._pick(target)
+        try:
+            transport = self._pick(target)
+        except ValueError:
+            return False
         if hasattr(transport, "is_online"):
             return await transport.is_online(target)
-        # HttpTransport doesn't have is_online, use its HTTP check
-        return await self._remote.is_online(target)
+        if self._remote is not None:
+            return await self._remote.is_online(target)
+        return False

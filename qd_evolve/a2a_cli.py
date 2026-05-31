@@ -1,8 +1,8 @@
 """A2A CLI — pure HTTP client for remote A2A agent servers.
 
 CLI is NOT an agent. It connects to remote agent servers via TransportRouter.
-Use `qd-evolve a2a serve --agent <name>` to start an agent server.
-Use `qd-evolve a2a chat` to connect as a client.
+Use `qd-evolve a2a-http serve --agent <name>` to start an agent server.
+Use `qd-evolve a2a-http` to connect as a client.
 """
 
 import asyncio
@@ -27,7 +27,7 @@ from qd_evolve.core.config import CONFIG_PATH, DEFAULT_BIND_HOST, Settings, load
 
 from qd_evolve import __version__
 
-a2a_app = typer.Typer(help="A2A — remote agent HTTP client/server", invoke_without_command=True)
+a2a_app = typer.Typer(help="A2A over HTTP — remote agent client/server", invoke_without_command=True)
 console = Console()
 
 
@@ -702,7 +702,7 @@ def serve(
         os.environ[key] = value
 
     if not agent:
-        console.print("[red]Error:[/red] --agent is required. E.g. qd-evolve a2a serve --agent test")
+        console.print("[red]Error:[/red] --agent is required. E.g. qd-evolve a2a-http serve --agent test")
         raise SystemExit(1)
 
     entry = next((a for a in settings.agents_config.agents if a.name == agent), None)

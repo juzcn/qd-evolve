@@ -497,7 +497,7 @@ Standalone async client for the WeChat iLink ClawBot protocol. Extracted from Si
 
 ### Entry Point
 
-`qd_evolve/__main__.py` registers typer subcommands: default (chat), `a2a`, `mqtt`, `gchat`, `toolbox`, `memory`.
+`qd_evolve/chat_cli.py` registers typer subcommands: default (chat), `a2a-http`, `a2a-inproc`, `a2a-mqtt`, `gchat`, `toolbox`, `memory`.
 
 ### Chat Loop Pattern (all CLIs)
 

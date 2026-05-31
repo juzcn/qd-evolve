@@ -76,17 +76,20 @@ qd-evolve
 # Single-agent chat
 qd-evolve
 
-# Multi-agent A2A chat
-qd-evolve a2a
+# Multi-agent A2A chat over HTTP
+qd-evolve a2a-http
 
 # Run an agent as standalone A2A HTTP server
-qd-evolve a2a serve --agent <name>
+qd-evolve a2a-http serve --agent <name>
+
+# Multi-agent in-process chat (all agents loaded locally, no network)
+qd-evolve a2a-inproc
 
 # Multi-agent MQTT chat (requires Mosquitto v5 broker)
-qd-evolve mqtt
+qd-evolve a2a-mqtt
 
 # Run an agent as MQTT-accessible server
-qd-evolve mqtt serve --agent <name>
+qd-evolve a2a-mqtt serve --agent <name>
 
 # Group chat — WeChat-style multi-agent group (requires Mosquitto v5 broker)
 # Supports: AI agents, terminal human agents, WeChat human agents
@@ -104,8 +107,9 @@ qd-evolve memory --agent <name>
 | System | Entry | Transport | Use Case |
 |--------|-------|-----------|----------|
 | Chat | `qd-evolve` | In-process only | Single-agent, no network |
-| A2A | `qd-evolve a2a` | HTTP + in-proc | Multi-agent over HTTP/SSE |
-| MQTT | `qd-evolve mqtt` | MQTT v5 + in-proc | Multi-agent over MQTT |
+| A2A Inproc | `qd-evolve a2a-inproc` | In-process only | Multi-agent in-process |
+| A2A | `qd-evolve a2a-http` | HTTP + in-proc | Multi-agent over HTTP/SSE |
+| MQTT | `qd-evolve a2a-mqtt` | MQTT v5 + in-proc | Multi-agent over MQTT |
 | GChat | `qd-evolve gchat` | MQTT v5 (group topics) | WeChat-style group chat |
 
 Each system is fully independent — no protocol fallback between them. See [DESIGN.md](DESIGN.md) for the full architecture.

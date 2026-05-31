@@ -80,8 +80,9 @@ def _delegate_to(agent_name: str, task: str) -> str:
 
     # For inproc transport, call agent_core.run() directly (synchronous)
     from qd_evolve.agent.transport import InprocTransport
-    if isinstance(transport._pick(agent_name), InprocTransport):
-        registry = transport._get_registry()
+    inproc = transport._pick(agent_name)
+    if isinstance(inproc, InprocTransport):
+        registry = inproc._get_registry()
         agent_node = registry.get(agent_name)
         if agent_node is None:
             # Try lazy load
@@ -172,6 +173,52 @@ def _send_task(agent_name: str, task: str) -> str:
 
     async def _watch() -> None:
         try:
+            # ── Inproc: run AI agent in background (truly async) ──
+            from qd_evolve.agent.transport import InprocTransport
+            inproc = transport._pick(agent_name)
+            if isinstance(inproc, InprocTransport):
+                registry = inproc._get_registry()
+                agent_node = registry.get(agent_name)
+                if agent_node is None:
+                    agent_node = inproc._lazy_load(agent_name, registry)
+                if agent_node is None:
+                    _task_store[task_id]["state"] = "failed"
+                    _task_store[task_id]["result"] = f"Agent '{agent_name}' not found"
+                    return
+                from qd_evolve.agent.human_agent import HumanAgent
+                if isinstance(agent_node, HumanAgent):
+                    # Human: use send_task which returns input_required
+                    result_task = await transport.send_task(agent_name, message)
+                    _task_store[task_id]["state"] = "input_required"
+                    _task_store[task_id]["result"] = None
+                    remote_task_id = result_task.id
+                    if remote_task_id and remote_task_id != task_id:
+                        _task_store[remote_task_id] = _task_store[task_id]
+                    logger.info("send_task: %s (human) returned input_required (task=%s)", agent_name, remote_task_id[:8])
+                    return
+                # AI agent: fire-and-forget in background thread
+                _task_store[task_id]["state"] = "working"
+                _task_store[task_id]["result"] = None
+                async def _run_bg() -> None:
+                    try:
+                        result = await asyncio.to_thread(agent_node.run, task)
+                        _task_store[task_id]["state"] = "completed"
+                        _task_store[task_id]["result"] = result
+                    except Exception as e:
+                        _task_store[task_id]["state"] = "failed"
+                        _task_store[task_id]["result"] = f"{type(e).__name__}: {e}"
+                    # Push completion event so the calling agent's heartbeat picks it up
+                    agent_node._push_event({
+                        "type": "task_completed",
+                        "task_id": task_id,
+                        "content": _task_store[task_id].get("result", ""),
+                        "metadata": {"type": "completed", "from_agent": agent_name},
+                    })
+                asyncio.ensure_future(_run_bg())
+                logger.info("send_task: %s (inproc AI) submitted — task=%s", agent_name, task_id[:8])
+                return
+
+            # ── Remote: MQTT or HTTP ──
             if isinstance(remote, MqttTransport) and remote._loop is not None:
                 result_task = asyncio.run_coroutine_threadsafe(
                     remote.send_task(agent_name, message, from_agent=from_agent), remote._loop

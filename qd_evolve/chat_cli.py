@@ -507,13 +507,12 @@ def chat(
     # 4. Startup panel
     prov_name = chat_agent_entry.effective_provider(settings)
     model_name = chat_agent_entry.effective_model(settings)
-    logger.info("Chat session: starting for agent '%s' (%s/%s), transport=inproc",
+    logger.info("Chat session: starting for agent '%s' (%s/%s)",
                 chat_agent_name, prov_name, model_name)
     console.print(Panel(
         f"qd-evolve v{__version__}\n\n"
         f"[bold]Agent:[/bold]     {chat_agent_name}\n"
-        f"[bold]Provider:[/bold]  {prov_name}/{model_name}\n"
-        f"[bold]Transport:[/bold] inproc (chat mode)\n\n"
+        f"[bold]Provider:[/bold]  {prov_name}/{model_name}\n\n"
         f"/help for commands, /quit to leave",
         style="bold green",
     ))
@@ -544,10 +543,13 @@ if __name__ == "__main__":
     app()
 
 from qd_evolve.a2a_cli import a2a_app
-app.add_typer(a2a_app, name="a2a")
+app.add_typer(a2a_app, name="a2a-http")
+
+from qd_evolve.a2a_inproc_cli import a2a_inproc_app
+app.add_typer(a2a_inproc_app, name="a2a-inproc")
 
 from qd_evolve.mqtt_cli import mqtt_app
-app.add_typer(mqtt_app, name="mqtt")
+app.add_typer(mqtt_app, name="a2a-mqtt")
 
 from qd_evolve.toolbox_tui import toolbox_app
 app.add_typer(toolbox_app, name="toolbox")

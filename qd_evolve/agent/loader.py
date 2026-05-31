@@ -102,7 +102,7 @@ def _a2a_enabled(settings: Settings) -> bool:
 
 # ── Per-agent factory ──────────────────────────────────────────────
 
-def create_agent(name: str, settings: Settings, *, need_a2a: bool | None = None, need_mqtt: bool = False, need_gchat: bool = False) -> Any:
+def create_agent(name: str, settings: Settings, *, need_a2a: bool | None = None, need_mqtt: bool = False, need_gchat: bool = False, need_inproc: bool = False) -> Any:
     """Create a fully initialized Agent (or A2AAgent / MqttAgent) from name + settings.
 
     Resolves entry, registries, and providers internally.
@@ -143,7 +143,7 @@ def create_agent(name: str, settings: Settings, *, need_a2a: bool | None = None,
     cli_registry = get_cli_registry()
 
     # A2A mode: auto-detect (>1 agent) or explicit override
-    a2a_on = _a2a_enabled(settings) if need_a2a is None else need_a2a
+    a2a_on = (_a2a_enabled(settings) if need_a2a is None else need_a2a) or need_inproc
     mqtt_on = need_mqtt
 
     # ── Toolbox state (per-agent) ─────────────────────────────
@@ -210,6 +210,8 @@ def create_agent(name: str, settings: Settings, *, need_a2a: bool | None = None,
         template_name = "group-default"
     elif need_mqtt:
         template_name = "mqtt-default"
+    elif need_inproc:
+        template_name = "inproc-default"
     elif a2a_on:
         template_name = "a2a-default"
     else:
@@ -274,6 +276,8 @@ def create_agent(name: str, settings: Settings, *, need_a2a: bool | None = None,
             if not broker.port:
                 raise ValueError("mqtt_broker.port is required for MQTT mode")
             card_url = f"mqtt://{broker.host}:{broker.port}"
+        elif need_inproc:
+            card_url = f"inproc://{name}"
         else:
             if not entry.server.host:
                 raise ValueError(f"Agent '{name}': server.host is required for A2A mode")
@@ -286,7 +290,8 @@ def create_agent(name: str, settings: Settings, *, need_a2a: bool | None = None,
             url=card_url,
             capabilities=AgentCapabilities(streaming=True),
         )
-        a2a_agent = A2AAgent(agent, card, TaskStore())
+        hb_template = "inproc-heartbeat" if need_inproc else "a2a-heartbeat"
+        a2a_agent = A2AAgent(agent, card, TaskStore(), heartbeat_template=hb_template)
 
         # ── Wrap with MqttAgent if needed ──────────────────────────
         if mqtt_on:

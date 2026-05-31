@@ -24,10 +24,12 @@ class A2AAgent:
     Hooks agent._on_event to _push_event for multi-subscriber fan-out.
     """
 
-    def __init__(self, agent: Agent, card: AgentCard, task_store: TaskStore | None = None) -> None:
+    def __init__(self, agent: Agent, card: AgentCard, task_store: TaskStore | None = None,
+                 heartbeat_template: str = "a2a-heartbeat") -> None:
         self.agent = agent
         self.card = card
         self.task_store = task_store or TaskStore()
+        self._heartbeat_template = heartbeat_template
         self._event_subscribers: list[asyncio.Queue] = []
 
         # Hook our _push_event into the agent's event callback
@@ -43,15 +45,21 @@ class A2AAgent:
         return self.agent.run(*args, **kwargs)
 
     def heartbeat_check(self, idle_seconds: int) -> str:
-        """A2A heartbeat: idle check only. Push notifications are handled by agent.run() directly."""
+        """A2A heartbeat: check pending async task results, then idle prompt."""
         if self.agent._running:
             logger.debug("A2A Heartbeat: skipped, agent is busy")
             return None
         if self.agent._template_mgr is not None:
-            msg = self.agent._template_mgr.render("a2a-heartbeat", idle_seconds=idle_seconds,
+            msg = self.agent._template_mgr.render(self._heartbeat_template, idle_seconds=idle_seconds,
                                                    now=datetime.now().strftime("%Y-%m-%d %A %H:%M:%S"))
         else:
             msg = f"[System heartbeat: idle {idle_seconds}s. Chat if you want, '.' to stay silent.]"
+
+        # Prepend any completed async task results (from send_task)
+        pending = self._check_pending_task_results()
+        if pending:
+            msg = pending + "\n\n" + msg
+            logger.debug("A2A Heartbeat: injecting %d chars of pending task results", len(pending))
 
         logger.debug("A2A Heartbeat: idle %ss, sending heartbeat message", idle_seconds)
         try:

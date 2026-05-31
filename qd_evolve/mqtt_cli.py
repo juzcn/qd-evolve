@@ -1,8 +1,8 @@
 """MQTT CLI — A2A over MQTT v5 client/server.
 
 CLI is NOT an agent. It connects to remote agent servers via MQTT v5 transport.
-Use `qd-evolve mqtt serve --agent <name>` to start an agent server.
-Use `qd-evolve mqtt` to connect as a client.
+Use `qd-evolve a2a-mqtt serve --agent <name>` to start an agent server.
+Use `qd-evolve a2a-mqtt` to connect as a client.
 """
 
 import asyncio
@@ -32,7 +32,7 @@ from qd_evolve.core.config import CONFIG_PATH, Settings, load_settings, save_jso
 
 from qd_evolve import __version__
 
-mqtt_app = typer.Typer(help="MQTT — A2A over MQTT v5 client/server")
+mqtt_app = typer.Typer(help="A2A over MQTT v5 — remote agent client/server")
 console = Console()
 
 
@@ -722,7 +722,7 @@ def serve(
         os.environ[key] = value
 
     if not agent:
-        console.print("[red]Error:[/red] --agent is required. E.g. qd-evolve mqtt serve --agent test")
+        console.print("[red]Error:[/red] --agent is required. E.g. qd-evolve a2a-mqtt serve --agent test")
         raise SystemExit(1)
 
     entry = next((a for a in settings.agents_config.agents if a.name == agent), None)
