@@ -44,19 +44,37 @@ Create a `config.json` in your working directory. Minimal setup for single-agent
 
 ```json
 {
-  "default_provider": "openai",
-  "default_model": "gpt-4o",
+  "env_vars": {
+    "PYTHONIOENCODING": "utf-8",
+    "PYTHONUTF8": "1"
+  },
+  "default_provider": "deepseek",
+  "default_model": "deepseek-v4-pro",
   "providers": [
     {
-      "name": "openai",
-      "api_key": "sk-...",
-      "base_url": "https://api.openai.com/v1",
+      "name": "deepseek",
+      "api_key": "...",
+      "base_url": "https://api.deepseek.com",
       "api": "openai-completions",
       "models": [
-        { "name": "gpt-4o", "context_window": 128000, "max_tokens": 4096 }
+        { "name": "deepseek-v4-pro", "reasoning": true, "context_window": 1000000, "max_tokens": 131072 }
       ]
     }
-  ]
+  ],
+  "agents_config": {
+    "agents": [
+      {
+        "name": "default",
+        "toolbox": {
+          "tools": {
+            "load_func": "preload",
+            "load_skill": "preload",
+            "load_cli": "preload"
+          }
+        }
+      }
+    ]
+  }
 }
 ```
 
@@ -65,14 +83,14 @@ See [Configuration](#configuration-1) below for full multi-agent, MQTT, and tool
 ### Verify
 
 ```bash
-qd-evolve
+qd-evolve chat --agent default
 ```
 
 ## Quick Start
 
 ```bash
 # Single-agent chat
-qd-evolve
+qd-evolve chat --agent default
 
 # Multi-agent A2A chat over HTTP
 qd-evolve a2a-http
@@ -104,7 +122,7 @@ qd-evolve memory --agent <name>
 
 | System | Entry | Transport | Use Case |
 |--------|-------|-----------|----------|
-| Chat | `qd-evolve` | In-process only | Single-agent, no network |
+| Chat | `qd-evolve chat --agent <name>` | In-process only | Single-agent, no network |
 | A2A Inproc | `qd-evolve a2a-inproc` | In-process only | Multi-agent in-process |
 | A2A | `qd-evolve a2a-http` | HTTP + in-proc | Multi-agent over HTTP/SSE |
 | MQTT | `qd-evolve a2a-mqtt` | MQTT v5 + in-proc | Multi-agent over MQTT |
@@ -215,11 +233,11 @@ Tool enable/disable/preload per agent, managed via `qd-evolve toolbox --agent <n
     "agents": [{
       "name": "planner",
       "toolbox": {
-        "tools": { "run_shell": "preloaded", "web_search": "enabled" },
+        "tools": { "run_shell": "preload", "web_search": "enabled" },
         "mcp_servers": { "filesystem": "disabled" },
         "bridge": { "oat:boat": "enabled", "oat:coat": "disabled" },
-        "cli": { "git": "preloaded" },
-        "skills": { "code-review": "preloaded" }
+        "cli": { "git": "preload" },
+        "skills": { "code-review": "preload" }
       }
     }]
   }
