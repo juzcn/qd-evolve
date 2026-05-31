@@ -51,10 +51,10 @@ class MCPServerConfig(BaseModel):
 
 class EmbeddingsBackend(BaseModel):
     model_path: str
-    dim: int
+    dim: int = 1024
     backend: str = "sentence-transformers"  # sentence-transformers | llama-cpp-python
-    llama_n_ctx: int = 0
-    llama_n_batch: int = 0
+    llama_n_ctx: int = 8192
+    llama_n_batch: int = 512
 
 
 class MemorySearchConfig(BaseModel):
@@ -67,9 +67,7 @@ class MemorySearchConfig(BaseModel):
 
 
 
-class LogConfig(BaseModel):
-    level: str = "INFO"
-    truncation: int = 500
+LOG_TRUNCATION = 500
 
 
 class ServerConfig(BaseModel):
@@ -174,7 +172,7 @@ class AgentsConfig(BaseModel):
 
 
 class Settings(BaseModel):
-    log: LogConfig = LogConfig()
+    log_level: str = "INFO"
     env_vars: dict[str, str] = {}
     providers: list[ProviderConfig] = []
     default_provider: str = ""
@@ -184,8 +182,8 @@ class Settings(BaseModel):
     memory_search: MemorySearchConfig = MemorySearchConfig()
     compress_threshold: float = 0.7
     target_threshold: float = 0.5
-    max_iterations: int
-    tool_output_limit: int
+    max_iterations: int = 20
+    tool_output_limit: int = 50000
     stream: bool = False
     heartbeat_idle_seconds: int = 0
 

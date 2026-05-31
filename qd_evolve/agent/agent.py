@@ -5,7 +5,7 @@ import json
 from datetime import datetime
 from typing import Any, Callable
 
-from qd_evolve.core.config import AgentEntry, Settings
+from qd_evolve.core.config import AgentEntry, Settings, LOG_TRUNCATION
 from qd_evolve.core.logger import logger
 from qd_evolve.core.memory import MemoryStore, RecalledMemoryRegistry
 from qd_evolve.core.providers import ProviderRegistry
@@ -213,7 +213,7 @@ class Agent:
         self.messages.append({"role": "user", "content": user_input})
         self.iteration = 0
         self._tc_buffer: list[str] = []
-        self._log_limit = self.settings.log.truncation
+        self._log_limit = LOG_TRUNCATION
         logger.info("Agent: user input: %s", user_input)
 
         # Auto recall: inject relevant memory into system prompt

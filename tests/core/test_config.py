@@ -8,7 +8,6 @@ import pytest
 from qd_evolve.core.config import (
     AgentEntry,
     EmbeddingsBackend,
-    LogConfig,
     MCPServerConfig,
     ModelConfig,
     ProviderConfig,
@@ -247,13 +246,6 @@ class TestMemorySearchConfig:
 
 
 
-class TestLogConfig:
-    def test_defaults(self):
-        lc = LogConfig()
-        assert lc.level == "INFO"
-        assert lc.truncation == 500
-
-
 # ── load/save tests ─────────────────────────────────────────────────
 
 class TestLoadJson:
@@ -296,10 +288,10 @@ class TestLoadSettings:
         assert settings.default_provider == "test"
         assert settings.default_model == "gpt-4o-mini"
 
-    def test_missing_file_raises(self, tmp_path):
-        # Settings requires max_iterations and tool_output_limit — no defaults
-        with pytest.raises(Exception):
-            load_settings(tmp_path / "nonexistent.json")
+    def test_missing_file_uses_defaults(self, tmp_path):
+        settings = load_settings(tmp_path / "nonexistent.json")
+        assert settings.max_iterations == 20
+        assert settings.tool_output_limit == 50000
 
     def test_from_dict_data(self, config_json):
         data = load_json(config_json)
@@ -322,7 +314,8 @@ class TestEmbeddingsBackend:
     def test_defaults(self):
         eb = EmbeddingsBackend(model_path="model.bin", dim=384)
         assert eb.backend == "sentence-transformers"
-        assert eb.llama_n_ctx == 0
+        assert eb.llama_n_ctx == 8192
+        assert eb.llama_n_batch == 512
 
     def test_llama_backend(self):
         eb = EmbeddingsBackend(model_path="model.bin", dim=384, backend="llama-cpp-python", llama_n_ctx=512, llama_n_batch=256)

@@ -228,10 +228,6 @@ def create_agent(name: str, settings: Settings, *, need_a2a: bool | None = None,
         "cwd": str(Path.cwd()),
         "agent_name": entry.name,
         "available_agents": ", ".join(a.name for a in settings.agents_config.agents),
-        "agent_relations": ", ".join(
-            f"{r['from']}→{r['to']} ({r.get('mode', 'peer')})"
-            for r in settings.agents_config.topology.relations
-        ) if settings.agents_config.topology.relations else "",
         "has_human_agent": any(a.is_human for a in settings.agents_config.agents),
         "human_agent_names": ", ".join(a.name for a in settings.agents_config.agents if a.is_human),
         "mqtt_broker_host": settings.agents_config.mqtt_broker.host,

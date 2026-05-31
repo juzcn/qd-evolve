@@ -572,7 +572,7 @@ def chat(
     except ValidationError as e:
         console.print(f"[red]Config error:[/red] {e}")
         raise SystemExit(1)
-    setup_logging(settings.log.level, log_dir=LOG_DIR_PATH)
+    setup_logging(settings.log_level, log_dir=LOG_DIR_PATH)
 
     import os
     for key, value in settings.env_vars.items():
