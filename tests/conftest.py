@@ -142,6 +142,21 @@ def recalled_registry() -> RecalledMemoryRegistry:
     return RecalledMemoryRegistry()
 
 
+# ── Staging cleanup ─────────────────────────────────────────────────
+
+@pytest.fixture(scope="session", autouse=True)
+def _clean_staging_on_session_start():
+    """Remove leftover staging artifacts before/after the test session.
+
+    Prevents stale .py/.pyc files from interfering with discover_tools
+    and slowing down test runs.
+    """
+    from qd_evolve.tools.staging import cleanup_staging
+    cleanup_staging()
+    yield
+    cleanup_staging()
+
+
 # ── Agent fixtures ──────────────────────────────────────────────────
 
 @pytest.fixture

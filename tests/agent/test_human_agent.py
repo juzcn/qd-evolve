@@ -121,7 +121,8 @@ class TestHumanAgentHeartbeat:
         human.start_heartbeat_loop(idle_seconds=0)
         assert human._hb_task is None
 
-    def test_start_sets_task(self, human):
+    @pytest.mark.asyncio
+    async def test_start_sets_task(self, human):
         human.start_heartbeat_loop(idle_seconds=60)
         assert human._hb_task is not None
         # Clean up

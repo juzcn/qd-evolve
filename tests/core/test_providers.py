@@ -1,11 +1,21 @@
 """Tests for qd_evolve.core.providers — Provider, ProviderRegistry."""
 
+import sys
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from qd_evolve.core.config import ModelConfig, ProviderConfig, Settings
 from qd_evolve.core.providers import Provider, ProviderRegistry
+
+# Pre-populate heavy SDK modules so @patch("anthropic.Anthropic") /
+# @patch("openai.OpenAI") resolve without triggering slow real imports.
+# anthropic: ~0.7s, openai: ~0.6s — shaves ~1.3s off the slowest tests.
+if "anthropic" not in sys.modules:
+    sys.modules["anthropic"] = SimpleNamespace(Anthropic=None)
+if "openai" not in sys.modules:
+    sys.modules["openai"] = SimpleNamespace(OpenAI=None)
 
 
 class TestProvider:

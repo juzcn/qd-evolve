@@ -221,11 +221,11 @@ class TestDelegateToHumanRejection:
 
         # Make _pick return inproc (agent found locally)
         mock_router._pick = MagicMock(return_value=mock_inproc)
-        mock_router._get_registry = MagicMock()
+        mock_inproc._get_registry = MagicMock()
 
         mock_reg = MagicMock()
         mock_reg.get.return_value = human
-        mock_router._get_registry.return_value = mock_reg
+        mock_inproc._get_registry.return_value = mock_reg
 
         set_transport(mock_router)
 
