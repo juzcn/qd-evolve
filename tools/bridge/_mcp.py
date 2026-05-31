@@ -1,4 +1,4 @@
-﻿"""MCP bridge 鈥?external process tools via stdin/stdout transport.
+﻿"""MCP bridge — external process tools via stdin/stdout transport.
 
 Scans tools/mcp/*.json for MCP server configs, spawns subprocesses,
 discovers tools via MCP list_tools, and registers them in ToolRegistry.
@@ -34,7 +34,7 @@ def _expand_env(value: str) -> str:
     return re.sub(r"\$\{(\w+)\}|\$(\w+)", _replace, value)
 
 
-# 鈹€鈹€ discovery 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+# ====== discovery ======
 
 def discover_mcp_servers(_settings: Any = None) -> list[MCPServerConfig]:
     """Scan tools/mcp/*.json and .qd-evolve/staging/mcp/*.json for MCP server configs."""
@@ -87,10 +87,10 @@ def _extract_servers(data: dict, fallback_name: str) -> dict[str, dict]:
     return {}
 
 
-# 鈹€鈹€ MCPToolBridge 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+# ====== MCPToolBridge ======
 
 class MCPToolBridge:
-    """Manages one MCP server 鈥?spawns subprocess, discovers tools, dispatches calls."""
+    """Manages one MCP server — spawns subprocess, discovers tools, dispatches calls."""
 
     def __init__(self, config: MCPServerConfig, registry: ToolRegistry | None = None) -> None:
         self.config = config
@@ -114,7 +114,6 @@ class MCPToolBridge:
                 self._loop.run_until_complete(self._async_connect())
             except BaseException as e:
                 error_ref.append(e)
-                logger.error("MCP: connect failed for %s: %s", self.config.name, e)
             finally:
                 connected.set()
             if not error_ref:
@@ -286,11 +285,35 @@ class MCPToolBridge:
         logger.info("MCP: disconnected from %s", self.config.name)
 
 
-# 鈹€鈹€ Bridge protocol functions 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+# ====== Bridge protocol functions ======
+
+def _has_missing_env(value: str) -> bool:
+    """Check if a string still contains unresolved $VAR references after expansion."""
+    return bool(re.search(r"\$\{?\w", value))
+
+
+def _check_missing_env_vars(config: MCPServerConfig) -> list[str]:
+    """Return list of fields with unresolved env var references."""
+    missing: list[str] = []
+    if _has_missing_env(config.command):
+        missing.append("command")
+    if any(_has_missing_env(a) for a in config.args):
+        missing.append("args")
+    if _has_missing_env(config.url):
+        missing.append("url")
+    for k, v in config.headers.items():
+        if _has_missing_env(v):
+            missing.append(f"headers.{k}")
+    return missing
+
 
 def _connect_mcp_servers(configs: list[MCPServerConfig]) -> list[MCPToolBridge]:
     bridges: list[MCPToolBridge] = []
     for config in configs:
+        missing = _check_missing_env_vars(config)
+        if missing:
+            logger.warning("MCP: skipping %s — env var not set: %s", config.name, ", ".join(missing))
+            continue
         try:
             bridge = MCPToolBridge(config)
             bridge.connect()
@@ -308,7 +331,7 @@ def _disconnect_mcp_servers(bridges: list[MCPToolBridge]) -> None:
             logger.exception("MCP: disconnect error for %s", bridge.config.name)
 
 
-# 鈹€鈹€ Register with BridgeManager 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+# ====== Register with BridgeManager ======
 
 BridgeManager.register(
     name="mcp",

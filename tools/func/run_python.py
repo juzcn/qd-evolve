@@ -1,4 +1,4 @@
-﻿"""Direct Python code execution 鈥?no shell layer, clean error capture."""
+﻿"""Direct Python code execution — no shell layer, clean error capture."""
 
 
 import subprocess
@@ -60,7 +60,7 @@ def _run_python(code: str) -> str:
 registry.register(
     name="run_python",
     description=(
-        "Execute Python code directly. Prefer this over run_shell for Python scripts 鈥?"
+        "Execute Python code directly. Prefer this over run_shell for Python scripts — "
         "it bypasses the shell layer, avoiding escaping and encoding issues. "
         "Multi-line code is fine; use standard Python indentation."
     ),

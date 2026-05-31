@@ -1,4 +1,4 @@
-﻿"""Bridge Protocol 鈥?generic mechanism for integrating external tool sources.
+﻿"""Bridge Protocol — generic mechanism for integrating external tool sources.
 
 A bridge is a named spec with three functions:
     discover(settings) -> list[Config]
@@ -6,7 +6,7 @@ A bridge is a named spec with three functions:
     disconnect(bridge, registry) -> None
 
 Bridges self-register via BridgeManager.register(). cli.py only talks to
-BridgeManager 鈥?adding a new bridge never touches cli.py or toolbox.py.
+BridgeManager — adding a new bridge never touches cli.py or toolbox.py.
 """
 
 
@@ -21,7 +21,7 @@ from qd_evolve.core.logger import logger
 BRIDGE_DIR = Path(__file__).parent
 
 
-# 鈹€鈹€ Protocol 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+# ====== Protocol ======
 
 class Bridge(Protocol):
     """Each bridge instance holds its config and tracks registered tool names."""
@@ -33,7 +33,7 @@ class Bridge(Protocol):
     def disconnect(self) -> None: ...
 
 
-# 鈹€鈹€ BridgeManager 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+# ====== BridgeManager ======
 
 DiscoverFn = Callable[[Any], list[Any]]
 ConnectFn = Callable[[list[Any]], list[Bridge]]

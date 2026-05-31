@@ -1,4 +1,4 @@
-﻿"""recall_memory tool 鈥?search past conversation memories."""
+﻿"""recall_memory tool — search past conversation memories."""
 
 
 from qd_evolve.core.memory import MemoryStore

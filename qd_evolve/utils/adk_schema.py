@@ -1,4 +1,4 @@
-﻿"""Google ADK tool function 鈫?OpenAI JSON Schema converter.
+﻿"""Google ADK tool function -> OpenAI JSON Schema converter.
 
 Boat and coat follow the Google ADK convention:
 - All parameters are JSON-serializable types (str, int, float, bool, list, dict)
@@ -89,7 +89,7 @@ def _annotation_to_json_type(ann: Any) -> dict[str, Any]:
     if ann is Any:
         return {}
 
-    # Named types 鈥?check by string for forward references
+    # Named types — check by string for forward references
     ann_str = getattr(ann, "__name__", str(ann))
     if ann_str == "str":
         return {"type": "string"}
