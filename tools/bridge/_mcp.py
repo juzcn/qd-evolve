@@ -8,6 +8,7 @@ discovers tools via MCP list_tools, and registers them in ToolRegistry.
 import asyncio
 import json
 import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 
@@ -303,18 +304,37 @@ def _check_missing_env_vars(config: MCPServerConfig) -> list[str]:
 
 
 def _connect_mcp_servers(configs: list[MCPServerConfig]) -> list[MCPToolBridge]:
-    bridges: list[MCPToolBridge] = []
+    # Filter out configs with missing env vars
+    valid: list[MCPServerConfig] = []
     for config in configs:
         missing = _check_missing_env_vars(config)
         if missing:
             logger.warning("MCP: skipping %s — env var not set: %s", config.name, ", ".join(missing))
-            continue
-        try:
-            bridge = MCPToolBridge(config)
-            bridge.connect()
-            bridges.append(bridge)
-        except BaseException as e:
-            logger.error("MCP: failed to connect to %s: %s", config.name, e)
+        else:
+            valid.append(config)
+
+    if not valid:
+        return []
+
+    # Connect all MCP servers in parallel — npx/uvx cold starts dominate
+    # startup time, so overlapping them cuts wall-clock time significantly.
+    bridges: list[MCPToolBridge] = []
+
+    def _connect_one(config: MCPServerConfig) -> MCPToolBridge:
+        bridge = MCPToolBridge(config)
+        bridge.connect()
+        return bridge
+
+    with ThreadPoolExecutor(max_workers=len(valid)) as executor:
+        futures = {executor.submit(_connect_one, config): config for config in valid}
+        for future in as_completed(futures):
+            config = futures[future]
+            try:
+                bridge = future.result()
+                bridges.append(bridge)
+            except BaseException as e:
+                logger.error("MCP: failed to connect to %s: %s", config.name, e)
+
     return bridges
 
 
