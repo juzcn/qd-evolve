@@ -7,9 +7,9 @@ from qd_evolve.skills import SkillInfo, SkillRegistry, _parse_frontmatter
 
 class TestParseFrontmatter:
     def test_with_frontmatter(self):
-        content = "---\nname: find-tools\ndescription: Search tools\n---\n# Find Tools\nContent here"
+        content = "---\nname: search-tools\ndescription: Search tools\n---\n# Search Tools\nContent here"
         result = _parse_frontmatter(content)
-        assert result["name"] == "find-tools"
+        assert result["name"] == "search-tools"
         assert result["description"] == "Search tools"
 
     def test_no_frontmatter(self):
@@ -23,9 +23,9 @@ class TestParseFrontmatter:
         assert result == {}
 
     def test_multiline_frontmatter(self):
-        content = "---\nname: find-tools\ndescription: Search\ntags: search,tools\n---\nBody"
+        content = "---\nname: search-tools\ndescription: Search\ntags: search,tools\n---\nBody"
         result = _parse_frontmatter(content)
-        assert result["name"] == "find-tools"
+        assert result["name"] == "search-tools"
         assert result["description"] == "Search"
         assert result["tags"] == "search,tools"
 
@@ -48,13 +48,13 @@ class TestSkillInfo:
         assert si.active is False
 
     def test_format_for_prompt_with_summary(self):
-        info = SkillInfo(name="find-tools", content="full content", summary="Search tools")
-        assert info.format_for_prompt() == "- find-tools: Search tools"
+        info = SkillInfo(name="search-tools", content="full content", summary="Search tools")
+        assert info.format_for_prompt() == "- search-tools: Search tools"
 
     def test_format_for_prompt_without_summary(self):
-        info = SkillInfo(name="find-tools", content="first line\nsecond line", summary="")
+        info = SkillInfo(name="search-tools", content="first line\nsecond line", summary="")
         result = info.format_for_prompt()
-        assert "find-tools" in result
+        assert "search-tools" in result
         assert "first line" in result
 
 
@@ -62,16 +62,16 @@ class TestSkillRegistry:
     def test_discover_skills_finds_skills(self, tmp_path):
         skill_dir = tmp_path / "skills"
         skill_dir.mkdir()
-        (skill_dir / "find-tools").mkdir()
-        (skill_dir / "find-tools" / "SKILL.md").write_text(
-            "---\nname: find-tools\ndescription: Search tools\n---\n# Find Tools\nContent", encoding="utf-8"
+        (skill_dir / "search-tools").mkdir()
+        (skill_dir / "search-tools" / "SKILL.md").write_text(
+            "---\nname: search-tools\ndescription: Search tools\n---\n# Search Tools\nContent", encoding="utf-8"
         )
 
         reg = SkillRegistry()
         reg.discover_skills(skill_dir)
         skills = reg.get_all_skills()
         assert len(skills) == 1
-        assert skills[0].name == "find-tools"
+        assert skills[0].name == "search-tools"
         assert skills[0].summary == "Search tools"
 
     def test_discover_skills_skips_no_skill_md(self, tmp_path):
@@ -154,15 +154,15 @@ class TestSkillRegistry:
     def test_format_for_prompt(self, tmp_path):
         skill_dir = tmp_path / "skills"
         skill_dir.mkdir()
-        (skill_dir / "find-tools").mkdir()
-        (skill_dir / "find-tools" / "SKILL.md").write_text(
-            "---\nname: find-tools\ndescription: Search tools\n---\n# Find Tools", encoding="utf-8"
+        (skill_dir / "search-tools").mkdir()
+        (skill_dir / "search-tools" / "SKILL.md").write_text(
+            "---\nname: search-tools\ndescription: Search tools\n---\n# Search Tools", encoding="utf-8"
         )
 
         reg = SkillRegistry()
         reg.discover_skills(skill_dir)
         result = reg.format_for_prompt()
-        assert "find-tools" in result
+        assert "search-tools" in result
         assert "Search tools" in result
 
     def test_format_for_prompt_empty(self):

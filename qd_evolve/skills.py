@@ -61,12 +61,6 @@ class SkillRegistry:
         else:
             logger.warning("Skills: skills directory not found: %s", self._skills_dir)
 
-        # Also scan staging skill dir
-        from qd_evolve.tools.staging import staging_skill_dir
-        staging = staging_skill_dir()
-        if staging.is_dir():
-            dirs_to_scan.append(staging)
-
         for scan_dir in dirs_to_scan:
             for skill_dir in scan_dir.iterdir():
                 if not skill_dir.is_dir():

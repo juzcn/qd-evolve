@@ -45,7 +45,6 @@ tests/
 │   ├── test_server.py               # TaskStore, A2AServer RPC (58%)
 │   └── test_loader.py               # get_agent_entry, create_agent_core (41%)
 ├── tools/
-│   ├── test_staging.py              # Staging area paths (100%)
 │   ├── test_adk_schema.py           # ADK→OpenAI schema conversion (88%)
 │   ├── test_adk_output.py           # Output normalization (100%)
 │   ├── test_tool_loader.py          # load_func handler (100%)
@@ -53,10 +52,6 @@ tests/
 │   ├── test_cli_loader.py           # load_cli handler (100%)
 │   ├── test_recall_memory.py        # recall_memory handler (88%)
 │   ├── test_a2a_tools.py            # delegate_to, send_task, etc. (41%)
-│   ├── test_install_func.py         # install_func handler (69%)
-│   ├── test_register_func.py        # register_func handler (40%)
-│   ├── test_register_mcp.py         # register_mcp handler (95%)
-│   └── test_register_skill.py       # register_skill handler (95%)
 ├── skills/
 │   ├── test_skill_registry.py       # SkillRegistry, frontmatter (89%)
 │   └── test_cli_registry.py         # CLIRegistry, YAML loading (95%)
@@ -73,12 +68,9 @@ tests/
 | `agent/a2a.py` | 100% | All A2A protocol models |
 | `tools/skill_loader.py` | 100% | Pure handler logic |
 | `tools/cli_loader.py` | 100% | Pure handler logic |
-| `tools/staging.py` | 100% | Path functions |
 | `utils/adk_output.py` | 100% | Output normalization |
 | `core/prompts.py` | 97% | Template rendering |
 | `core/providers.py` | 97% | Provider lookup, client creation |
-| `tools/register_mcp.py` | 95% | File move logic |
-| `tools/register_skill.py` | 95% | Directory copy logic |
 | `core/logger.py` | 94% | SharedFileHandler |
 | `core/registry.py` | 94% | Tool registration, definitions |
 | `skills/test_cli_registry.py` | 95% | YAML discovery |
@@ -90,8 +82,6 @@ tests/
 | `agent/server.py` | 58% | JSON-RPC handling |
 | `agent/loader.py` | 41% | Agent initialization (heavy deps) |
 | `tools/a2a.py` | 41% | A2A tool handlers (need transport) |
-| `tools/register_func.py` | 40% | File move + pyproject update |
-| `tools/install_func.py` | 69% | Code generation + hot-load |
 | `agent/agent.py` | 31% | LLM call paths (mocked) |
 | `agent/transport.py` | 27% | Async HTTP transport |
 | `cli.py` | 7% | Interactive TUI |

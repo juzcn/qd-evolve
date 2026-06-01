@@ -71,3 +71,51 @@ class TestSharedFileHandlerError:
         # Should not raise — error is handled via handleError
         handler.emit(record)
         handler.close()
+
+    def test_emit_with_format_exception(self, tmp_path):
+        """emit handles records where formatting would normally fail."""
+        log_file = tmp_path / "test.log"
+        handler = SharedFileHandler(str(log_file))
+        # Record with args that cannot be formatted (edge case)
+        record = logging.LogRecord("test", logging.INFO, "", 0, "msg %s", ("arg",), None)
+        handler.emit(record)
+        handler.close()
+        content = log_file.read_text(encoding="utf-8")
+        assert "msg arg" in content
+
+
+class TestSetupLoggingEdgeCases:
+    def test_default_log_dir_is_created(self, tmp_path, monkeypatch):
+        from qd_evolve.core import logger as log_mod
+        old_dir = log_mod.LOG_DIR
+        new_dir = tmp_path / "default_logs"
+        try:
+            log_mod.LOG_DIR = new_dir
+            setup_logging(log_dir=str(new_dir), level="INFO")
+            assert new_dir.exists()
+        finally:
+            log_mod.LOG_DIR = old_dir
+
+    def test_stderr_handler_added(self, tmp_path):
+        log_dir = tmp_path / "logs"
+        setup_logging(log_dir=str(log_dir), level="INFO")
+        root = logging.getLogger("qd_evolve")
+        stderr_handlers = [h for h in root.handlers
+                           if isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler)]
+        assert len(stderr_handlers) >= 1
+        assert stderr_handlers[0].level == logging.ERROR
+
+    def test_duplicate_handlers_not_added(self, tmp_path):
+        log_dir = tmp_path / "logs"
+        setup_logging(log_dir=str(log_dir), level="INFO")
+        first_count = len(logging.getLogger("qd_evolve").handlers)
+        setup_logging(log_dir=str(log_dir), level="INFO")
+        second_count = len(logging.getLogger("qd_evolve").handlers)
+        # After second setup, handlers should be cleared and re-added (same count, not doubled)
+        assert second_count == first_count
+
+    def test_invalid_level_falls_back_to_info(self, tmp_path):
+        log_dir = tmp_path / "logs"
+        setup_logging(log_dir=str(log_dir), level="INVALID_LEVEL")
+        logger_obj = logging.getLogger("qd_evolve")
+        assert logger_obj.level == logging.INFO

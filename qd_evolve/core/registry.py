@@ -154,7 +154,7 @@ class ToolRegistry:
         return "\n".join(lines)
 
     def discover_tools(self) -> None:
-        """Auto-discover tools from qd_evolve/tools/ (system), tools/func/ (user), and staging."""
+        """Auto-discover tools from qd_evolve/tools/ (system) and tools/func/ (user)."""
         # System tools — bundled with qd_evolve
         tools_dir = Path(__file__).resolve().parent.parent / "tools"
         for py_file in sorted(tools_dir.glob("*.py")):
@@ -181,23 +181,6 @@ class ToolRegistry:
                         logger.debug("Tools: loaded func tool: %s", py_file.stem)
                 except Exception:
                     logger.exception("Tools: failed to load func tool %s", py_file.name)
-
-        # Staging func tools — .qd_evolve/staging/func/
-        from qd_evolve.tools.staging import staging_func_dir
-        staging = staging_func_dir()
-        if staging.is_dir():
-            for py_file in sorted(staging.glob("*.py")):
-                try:
-                    spec = importlib.util.spec_from_file_location(
-                        f"qd_evolve.tools.staging.{py_file.stem}", py_file,
-                    )
-                    if spec and spec.loader:
-                        mod = importlib.util.module_from_spec(spec)
-                        spec.loader.exec_module(mod)
-                        logger.info("Tools: hot-loaded staged tool: %s", py_file.stem)
-                except Exception:
-                    logger.exception("Tools: failed to load staged tool %s", py_file.name)
-
 
 # Module-level singleton
 _registry: ToolRegistry | None = None

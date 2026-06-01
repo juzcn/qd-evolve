@@ -98,8 +98,8 @@ class TestActivateTool:
         assert "fetch" in agent_core._active_tools
 
     def test_activate_load_skill(self, agent_core):
-        agent_core._activate_tool("load_skill", {"name": "find-tools"}, "skill content...")
-        assert "find-tools" in agent_core._loaded_skill_names
+        agent_core._activate_tool("load_skill", {"name": "search-tools"}, "skill content...")
+        assert "search-tools" in agent_core._loaded_skill_names
 
     def test_activate_load_cli(self, agent_core):
         agent_core._activate_tool("load_cli", {"name": "git"}, "cli usage...")
@@ -108,19 +108,19 @@ class TestActivateTool:
 
 class TestRemoveFromUnloaded:
     def test_removes_matching_line(self):
-        text = "### Unloaded Skills Summary\n- find-tools: Search tools\n- other: Other\n## Next Section"
-        result = Agent._remove_from_unloaded(text, "### Unloaded Skills Summary", {"find-tools"})
-        assert "- find-tools" not in result
+        text = "### Unloaded Skills Summary\n- search-tools: Search tools\n- other: Other\n## Next Section"
+        result = Agent._remove_from_unloaded(text, "### Unloaded Skills Summary", {"search-tools"})
+        assert "- search-tools" not in result
         assert "- other: Other" in result
 
     def test_removes_empty_section(self):
-        text = "### Unloaded Skills Summary\n- find-tools: Search tools\n## Next Section"
-        result = Agent._remove_from_unloaded(text, "### Unloaded Skills Summary", {"find-tools"})
+        text = "### Unloaded Skills Summary\n- search-tools: Search tools\n## Next Section"
+        result = Agent._remove_from_unloaded(text, "### Unloaded Skills Summary", {"search-tools"})
         assert "### Unloaded Skills Summary" not in result
 
     def test_no_matching_header(self):
         text = "Some text without the header"
-        result = Agent._remove_from_unloaded(text, "### Unloaded Skills Summary", {"find-tools"})
+        result = Agent._remove_from_unloaded(text, "### Unloaded Skills Summary", {"search-tools"})
         assert result == text
 
     def test_multiple_names(self):
@@ -133,10 +133,10 @@ class TestRemoveFromUnloaded:
 
 class TestInjectLoadedContent:
     def test_removes_loaded_skills(self, agent_core):
-        agent_core._loaded_skill_names = {"find-tools"}
-        prompt = "### Unloaded Skills Summary\n- find-tools: Search tools\n- other: Other\n## Next Section"
+        agent_core._loaded_skill_names = {"search-tools"}
+        prompt = "### Unloaded Skills Summary\n- search-tools: Search tools\n- other: Other\n## Next Section"
         result = agent_core._inject_loaded_content(prompt)
-        assert "- find-tools" not in result
+        assert "- search-tools" not in result
         assert "- other: Other" in result
 
     def test_removes_loaded_cli(self, agent_core):
@@ -154,7 +154,7 @@ class TestInjectLoadedContent:
         assert "- fetch: Fetch" in result
 
     def test_no_changes_when_nothing_loaded(self, agent_core):
-        prompt = "### Unloaded Skills Summary\n- find-tools: Search tools\n## Next Section"
+        prompt = "### Unloaded Skills Summary\n- search-tools: Search tools\n## Next Section"
         result = agent_core._inject_loaded_content(prompt)
         assert result == prompt
 

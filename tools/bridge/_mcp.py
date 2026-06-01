@@ -37,14 +37,9 @@ def _expand_env(value: str) -> str:
 # ====== discovery ======
 
 def discover_mcp_servers(_settings: Any = None) -> list[MCPServerConfig]:
-    """Scan tools/mcp/*.json and .qd-evolve/staging/mcp/*.json for MCP server configs."""
+    """Scan tools/mcp/*.json for MCP server configs."""
     configs: list[MCPServerConfig] = []
     scan_dirs = [_mcp_dir()]
-
-    from qd_evolve.tools.staging import staging_mcp_dir
-    staging = staging_mcp_dir()
-    if staging.is_dir():
-        scan_dirs.append(staging)
 
     for mcp_dir in scan_dirs:
         if not mcp_dir.exists():

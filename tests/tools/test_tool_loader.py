@@ -27,3 +27,58 @@ class TestLoadFunc:
             set_preload_tools({"echo"})
             result = _load_tool_detail("echo")
             assert "already preloaded" in result
+
+    def test_not_found_lists_available_tools(self, registry_with_echo):
+        with patch("qd_evolve.tools.tool_loader.get_registry", return_value=registry_with_echo):
+            from qd_evolve.tools.tool_loader import _load_tool_detail
+            result = _load_tool_detail("nonexistent")
+            assert "not found" in result
+            assert "echo" in result  # available tools listed
+
+    def test_set_preload_tools_accumulates(self):
+        from qd_evolve.tools.tool_loader import set_preload_tools
+        from qd_evolve.tools import tool_loader as mod
+        old = mod._preload_tools
+        mod._preload_tools = set()
+        try:
+            set_preload_tools({"a"})
+            set_preload_tools({"b", "c"})
+            assert "a" in mod._preload_tools
+            assert "b" in mod._preload_tools
+            assert "c" in mod._preload_tools
+        finally:
+            mod._preload_tools = old
+
+    def test_load_tool_returns_valid_json(self, registry_with_echo):
+        registry_with_echo.register("fetch", "Fetch URL", lambda u: u,
+                                    {"type": "object", "properties": {"url": {"type": "string"}}})
+        with patch("qd_evolve.tools.tool_loader.get_registry", return_value=registry_with_echo):
+            from qd_evolve.tools.tool_loader import _load_tool_detail
+            result = _load_tool_detail("fetch")
+            import json
+            data = json.loads(result)
+            assert "name" in data
+            assert "description" in data
+            assert "input_schema" in data
+
+    def test_load_tool_with_nested_schema(self, registry_with_echo):
+        complex_schema = {
+            "type": "object",
+            "properties": {
+                "options": {
+                    "type": "object",
+                    "properties": {
+                        "nested": {"type": "string"},
+                    },
+                },
+            },
+            "required": ["options"],
+        }
+        registry_with_echo.register("complex", "Complex tool", lambda o: o, complex_schema)
+        with patch("qd_evolve.tools.tool_loader.get_registry", return_value=registry_with_echo):
+            from qd_evolve.tools.tool_loader import _load_tool_detail
+            result = _load_tool_detail("complex")
+            import json
+            data = json.loads(result)
+            assert data["name"] == "complex"
+            assert "nested" in str(data["input_schema"])

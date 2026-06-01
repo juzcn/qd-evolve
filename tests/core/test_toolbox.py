@@ -50,7 +50,7 @@ def _make_config_with_toolbox(tmp_path: Path) -> Path:
                 "mcp_servers": {"mcp1": "disabled"},
                 "bridge": {"oat:boat": "disabled"},
                 "cli": {"git": "preload"},
-                "skills": {"find-tools": "disabled"},
+                "skills": {"search-tools": "disabled"},
             },
         },
         {"name": "other"},
@@ -231,14 +231,14 @@ class TestApplyToCliRegistry:
 class TestApplyToSkillRegistry:
     def test_disabled_skill(self, toolbox_dir_with_data):
         mock_skill = MagicMock()
-        mock_skill.name = "find-tools"
+        mock_skill.name = "search-tools"
         mock_registry = MagicMock()
         mock_registry.get_all_skills.return_value = [mock_skill]
         mock_registry._disabled = set()
 
         preload = set()
         apply_to_skill_registry(mock_registry, preload, agent_name=AGENT)
-        assert "find-tools" in mock_registry._disabled
+        assert "search-tools" in mock_registry._disabled
 
 
 class TestGetDisabledBridges:

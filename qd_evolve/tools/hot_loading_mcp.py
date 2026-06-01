@@ -1,24 +1,17 @@
-"""Install and hot-load an MCP server."""
+"""Hot-load an MCP server — spawn process, discover tools, register for immediate use."""
 
-import json
 import shutil
 import subprocess
 import sys
 
 from qd_evolve.core.config import MCPServerConfig
 from qd_evolve.tools import get_registry
-from qd_evolve.tools.staging import ensure_staging_dirs, staging_mcp_dir
 from tools.bridge._mcp import MCPToolBridge, _expand_env, _extract_servers
 
-_staged_bridges: list[MCPToolBridge] = []
+_bridges: list[MCPToolBridge] = []
 
 
-def set_staged_bridges(bridges: list[MCPToolBridge]) -> None:
-    global _staged_bridges
-    _staged_bridges = bridges
-
-
-def _install_mcp(
+def _hot_loading_mcp(
     name: str,
     config: dict,
     pip_packages: list[str] | None = None,
@@ -41,15 +34,7 @@ def _install_mcp(
         except subprocess.CalledProcessError as e:
             return f"Error: package install failed for {pip_packages} (exit code {e.returncode}). The packages may not exist or be incompatible."
 
-    ensure_staging_dirs()
-
-    # Write config to staging
-    staging_file = staging_mcp_dir() / f"{name}.json"
     servers = _extract_servers(config, name)
-    staging_data = {"mcpServers": servers}
-    staging_file.write_text(json.dumps(staging_data, ensure_ascii=False, indent=2), encoding="utf-8")
-
-    # Build MCPServerConfig from the dict
     srv = servers[name]
     mcp_config = MCPServerConfig(
         name=name,
@@ -68,18 +53,18 @@ def _install_mcp(
     try:
         bridge = MCPToolBridge(mcp_config)
         bridge.connect()
-        _staged_bridges.append(bridge)
+        _bridges.append(bridge)
         tool_names = bridge.tool_names
-        return f"MCP server '{name}' installed and hot-loaded. Discovered tools: {', '.join(tool_names)}"
+        return f"MCP server '{name}' hot-loaded. Discovered tools: {', '.join(tool_names)}"
     except BaseException as e:
         return f"Error: MCP server '{name}' connect failed: {e}"
 
 
 registry = get_registry()
 registry.register(
-    name="install_mcp",
-    description="Install and hot-load an MCP server. The server's tools are immediately usable after installation.",
-    handler=_install_mcp,
+    name="hot_loading_mcp",
+    description="Hot-load an MCP server — spawn the process, discover its tools, and register them for immediate use.",
+    handler=_hot_loading_mcp,
     input_schema={
         "type": "object",
         "properties": {

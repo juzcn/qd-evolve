@@ -450,8 +450,6 @@ async def _async_chat_loop(
             b.disconnect(shutdown=True)
         except Exception:
             logger.debug("shutdown: bridge disconnect failed for %s", b, exc_info=True)
-    from qd_evolve.tools.staging import cleanup_staging
-    cleanup_staging()
     if agent_core.memory:
         agent_core.memory.close()
     if output_file:

@@ -72,11 +72,17 @@ class TestProvider:
         p = Provider(pc)
         assert p.get_context_window("test-model") == 4000
 
-    def test_get_context_window_not_found(self, minimal_settings):
+    @pytest.mark.parametrize("method_name,method", [
+        ("get_max_tokens", lambda p, m: p.get_max_tokens(m)),
+        ("get_context_window", lambda p, m: p.get_context_window(m)),
+        ("get_reasoning", lambda p, m: p.get_reasoning(m)),
+    ])
+    def test_model_not_found_raises_keyerror(self, minimal_settings, method_name, method):
+        """All model lookup methods raise KeyError when model is not found."""
         pc = minimal_settings.providers[0]
         p = Provider(pc)
         with pytest.raises(KeyError):
-            p.get_context_window("nonexistent")
+            method(p, "nonexistent")
 
     def test_get_reasoning(self):
         pc = ProviderConfig(
@@ -86,12 +92,6 @@ class TestProvider:
         )
         p = Provider(pc)
         assert p.get_reasoning("r1") is True
-
-    def test_get_reasoning_not_found(self):
-        pc = ProviderConfig(name="test", api_key="sk", models=[])
-        p = Provider(pc)
-        with pytest.raises(KeyError):
-            p.get_reasoning("nonexistent")
 
     @patch("anthropic.Anthropic")
     def test_create_client_anthropic(self, mock_cls):

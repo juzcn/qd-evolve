@@ -229,11 +229,4 @@ class TestDiscoverTools:
         r = get_registry()
         assert r is not None
 
-    def test_discover_staging_error_handled(self, registry, tmp_path):
-        staging = tmp_path / ".qd_evolve" / "staging" / "func"
-        staging.mkdir(parents=True)
-        (staging / "broken_staged.py").write_text("!!! not valid python !!!", encoding="utf-8")
-
-        from qd_evolve.tools import staging as staging_mod
-        with patch.object(staging_mod, "staging_func_dir", return_value=staging):
-            registry.discover_tools()
+    

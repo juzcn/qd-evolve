@@ -682,8 +682,6 @@ def chat(
             b.disconnect(shutdown=True)
         except Exception:
             logger.debug("shutdown: bridge disconnect failed for %s", b, exc_info=True)
-    from qd_evolve.tools.staging import cleanup_staging
-    cleanup_staging()
     for ag in agent_map.values():
         try:
             if hasattr(ag, 'agent') and ag.agent.memory:

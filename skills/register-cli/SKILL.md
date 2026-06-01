@@ -1,13 +1,16 @@
 ---
-name: cli-register
-description: Register CLI tools by analyzing --help output and generating yaml definitions
+name: register-cli
+description: "Register CLI tools by analyzing --help output and generating YAML definitions. Triggered by: (1) install-and-register-tools after installing a CLI tool, or (2) user wants to register a locally available CLI tool so the agent knows how to use it."
 ---
 
-# CLI Tool Register
+# Register CLI
 
-You can register CLI tools so the agent knows how to use them.
+**When to use this skill:**
 
-## When the user asks to register a CLI tool
+1. `install-and-register-tools` just installed a CLI tool — generate the YAML definition for it
+2. User wants to register a CLI tool that is already installed locally — run `--help`, generate the YAML, make it available to the agent
+
+## Steps
 
 1. Run `<command> --help` to get the help output. If `--help` doesn't work, try `-h`.
 2. Analyze the help output and generate a YAML definition following the format below.
