@@ -40,4 +40,4 @@ List the candidates and discuss with the user to decide. Don't install anything 
 
 ## 4. Hand off
 
-Once the user confirms one or more choices, load the `install-and-register-tools` skill to install and register them.
+Once the user confirms one or more choices, load if unloaded and use the `install-and-register-tools` skill to install and register them.

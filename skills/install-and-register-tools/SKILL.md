@@ -47,4 +47,4 @@ After installation, for all types, report the result to the user: what was insta
 - **CLI tool** → YAML already created
 - **Python library** → already in `pyproject.toml`
 
-The tool is ready to use across sessions.
+The tool is ready to use immediately and across sessions.
