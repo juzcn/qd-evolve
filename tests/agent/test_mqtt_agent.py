@@ -146,7 +146,7 @@ class TestMqttAgentHeartbeatCheck:
         mqtt.heartbeat_check(60)
         mock_tmpl.render.assert_called_once()
         call_args = mock_tmpl.render.call_args
-        assert call_args[0][0] == "mqtt-heartbeat"
+        assert call_args[0][0] == "heartbeat"
         assert call_args[1]["idle_seconds"] == 60
         assert call_args[1]["mqtt_broker_host"] == "localhost"
         assert call_args[1]["mqtt_broker_port"] == 1883

@@ -68,8 +68,6 @@ def init_process(settings: Settings, agent_name: str = "") -> None:
     # Inject registries into tool modules
     from qd_evolve.tools.skill_loader import set_skill_registry
     set_skill_registry(_skill_registry)
-    from qd_evolve.tools.install_skill import set_skill_registry as set_skill_registry2
-    set_skill_registry2(_skill_registry)
     from qd_evolve.tools.cli_loader import set_cli_registry
     set_cli_registry(_cli_registry)
 
@@ -286,7 +284,7 @@ def create_agent(name: str, settings: Settings, *, need_a2a: bool | None = None,
             url=card_url,
             capabilities=AgentCapabilities(streaming=True),
         )
-        hb_template = "inproc-heartbeat" if need_inproc else "a2a-heartbeat"
+        hb_template = "heartbeat"
         a2a_agent = A2AAgent(agent, card, TaskStore(), heartbeat_template=hb_template)
 
         # ── Wrap with MqttAgent if needed ──────────────────────────

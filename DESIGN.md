@@ -108,7 +108,7 @@ Five tool categories:
 
 **On-demand loading**: tools start with name + description. Full schema loaded only when the model calls `load_func`/`load_skill`/`load_cli`. Tools move from unloaded to active for subsequent turns.
 
-**Hot-loading**: install tools at runtime via `install_func`/`install_mcp`/`install_skill`. Staged in `.qd_evolve/staging/`, persisted via `register_*` to `config.json`.
+**Hot-loading**: tools are installed directly to their target directories at runtime. MCP servers use `hot_loading_mcp` to spawn processes and discover tools.
 
 **Bridge protocol**: `BridgeManager` auto-discovers bridge modules in `tools/bridge/_*.py`. Each bridge self-registers with discover/connect/disconnect functions. MCP bridge spawns subprocesses; OAT bridge imports packages in-process.
 
@@ -179,14 +179,8 @@ qd_evolve/
 │   ├── tool_loader.py       # load_func — on-demand func tool schema loading
 │   ├── skill_loader.py      # load_skill — on-demand skill content loading
 │   ├── cli_loader.py        # load_cli — on-demand CLI tool detail loading
-│   ├── install_func.py      # install_func — hot-load func tool
-│   ├── install_mcp.py       # install_mcp — hot-load MCP server
-│   ├── install_skill.py     # install_skill — hot-load skill
-│   ├── register_func.py     # register_func — persist func tool
-│   ├── register_mcp.py      # register_mcp — persist MCP server
-│   ├── register_skill.py    # register_skill — persist skill
+│   ├── hot_loading_mcp.py   # hot_loading_mcp — hot-load MCP server
 │   ├── recall_memory.py     # recall_memory — search memory
-│   └── staging.py           # .qd_evolve/staging/ directory helpers
 ├── bridge/
 │   ├── __init__.py
 │   └── wechat_clawbot_client.py  # WeChatClawbotClient — iLink ClawBot protocol
@@ -198,11 +192,8 @@ qd_evolve/
     ├── a2a-default.j2       # A2A system prompt
     ├── mqtt-default.j2      # MQTT system prompt
     ├── group-default.j2     # Group chat system prompt
-    ├── group-heartbeat.j2   # Group chat heartbeat
     ├── group-message.j2     # Group chat incoming message format
-    ├── heartbeat.j2         # Single-agent heartbeat
-    ├── a2a-heartbeat.j2     # A2A heartbeat
-    ├── mqtt-heartbeat.j2    # MQTT heartbeat
+    ├── heartbeat.j2         # Heartbeat (shared by all agents)
     └── _system_tail.j2      # Shared tail (included by all templates)
 ```
 
@@ -287,7 +278,7 @@ Called once. Sets up module-level singletons:
 1. `SkillRegistry` — scans `skills/` for SKILL.md files
 2. `CLIRegistry` — scans `tools/cli/` for YAML definitions
 3. `BridgeManager.connect_all()` — auto-discovers bridge modules in `tools/bridge/_*.py`, calls each bridge's `discover()` then `connect()`
-4. Injects registries into loader tools (`skill_loader`, `install_skill`, `cli_loader`)
+4. Injects registries into loader tools (`skill_loader`, `cli_loader`)
 
 ### Per-agent (`create_agent`)
 
@@ -374,21 +365,22 @@ Self-registering plugin architecture:
 - Each module calls `BridgeManager.register(name, discover, connect, disconnect)`
 - Each bridge's `discover()` returns config objects; `connect()` creates `Bridge` instances and registers tools
 
-**MCP bridge** (`_mcp.py`): Scans `tools/mcp/*.json` + `.qd_evolve/staging/mcp/*.json`. Spawns subprocess via `mcp` SDK, discovers tools via `list_tools`, registers in ToolRegistry. Supports stdio, SSE, StreamableHTTP, WebSocket transports.
+**MCP bridge** (`_mcp.py`): Scans `tools/mcp/*.json`. Spawns subprocess via `mcp` SDK, discovers tools via `list_tools`, registers in ToolRegistry. Supports stdio, SSE, StreamableHTTP, WebSocket transports.
 
 **OAT bridge** (`_oat.py`): Reads `tools/bridge/oat.json`. Imports Python packages directly, wraps functions as ToolRegistry handlers. No subprocess overhead. Schema conversion via `adk_schema.py` (Google ADK → OpenAI JSON Schema) and output normalization via `adk_output.py`.
 
 ### Hot-Loading
 
-Five install/register pairs:
+Tools are installed directly to their target directories:
 
-| Install (staging) | Register (persist) | Target |
-|-------------------|-------------------|--------|
-| `install_func` | `register_func` | `tools/func/*.py` |
-| `install_mcp` | `register_mcp` | `tools/mcp/*.json` |
-| `install_skill` | `register_skill` | `skills/*/SKILL.md` |
+| Type | Target | Hot-load method |
+|------|--------|----------------|
+| Skill | `skills/` | git clone + install deps |
+| MCP server | `tools/mcp/*.json` | `hot_loading_mcp` spawns process and discovers tools |
+| CLI tool | `tools/cli/*.yaml` | register-cli generates YAML |
+| Python library | `pyproject.toml` | `uv pip install` |
 
-Install writes to `.qd_evolve/staging/`, register copies from staging to the target directory and updates `config.json` toolbox state. Both work at runtime without restart.
+All work at runtime without restart.
 
 ### Toolbox State
 
@@ -465,7 +457,7 @@ Wraps `MqttAgent`. Adds:
 - **Deduplication**: `_seen_msg_ids` set, tracks message IDs to skip duplicates
 - **Parallel processing**: incoming messages trigger `agent.run()` in thread pool; multiple messages can process concurrently (locking handled by Agent's `_run_lock`)
 - **Response publishing**: formatted responses published to the group topic
-- **Heartbeat override**: uses `group-heartbeat.j2` template; fires only when no recent group activity
+- **Heartbeat override**: uses `heartbeat.j2` template; fires only when no recent group activity
 
 ### GroupChatTransport
 

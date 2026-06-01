@@ -223,7 +223,7 @@ class TestGroupChatAgentHeartbeat:
         result = gca.heartbeat_check(60)
         mock_tmpl.render.assert_called_once()
         call_args = mock_tmpl.render.call_args
-        assert call_args[0][0] == "group-heartbeat"
+        assert call_args[0][0] == "heartbeat"
         assert result == "I'm alive"
 
     def test_silent_dot_heartbeat(self):

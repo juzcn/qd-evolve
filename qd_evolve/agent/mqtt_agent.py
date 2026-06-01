@@ -93,7 +93,7 @@ class MqttAgent:
         from datetime import datetime
 
         if self.agent._template_mgr is not None:
-            msg = self.agent._template_mgr.render("mqtt-heartbeat",
+            msg = self.agent._template_mgr.render("heartbeat",
                                                    idle_seconds=idle_seconds,
                                                    now=datetime.now(),
                                                    agent_name=self.card.name,

@@ -265,13 +265,13 @@ class GroupChatAgent:
         self._agent.stop_heartbeat_loop()
 
     def heartbeat_check(self, idle_seconds: int) -> str | None:
-        """Group-mode heartbeat using group-heartbeat template."""
+        """Group-mode heartbeat using the heartbeat template."""
         if self._agent.agent._running:
             logger.debug("GroupChat Heartbeat: skipped, agent is busy")
             return None
 
         msg = self._template_mgr.render(
-            "group-heartbeat",
+            "heartbeat",
             idle_seconds=idle_seconds,
             now=datetime.now().strftime("%Y-%m-%d %A %H:%M:%S"),
             agent_name=self.card.name,

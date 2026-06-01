@@ -115,7 +115,7 @@ class TestCheckPendingTaskResults:
         a2a_module._task_store.clear()
 
 
-# ── A2AAgent.heartbeat_check uses a2a-heartbeat template ──────────
+# ── A2AAgent.heartbeat_check uses heartbeat template ──────────
 
 class TestA2AHeartbeatCheck:
     def test_uses_a2a_heartbeat_template(self):
@@ -137,7 +137,7 @@ class TestA2AHeartbeatCheck:
 
         mock_tmpl.render.assert_called_once()
         call_args = mock_tmpl.render.call_args
-        assert call_args[0][0] == "a2a-heartbeat"
+        assert call_args[0][0] == "heartbeat"
 
     def test_injects_pending_results_into_template(self):
         from qd_evolve.agent import a2a_tools as a2a_module
@@ -158,7 +158,7 @@ class TestA2AHeartbeatCheck:
 
         mock_tmpl.render.assert_called_once()
         call_args = mock_tmpl.render.call_args
-        assert call_args[0][0] == "a2a-heartbeat"
+        assert call_args[0][0] == "heartbeat"
         # heartbeat_check passes idle_seconds and now to template
         call_kwargs = call_args[1]
         assert "idle_seconds" in call_kwargs

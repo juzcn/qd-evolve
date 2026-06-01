@@ -25,7 +25,7 @@ class A2AAgent:
     """
 
     def __init__(self, agent: Agent, card: AgentCard, task_store: TaskStore | None = None,
-                 heartbeat_template: str = "a2a-heartbeat") -> None:
+                 heartbeat_template: str = "heartbeat") -> None:
         self.agent = agent
         self.card = card
         self.task_store = task_store or TaskStore()
@@ -99,7 +99,7 @@ class A2AAgent:
         """Start heartbeat loop using A2AAgent.heartbeat_check (not Agent's).
 
         Must run our own loop so heartbeat_check resolves to the A2A override
-        (which uses a2a-heartbeat template and checks pending task results),
+        (which uses the heartbeat template and checks pending task results),
         not the base Agent.heartbeat_check.
         """
         seconds = self.agent.settings.heartbeat_idle_seconds
