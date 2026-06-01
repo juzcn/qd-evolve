@@ -262,6 +262,7 @@ class Agent:
                     logger.warning("Agent: memory.save failed: %s", e)
             if self._on_event:
                 self._on_event({"type": "completed", "content": result})
+            self.touch_heartbeat()
             return result
 
     def _format_api_error(self, e: Exception) -> str:

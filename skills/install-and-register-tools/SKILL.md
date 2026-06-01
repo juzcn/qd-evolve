@@ -12,17 +12,17 @@ description: "Install and permanently register a new tool. Triggered by: (1) sea
 
 ## 1. Confirm what to install
 
-If coming from `search-tools`: the user already chose, no need to re-confirm. Just say what you're installing.
+If coming from `search-tools`: the user already chose, no need to re-confirm. Just state what you're installing.
 
-If the user gave you a URL directly: look at it, tell the user what type of tool it appears to be, and confirm before proceeding.
+If the user gave you a URL directly: examine it, tell the user what type of tool it appears to be, and confirm before proceeding.
 
 ## 2. Check for duplicates
 
-Check your context — the tool schemas, skill summaries, and CLI tool list you already see. If a name matches or is highly similar to the candidate, mention it to the user and ask whether to proceed. Otherwise skip this step.
+Look at the tools already available — schemas, skill summaries, and CLI tool list in your context. If a name matches or is similar to the candidate, mention it to the user and ask whether to proceed. Otherwise skip this step.
 
 ## 3. Install
 
-**Before installing, check for name conflicts:**
+**Before installing, check for file conflicts on disk:**
 
 - **Skill** → check if `skills/<name>/` already exists
 - **MCP server** → check if `tools/mcp/<name>.json` already exists
@@ -31,20 +31,50 @@ Check your context — the tool schemas, skill summaries, and CLI tool list you 
 
 If a conflict exists, ask the user whether to overwrite or abort. Do not proceed without confirmation.
 
-By type:
+Determine the tool type and follow the corresponding steps:
 
-- **Skill** → fetch the SKILL.md from the URL first. Check for required dependencies and install them as needed. Then clone the repository into `skills/`.
-- **MCP server** → fetch the URL, read the setup guide. Extract the server config JSON and write it to `tools/mcp/<name>.json`. Install any required dependencies. Then call `hot_loading_mcp` with name and config to hot-load the server — this spawns the process, discovers tools, and registers them for immediate use.
-- **CLI tool** → fetch the URL, read the installation guide. For Python-based CLI tools, use `uv pip install` and add to `pyproject.toml`. For system binaries, use the appropriate package manager. After installing, use the register-cli skill to create the YAML definition.
-- **Python library** → fetch the URL, read the installation guide. For Python dependencies, use `uv pip install` and add them to `pyproject.toml`. For other dependencies, follow the guide.
+- **Skill**
+  1. Fetch the SKILL.md and read it for dependency requirements.
+  2. Install every missing dependency:
+     - Python packages → `uv pip install`
+     - System packages (ffmpeg, git, etc.) → winget / choco / apt
+     - Other ecosystems (npm, cargo, etc.) → their native package manager
+  3. Clone the repository into `skills/`.
 
-After installation, for all types, report the result to the user: what was installed, whether it succeeded, and any follow-up actions needed (restart, env vars, API keys, etc.).
+- **MCP server**
+  1. Fetch the URL and read the setup guide.
+  2. Install every required dependency (same rules as Skill above).
+  3. Write the server config JSON to `tools/mcp/<name>.json`.
+  4. Call `hot_loading_mcp` to register the server's tools immediately.
 
-## 4. Done
+- **CLI tool**
+  1. Fetch the URL and read the installation guide.
+  2. Install the tool itself: Python CLI → `uv pip install`; system binary → winget / choco / apt.
+  3. Install any additional dependencies the guide mentions (same rules as Skill above).
+  4. Use the `register-cli` skill to create `tools/cli/<name>.yaml`.
 
-- **Skill** → already in `skills/` directory
-- **MCP server** → config already in `tools/mcp/`
-- **CLI tool** → YAML already created
-- **Python library** → already in `pyproject.toml`
+- **Python library**
+  1. Fetch the URL and read the README.
+  2. Install with `uv pip install`.
 
-The tool is ready to use immediately and across sessions.
+**After any successful `uv pip install`**, add the package to `pyproject.toml` under `[project.dependencies]` — otherwise it will be lost on the next `uv sync`.
+
+## 4. Report to user
+
+After installation, for all types, report:
+- What was installed and its version
+- Whether it succeeded
+- All dependencies installed, grouped by category:
+  - Python packages → remind the user to run `uv sync` before the next session
+  - System packages (ffmpeg, git, etc.) → tell the user what was installed
+  - Other ecosystems (npm, cargo, etc.) → tell the user what was installed
+- Any follow-up actions needed (API keys, environment variables, restart, etc.)
+
+## 5. Done
+
+- **Skill** → registered in `skills/` directory
+- **MCP server** → config in `tools/mcp/`, tools registered via `hot_loading_mcp`
+- **CLI tool** → YAML in `tools/cli/`, command available immediately
+- **Python library** → importable immediately
+
+The tool is ready to use immediately. Environment persistence is ensured by the `pyproject.toml` update and the `uv sync` reminder in the report above.

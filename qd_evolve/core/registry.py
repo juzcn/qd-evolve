@@ -195,10 +195,34 @@ def get_registry() -> ToolRegistry:
 
 
 def decode_output(data: bytes, fallback_enc: str) -> str:
-    """Decode subprocess output bytes, falling back with error replacement."""
+    """Decode subprocess output bytes, trying multiple encodings.
+
+    Tries UTF-8 first (modern tools), then the locale encoding (cmd.exe output),
+    then common legacy encodings for the platform. Uses replacement errors only
+    as a last resort — never on the first attempts, to avoid garbled text.
+    """
     if not data:
         return ""
-    try:
-        return data.decode("utf-8")
-    except UnicodeDecodeError:
-        return data.decode(fallback_enc, errors="replace")
+
+    # Build an ordered list of encodings to try (no duplicates).
+    # Encoding x fails with UnicodeDecodeError → next encoding.
+    # Encoding x fails with LookupError → skip encoding.
+    candidates: list[str] = ["utf-8"]
+    if fallback_enc and fallback_enc.lower() not in ("utf-8", "cp65001"):
+        candidates.append(fallback_enc)
+
+    # Common legacy encodings — ordered by likelihood on CJK Windows systems.
+    # These handle cmd.exe output when the locale encoding is also UTF-8.
+    import platform
+    if platform.system() == "Windows":
+        candidates.extend(["gbk", "gb2312", "gb18030", "shift_jis", "euc_kr"])
+    candidates.extend(["cp1252", "latin-1"])
+
+    for enc in candidates:
+        try:
+            return data.decode(enc)
+        except (UnicodeDecodeError, LookupError):
+            continue
+
+    # Absolute last resort: UTF-8 with replacement characters.
+    return data.decode("utf-8", errors="replace")

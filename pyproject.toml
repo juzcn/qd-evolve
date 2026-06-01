@@ -43,6 +43,7 @@ dependencies = [
     "aiohttp>=3.13.5",
     "aiomqtt>=2.5.1",
     "qrcode>=8.0",
+    "yt-dlp>=2026.3.17",
     "Pillow>=11.0",
 ]
 
