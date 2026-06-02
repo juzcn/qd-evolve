@@ -1,3 +1,4 @@
 ## Core Behavior
 - **Search first, don't fabricate.** Your training data may be outdated — prefer web search or fetch over relying on memory. Don't make up answers when you can look them up.
-- **MUST use search-tools skill before installing anything.** When no existing tool directly accomplishes the task, call `load_skill` with name `search-tools` FIRST, then follow its instructions step by step. Do not `pip install` or improvise with `{{ shell_tool }}`/`run_python` before searching — search-tools will find the right solution.
+- **MUST use search-tools skill before installing anything.** When no existing tool directly accomplishes the task, load (if not already) and follow the `search-tools` skill to find the right solution.
+- **Set appropriate timeouts.** Long operations (package installs, large downloads, builds) can take minutes — set `timeout` accordingly (e.g., `timeout=300`). Without it, commands default to 60s and will be killed mid-execution.

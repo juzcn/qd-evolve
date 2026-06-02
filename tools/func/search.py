@@ -37,10 +37,18 @@ registry.register(
                 "enum": ["general", "images", "news"],
                 "description": 'Type of search. Defaults to "general".',
             },
+            "timeout": {
+                "type": "integer",
+                "description": "Timeout in seconds. Default 30s.",
+            },
         },
         "required": ["query"],
     },
-    handler=lambda query, search_type="general": _serper_search(query, search_type),
+    handler=lambda **kwargs: _serper_search(
+        kwargs["query"],
+        kwargs.get("search_type", "general"),
+        kwargs.get("timeout", None),
+    ),
 )
 
 registry.register(
@@ -53,14 +61,23 @@ registry.register(
                 "type": "string",
                 "description": "The URL of the webpage to scrape.",
             },
+            "timeout": {
+                "type": "integer",
+                "description": "Timeout in seconds. Default 30s.",
+            },
         },
         "required": ["url"],
     },
-    handler=lambda url: _serper_scrape(url),
+    handler=lambda **kwargs: _serper_scrape(
+        kwargs["url"],
+        kwargs.get("timeout", None),
+    ),
 )
 
 
-def _run_async(coro):
+def _run_async(coro, timeout: int | None = None):
+    if timeout:
+        coro = asyncio.wait_for(coro, timeout)
     try:
         loop = asyncio.get_event_loop()
         if loop.is_running():
@@ -71,14 +88,19 @@ def _run_async(coro):
         return loop.run_until_complete(coro)
     except RuntimeError:
         return asyncio.run(coro)
+    except asyncio.TimeoutError:
+        return json.dumps({"error": f"Search timed out after {timeout}s"})
 
 
-def _serper_search(query: str, search_type: str = "general") -> str:
+def _serper_search(query: str, search_type: str = "general", timeout: int | None = None) -> str:
     from serper_toolkit.server import (
         serper_general_search,
         serper_image_search,
         serper_news_search,
     )
+
+    if timeout is None:
+        timeout = 30
 
     _ensure_started()
 
@@ -92,18 +114,21 @@ def _serper_search(query: str, search_type: str = "general") -> str:
         case _:
             return json.dumps({"error": f"Unknown search_type: {search_type}"})
 
-    result = _run_async(coro)
+    result = _run_async(coro, timeout=timeout)
     if isinstance(result, dict):
         return json.dumps(result, ensure_ascii=False)
     return str(result)
 
 
-def _serper_scrape(url: str) -> str:
+def _serper_scrape(url: str, timeout: int | None = None) -> str:
     from serper_toolkit.server import serper_scrape as _scrape
+
+    if timeout is None:
+        timeout = 30
 
     _ensure_started()
 
-    result = _run_async(_scrape(url))
+    result = _run_async(_scrape(url), timeout=timeout)
     if isinstance(result, dict):
         return json.dumps(result, ensure_ascii=False)
     return str(result)

@@ -15,7 +15,11 @@ def _hot_loading_mcp(
     name: str,
     config: dict,
     pip_packages: list[str] | None = None,
+    timeout: int | None = None,
 ) -> str:
+    if timeout is None:
+        from qd_evolve.core.config import DEFAULT_TOOL_TIMEOUT
+        timeout = DEFAULT_TOOL_TIMEOUT
     if pip_packages:
         try:
             uv = shutil.which("uv")
@@ -24,15 +28,19 @@ def _hot_loading_mcp(
                     [uv, "pip", "install", *pip_packages],
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
+                    timeout=timeout,
                 )
             else:
                 subprocess.check_call(
                     [sys.executable, "-m", "pip", "install", *pip_packages],
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
+                    timeout=timeout,
                 )
         except subprocess.CalledProcessError as e:
             return f"Error: package install failed for {pip_packages} (exit code {e.returncode}). The packages may not exist or be incompatible."
+        except subprocess.TimeoutExpired:
+            return f"Error: package install timed out after {timeout}s"
 
     servers = _extract_servers(config, name)
     srv = servers[name]
@@ -64,7 +72,12 @@ registry = get_registry()
 registry.register(
     name="hot_loading_mcp",
     description="Hot-load an MCP server — spawn the process, discover its tools, and register them for immediate use.",
-    handler=_hot_loading_mcp,
+    handler=lambda **kwargs: _hot_loading_mcp(
+        kwargs["name"],
+        kwargs["config"],
+        kwargs.get("pip_packages", None),
+        kwargs.get("timeout", None),
+    ),
     input_schema={
         "type": "object",
         "properties": {
@@ -80,6 +93,10 @@ registry.register(
                 "type": "array",
                 "items": {"type": "string"},
                 "description": "Optional pip packages to install (for stdio servers)",
+            },
+            "timeout": {
+                "type": "integer",
+                "description": "Timeout in seconds. Set higher for servers that need package installs (e.g., timeout=300).",
             },
         },
         "required": ["name", "config"],

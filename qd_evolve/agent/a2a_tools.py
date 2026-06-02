@@ -73,8 +73,10 @@ def on_push_notification(task_id: str, state: str, result: str) -> None:
 # ── Tool handlers ──────────────────────────────────────────────
 
 
-def _delegate_to(agent_name: str, task: str) -> str:
+def _delegate_to(agent_name: str, task: str, timeout: int | None = None) -> str:
     """Blocking: call target Agent, wait for result."""
+    if timeout is None:
+        timeout = 120
     transport = _get_transport()
     message = make_text_message("user", task)
 
@@ -123,12 +125,12 @@ def _delegate_to(agent_name: str, task: str) -> str:
         future = asyncio.run_coroutine_threadsafe(
             remote.send_task(agent_name, message, from_agent=from_agent), remote._loop
         )
-        result_task = future.result(timeout=120)
+        result_task = future.result(timeout=timeout)
     else:
         # HttpTransport: run async in a new event loop (standard approach)
         with concurrent.futures.ThreadPoolExecutor() as pool:
             future = pool.submit(asyncio.run, transport.send_task(agent_name, message))
-            result_task = future.result(timeout=120)
+            result_task = future.result(timeout=timeout)
 
     # Human agent returned input_required — reject
     if result_task.status.state == TaskState.input_required:
@@ -297,7 +299,11 @@ def _register(registry: Any) -> None:
     registry.register(
         name="delegate_to",
         description="Call an AI agent and wait for its response. Blocking call — returns the agent's output directly. For AI agents only; use send_task for human agents.",
-        handler=_delegate_to,
+        handler=lambda **kwargs: _delegate_to(
+            kwargs["agent_name"],
+            kwargs["task"],
+            kwargs.get("timeout", None),
+        ),
         input_schema={
             "type": "object",
             "properties": {
@@ -308,6 +314,10 @@ def _register(registry: Any) -> None:
                 "task": {
                     "type": "string",
                     "description": "The task description or question to send to the target agent",
+                },
+                "timeout": {
+                    "type": "integer",
+                    "description": "Timeout in seconds. Default 120s. Increase for complex tasks that may take minutes.",
                 },
             },
             "required": ["agent_name", "task"],

@@ -83,6 +83,7 @@ class ToolboxSection(BaseModel):
 
 
 DEFAULT_TOOL_TIMEOUT = 60
+REGISTRY_TIMEOUT_BUFFER = 15
 
 
 class MqttConfig(BaseModel):

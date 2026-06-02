@@ -47,8 +47,11 @@ class ToolRegistry:
         if not td.enabled:
             return f"Error: Tool '{tool_name}' is disabled"
 
-        from qd_evolve.core.config import DEFAULT_TOOL_TIMEOUT
+        from qd_evolve.core.config import DEFAULT_TOOL_TIMEOUT, REGISTRY_TIMEOUT_BUFFER
         import threading
+
+        tool_timeout = kwargs.get("timeout", None)
+        registry_timeout = (tool_timeout + REGISTRY_TIMEOUT_BUFFER) if tool_timeout else DEFAULT_TOOL_TIMEOUT
 
         result: dict = {}
         def _target() -> None:
@@ -60,12 +63,12 @@ class ToolRegistry:
         t = threading.Thread(target=_target, daemon=True)
         try:
             t.start()
-            t.join(timeout=DEFAULT_TOOL_TIMEOUT)
+            t.join(timeout=registry_timeout)
         except RuntimeError:
             return f"Error: Tool '{tool_name}' unavailable — interpreter is shutting down"
 
         if t.is_alive():
-            return f"Error: Tool '{tool_name}' timed out after {DEFAULT_TOOL_TIMEOUT}s"
+            return f"Error: Tool '{tool_name}' timed out after {registry_timeout}s"
 
         if "error" in result:
             e = result["error"]
@@ -73,7 +76,7 @@ class ToolRegistry:
                 raise e
             import concurrent.futures
             if isinstance(e, concurrent.futures.TimeoutError):
-                return f"Error: Tool '{tool_name}' timed out after {DEFAULT_TOOL_TIMEOUT}s"
+                return f"Error: Tool '{tool_name}' timed out after {registry_timeout}s"
             msg = f"{type(e).__name__}: {e}" if str(e) else type(e).__name__
             logger.error("Tools: tool '%s' error: %s", tool_name, msg)
             return f"Error executing tool '{tool_name}': {msg}"

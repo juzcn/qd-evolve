@@ -128,7 +128,7 @@ Single `config.json` file. Most fields have sensible defaults in the Pydantic mo
 
 ### Templates
 
-Jinja2 system prompts with two-tier fallback: `templates/` (user) overrides `_templates/` (builtin). Mode-specific templates (single-agent, A2A, MQTT, group chat), each including a shared `_system_tail.j2`.
+Jinja2 system prompts with two-tier fallback: `templates/` (user) overrides `_templates/` (builtin). Mode-specific templates (single-agent, A2A, MQTT, group chat), each including a shared `_core_behavior.j2` and `_system_tail.j2`.
 
 ### Heartbeat
 
@@ -194,7 +194,8 @@ qd_evolve/
     ├── group-default.j2     # Group chat system prompt
     ├── group-message.j2     # Group chat incoming message format
     ├── heartbeat.j2         # Heartbeat (shared by all agents)
-    └── _system_tail.j2      # Shared tail (included by all templates)
+    ├── _core_behavior.j2    # Shared core behavior rules (included by all templates)
+    └── _system_tail.j2      # Shared tail (runtime env, toolbox, included by all templates)
 ```
 
 ## Class Hierarchy
@@ -267,7 +268,9 @@ Each path recursively calls itself for tool turns, incrementing an `_iter` count
 
 ### Tool Execution
 
-`ToolRegistry.call(name, **kwargs)` spawns a daemon thread with a `DEFAULT_TOOL_TIMEOUT` (60s) timeout. If the thread is still alive after timeout, returns an error string. Exceptions are caught and formatted into error messages. `ImportError` is re-raised (not caught) to surface missing dependencies.
+`ToolRegistry.call(name, **kwargs)` spawns a daemon thread and waits with **adaptive timeout**: if the tool's kwargs include a `timeout`, the registry uses `timeout + REGISTRY_TIMEOUT_BUFFER` (15s) — this lets the LLM set per-call timeouts for long operations (builds, downloads). Without a tool-level timeout, falls back to `DEFAULT_TOOL_TIMEOUT` (60s). If the thread is still alive after timeout, returns an error string. Exceptions are caught and formatted into error messages. `ImportError` is re-raised (not caught) to surface missing dependencies.
+
+`run_shell` and `run_python` return stdout + stderr + exit code as text for all exit codes. Non-zero exit codes are not treated as errors — the LLM interprets them contextually (e.g., `findstr` returns 1 for "no match").
 
 ## Initialization Flow
 
@@ -531,9 +534,9 @@ Pattern: `_instance: T | None = None` at module level, `get_*()` returns it or r
 
 Agent has three callbacks: `_on_status` (status bar), `_on_print` (output), `_on_event` (structured events). Set via setter methods. A2AAgent hooks `_on_event` to fan out to subscribers. CLIs set callbacks after agent creation.
 
-### Tool Timeout via Daemon Thread
+### Adaptive Tool Timeout
 
-`ToolRegistry.call()` spawns a `threading.Thread(daemon=True)`, joins with timeout. If thread is alive after timeout, returns error. Avoids blocking the agent loop on hung tools.
+`ToolRegistry.call()` reads the tool's `timeout` kwarg (set by the LLM per-call), adds `REGISTRY_TIMEOUT_BUFFER` (15s), and uses that as the join timeout. Falls back to `DEFAULT_TOOL_TIMEOUT` (60s) when no tool-level timeout is set. This lets the LLM budget time for long operations (e.g., `timeout=300` for a build) while the registry provides a safety net for unresponsive tools. `run_shell` returns exit codes as text — the LLM interprets them contextually rather than pattern-matching on "error".
 
 ### Lazy Import at Call Site
 
