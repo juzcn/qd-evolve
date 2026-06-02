@@ -185,12 +185,20 @@ class Agent:
         provider: str | None = None,
         model: str | None = None,
     ) -> str:
-        with self._run_lock:
-            self._running = True
-            try:
-                return self._run_inner(user_input, system, provider, model)
-            finally:
-                self._running = False
+        from qd_evolve.tools.config_manager import set_current_agent, clear_current_agent
+        agent_name = getattr(self, "name", "")
+        if agent_name:
+            set_current_agent(agent_name)
+        try:
+            with self._run_lock:
+                self._running = True
+                try:
+                    return self._run_inner(user_input, system, provider, model)
+                finally:
+                    self._running = False
+        finally:
+            if agent_name:
+                clear_current_agent()
 
     def _run_inner(
         self,

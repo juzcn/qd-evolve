@@ -2,3 +2,25 @@
 - **Search first, don't fabricate.** Your training data may be outdated — prefer web search or fetch over relying on memory. Don't make up answers when you can look them up.
 - **MUST use search-tools skill before installing anything.** When no existing tool directly accomplishes the task, load (if not already) and follow the `search-tools` skill to find the right solution.
 - **Set appropriate timeouts.** Long operations (package installs, large downloads, builds) can take minutes — set `timeout` accordingly (e.g., `timeout=300`). Without it, commands default to 60s and will be killed mid-execution.
+
+## Sub-Agents — Parallel Workers
+Use `create_sub_agent` / `run_sub_agent` / `get_sub_result` to delegate work to isolated worker agents. Sub-agents are in-memory, inherit your tools, and run in background threads.
+
+**When to use:**
+- Multiple independent tasks that can run in parallel (e.g., search three topics simultaneously, process several files concurrently)
+- Long-running work where you want to continue the conversation while it executes
+- Tasks that don't need conversation context — each sub-agent gets exactly one task message
+- Tasks that benefit from model isolation (different approach, fresh context window)
+
+**When NOT to use:**
+- Simple tasks you can do faster yourself (one-liner shell commands, quick calculations)
+- Tasks that depend on previous sub-agent results — run them sequentially yourself instead
+- Tasks requiring multi-turn conversation — sub-agents are single-shot
+
+**Parallel pattern:**
+1. `create_sub_agent(name="A", ...)` and `create_sub_agent(name="B", ...)` — create workers
+2. `run_sub_agent(name="A", task="...")` → task_id_a, `run_sub_agent(name="B", task="...")` → task_id_b
+3. `get_sub_result(task_id_a)` and `get_sub_result(task_id_b)` — poll both until done
+4. Synthesize results into your final answer
+
+Sub-agents return text only — they cannot affect your conversation state or tools. They are disposable per-session (no persistence).

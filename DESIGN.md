@@ -90,6 +90,8 @@ Composition via wrapping, not inheritance:
 - **GroupChatHuman** (`agent/group_chat_human.py`): Wraps MqttHumanAgent, adds terminal-based group chat UI.
 - **GroupChatWechatHuman** (`agent/group_chat_wechat_human.py`): Wraps MqttHumanAgent, bridges WeChat iLink to MQTT group chat. Polls WeChat for incoming messages, forwards group responses back via WeChat.
 
+- **Sub-Agent** (`tools/config_manager.py`): Lightweight in-memory worker agents created at runtime by the parent agent via `create_sub_agent`. Inherit parent's provider, model, tools, skills, and CLI. Process tasks asynchronously via `run_sub_agent`/`get_sub_result`. No persistence, no heartbeat, no network server — exist only within the parent process. Single-task model: busy sub-agents reject new tasks; create multiple for parallelism.
+
 ### Transport
 
 `TransportRouter(inproc, remote)` — holds exactly two transports. Routes locally registered agents to in-process, unknown agents to remote (HTTP or MQTT, never both). Group chat uses an independent `GroupChatTransport` connection to keep the MqttTransport sole-consumer design intact.
@@ -176,6 +178,7 @@ qd_evolve/
 │   └── a2a.py               # A2A v1.0 data models (Task, Message, AgentCard, etc.)
 ├── tools/
 │   ├── __init__.py          # Re-exports ToolRegistry
+│   ├── config_manager.py    # config_manager — self-config + in-memory sub-agents
 │   ├── tool_loader.py       # load_func — on-demand func tool schema loading
 │   ├── skill_loader.py      # load_skill — on-demand skill content loading
 │   ├── cli_loader.py        # load_cli — on-demand CLI tool detail loading
@@ -190,9 +193,11 @@ qd_evolve/
 └── _templates/              # Builtin Jinja2 templates
     ├── default.j2           # Single-agent system prompt
     ├── a2a-default.j2       # A2A system prompt
+    ├── inproc-default.j2    # In-process A2A system prompt
     ├── mqtt-default.j2      # MQTT system prompt
     ├── group-default.j2     # Group chat system prompt
     ├── group-message.j2     # Group chat incoming message format
+    ├── subagent.j2          # Sub-agent worker system prompt
     ├── heartbeat.j2         # Heartbeat (shared by all agents)
     ├── _core_behavior.j2    # Shared core behavior rules (included by all templates)
     └── _system_tail.j2      # Shared tail (runtime env, toolbox, included by all templates)
@@ -449,6 +454,38 @@ Two backends: `sentence-transformers` (BGE-M3 via `SentenceTransformer`) and `ll
 `touch_heartbeat()` sets the event. Called on user input before each LLM call.
 
 Heartbeat response handling: if LLM returns `"."`, stays silent. Otherwise, the response is pushed as a heartbeat event. Configurable `heartbeat_idle_seconds` per agent; `0` disables.
+
+## Sub-Agent System
+
+In-process worker agents created at runtime by the parent agent. Sub-agents are bare `Agent` instances — no A2A wrapping, no heartbeat, no persistence, no network server. They exist only within the parent process and die with it.
+
+### Design Principles
+
+- **Worker, not peer.** Sub-agents are tools for the parent, not autonomous agents. They receive a task, execute it, and return the result.
+- **Inherit, don't configure.** Sub-agents inherit the parent's provider, model, tools, skills, and CLI preload sets. No separate configuration.
+- **Single-task model.** Each sub-agent processes one task at a time (guarded by `_run_lock`). Busy sub-agents reject new tasks. Create multiple sub-agents for parallel work.
+- **Disposable.** No persistence. Results live in a module-level dict. Sub-agents and their task history are gone when the process exits.
+
+### Lifecycle
+
+```
+create_sub_agent(name, description)     → Agent created, inherits parent state
+run_sub_agent(name, task)               → returns task_id immediately, agent.run() in daemon thread
+get_sub_result(task_id)                 → poll: running | done | error
+(process exit)                          → sub-agent destroyed with process
+```
+
+### Template
+
+Sub-agents use `subagent.j2`: a minimal identity header (`_core_behavior.j2` → `_system_tail.j2`). The parent's runtime context, shell detection, and toolbox sections are shared via the tail template.
+
+### Tool Configuration
+
+Sub-agents start with the parent's preload tools only (`_always_active`). Any additional tools the sub-agent needs are loaded on demand via `load_func`, just like a freshly-created agent. This avoids context bloat from preloading all tools the parent has accumulated.
+
+### Context Tracking
+
+`config_manager` uses thread-local context (`_current_agent.name`) set by `Agent.run()`. In multi-agent inproc processes, each agent's LLM calls resolve to its own context — ensuring `get_my_config` and `update_my_config` always target the correct agent.
 
 ## Group Chat
 

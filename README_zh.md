@@ -266,6 +266,16 @@ qd-evolve memory --agent <name>
 
 智能体管理的空闲检测。当 `heartbeat_idle_seconds` 时间内无活动时，向 LLM 发送心跳提示。如果 LLM 回复 `"."`，则保持静默。设为 `0` 可禁用。模式相关的提示模板会自动选择。
 
+### 子智能体 (Sub-Agent)
+
+Agent 可在运行时创建内存中的 worker 子智能体，用于并行处理独立任务：
+
+- **`create_sub_agent`** — 创建子智能体，继承父 Agent 的 provider/model/tools/skills/CLI
+- **`run_sub_agent`** — 异步提交任务，立即返回 task_id
+- **`get_sub_result`** — 轮询任务结果（running / done / error）
+
+子智能体无持久化、无心跳、无网络服务器——仅在父进程内存中存活。每个子智能体同时只能处理一个任务（繁忙时拒绝新任务），创建多个子智能体即可并行。Agent 可通过 `update_my_config` 在运行时切换自身的 provider/model。
+
 ### 重放模式
 
 `--replay <file>` 输入预录制的输入用于自动化测试。`--output <file>` 捕获输出。

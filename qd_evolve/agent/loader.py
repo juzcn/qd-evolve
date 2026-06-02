@@ -347,10 +347,15 @@ def create_agent(name: str, settings: Settings, *, need_a2a: bool | None = None,
         template_name=template_name,
         template_context=template_context,
     )
+    agent.name = name  # for config_manager thread-local context tracking
 
     # ── Provider/model ────────────────────────────────────────
     agent._provider_name = entry.effective_provider(settings)
     agent._model = entry.effective_model(settings)
+
+    # ── Inject context for config_manager tool ────────────────
+    from qd_evolve.tools.config_manager import set_agent_context
+    set_agent_context(name, agent, settings)
 
     # ── Wrap with A2AAgent if needed ──────────────────────────
     if a2a_on:
