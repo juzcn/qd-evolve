@@ -466,6 +466,13 @@ async def _async_chat_loop(
 
 
 @app.command()
+def init() -> None:
+    """Copy default tools/, skills/, config.json.example into the current directory."""
+    from qd_evolve._defaults import init_cwd
+    init_cwd()
+
+
+@app.command()
 def chat(
     agent: str = typer.Option(..., "--agent", help="Agent name from config.json to load in-process"),
     replay: Path | None = typer.Option(None, "--replay", help="Replay inputs from file"),

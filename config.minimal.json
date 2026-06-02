@@ -1,0 +1,34 @@
+{
+  "_note": "Copy to config.json and set your API key. See README.md for full options.",
+  "env_vars": {
+    "PYTHONIOENCODING": "utf-8",
+    "PYTHONUTF8": "1"
+  },
+  "default_provider": "deepseek",
+  "default_model": "deepseek-v4-pro",
+  "providers": [
+    {
+      "name": "deepseek",
+      "api_key": "YOUR_API_KEY",
+      "base_url": "https://api.deepseek.com",
+      "api": "openai-completions",
+      "models": [
+        { "name": "deepseek-v4-pro", "reasoning": true, "context_window": 1000000, "max_tokens": 131072 }
+      ]
+    }
+  ],
+  "agents_config": {
+    "agents": [
+      {
+        "name": "default",
+        "toolbox": {
+          "tools": {
+            "load_func": "preload",
+            "load_skill": "preload",
+            "load_cli": "preload"
+          }
+        }
+      }
+    ]
+  }
+}

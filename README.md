@@ -26,6 +26,25 @@ uv add qd-evolve
 pip install qd-evolve[boat]
 ```
 
+### Initialize working directory
+
+After installing, run `init` to copy default tools, skills, and config template into your current directory:
+
+```bash
+qd-evolve init
+```
+
+This creates:
+
+```
+./tools/                  # User tools (func, cli, mcp, bridge) — add/delete freely
+./skills/                 # Skills (SKILL.md files) — add/delete freely
+./config.minimal.json     # Minimal config — copy to config.json, set your API key
+./config.json.example     # Full config reference — all available options
+```
+
+Running `init` again is safe: existing files are never overwritten. New default files (from package updates) are added.
+
 ### Install from source
 
 ```bash
@@ -39,9 +58,11 @@ uv sync
 uv sync --extra boat
 ```
 
+Source installs have `tools/` and `skills/` already in the project root — no `init` needed.
+
 ### Configuration
 
-Create a `config.json` in your working directory. Minimal setup for single-agent chat:
+Copy `config.minimal.json` to `config.json`, then fill in your API key. For all available options, see `config.json.example`.
 
 ```json
 {
@@ -90,6 +111,9 @@ qd-evolve chat --agent default
 ## Quick Start
 
 ```bash
+# Initialize your project directory (copy defaults: tools, skills, config)
+qd-evolve init
+
 # Single-agent chat
 qd-evolve chat --agent default
 

@@ -1,6 +1,6 @@
 [project]
 name = "qd-evolve"
-version = "0.1.9"
+version = "0.1.10"
 description = "Multi-agent AI framework with A2A protocol support, group chat, persistent memory, and extensible tool system"
 readme = "README.md"
 license = "MIT"
@@ -74,6 +74,15 @@ qd-evolve = "qd_evolve.chat_cli:app"
 extra-index-url = [
     "https://abetlen.github.io/llama-cpp-python/whl/cpu",
 ]
+
+[tool.hatch.build.targets.wheel]
+packages = ["qd_evolve"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"tools" = "qd_evolve/_defaults/tools"
+"skills" = "qd_evolve/_defaults/skills"
+"config.json.example" = "qd_evolve/_defaults/config.json.example"
+"config.minimal.json" = "qd_evolve/_defaults/config.minimal.json"
 
 [build-system]
 requires = ["hatchling"]

@@ -25,6 +25,25 @@ uv add qd-evolve
 pip install qd-evolve[boat]
 ```
 
+### 初始化工作目录
+
+安装后运行 `init` 命令，将默认工具、技能和配置模板复制到当前目录：
+
+```bash
+qd-evolve init
+```
+
+这会创建：
+
+```
+./tools/                  # 用户工具（func、cli、mcp、bridge）— 可自由增删
+./skills/                 # 技能（SKILL.md 文件）— 可自由增删
+./config.minimal.json     # 最小配置 — 复制为 config.json，填入 API 密钥
+./config.json.example     # 完整配置参考 — 所有可用选项
+```
+
+重复运行 `init` 是安全的：已存在的文件不会被覆盖。包更新带来的新默认文件会被添加。
+
 ### 从源码安装
 
 ```bash
@@ -38,9 +57,11 @@ uv sync
 uv sync --extra boat
 ```
 
+源码安装项目根目录已有 `tools/` 和 `skills/`，无需 `init`。
+
 ### 配置
 
-在工作目录中创建 `config.json`。单智能体对话的最小配置：
+将 `config.minimal.json` 复制为 `config.json`，填入 API 密钥。完整选项见 `config.json.example`。
 
 ```json
 {
@@ -89,6 +110,9 @@ qd-evolve chat --agent default
 ## 快速开始
 
 ```bash
+# 初始化项目目录（复制默认工具、技能、配置）
+qd-evolve init
+
 # 单智能体对话
 qd-evolve chat --agent default
 
