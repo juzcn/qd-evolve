@@ -139,7 +139,6 @@ def _format_result(result: subprocess.CompletedProcess) -> str:
 
     if result.returncode != 0:
         parts.append(f"Exit code: {result.returncode}")
-        raise RuntimeError("\n".join(parts))
 
     if not parts:
         parts.append(f"(no output, exit code: {result.returncode})")

@@ -23,18 +23,25 @@ def _detect_python() -> str:
 _PYTHON_EXE = _detect_python()
 
 
-def _run_python(code: str) -> str:
+def _run_python(code: str, timeout: int | None = None) -> str:
     import locale
+
+    if timeout is None:
+        from qd_evolve.core.config import DEFAULT_TOOL_TIMEOUT
+        timeout = DEFAULT_TOOL_TIMEOUT
 
     try:
         result = subprocess.run(
             [_PYTHON_EXE, "-c", code],
             capture_output=True,
+            timeout=timeout,
         )
     except FileNotFoundError:
         return f"Python executable not found: {_PYTHON_EXE}"
     except OSError as e:
         return f"Failed to run Python: {type(e).__name__}: {e}"
+    except subprocess.TimeoutExpired:
+        return f"Python code timed out after {timeout}s"
 
     stdout_bytes = result.stdout or b""
     stderr_bytes = result.stderr or b""
@@ -64,13 +71,20 @@ registry.register(
         "it bypasses the shell layer, avoiding escaping and encoding issues. "
         "Multi-line code is fine; use standard Python indentation."
     ),
-    handler=_run_python,
+    handler=lambda **kwargs: _run_python(
+        kwargs["code"],
+        kwargs.get("timeout", None),
+    ),
     input_schema={
         "type": "object",
         "properties": {
             "code": {
                 "type": "string",
                 "description": "Python code to execute. Multi-line code is fine. Import what you need at the top.",
+            },
+            "timeout": {
+                "type": "integer",
+                "description": "Timeout in seconds. Defaults to the global toolbox timeout if not specified.",
             },
         },
         "required": ["code"],
