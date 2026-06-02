@@ -7,6 +7,7 @@ busy sub-agents reject new tasks. Use multiple sub-agents for parallelism.
 
 from __future__ import annotations
 
+import contextvars
 import threading
 from typing import Any
 from uuid import uuid4
@@ -17,8 +18,9 @@ from qd_evolve.core.logger import logger
 
 _agent_contexts: dict[str, tuple[Any, Any]] = {}  # name → (agent, settings)
 
-# Thread-local: which agent is currently executing. Set by Agent.run().
-_current_agent: threading.local = threading.local()
+# ContextVar auto-inherits to child threads (e.g., ToolRegistry.call() spawn).
+# Unlike threading.local, ContextVar copies to Thread.start() children.
+_current_agent_var: contextvars.ContextVar[str] = contextvars.ContextVar("current_agent", default="")
 
 
 def set_agent_context(name: str, agent: Any, settings: Any) -> None:
@@ -27,17 +29,17 @@ def set_agent_context(name: str, agent: Any, settings: Any) -> None:
 
 
 def set_current_agent(name: str) -> None:
-    """Set the current executing agent for this thread."""
-    _current_agent.name = name
+    """Set the current executing agent (inherits to child threads via ContextVar)."""
+    _current_agent_var.set(name)
 
 
 def clear_current_agent() -> None:
     """Clear the current agent (called after agent.run() completes)."""
-    _current_agent.name = ""
+    _current_agent_var.set("")
 
 
 def _require_context() -> tuple[str, Any, Any]:
-    name = getattr(_current_agent, "name", "")
+    name = _current_agent_var.get()
     if not name or name not in _agent_contexts:
         raise RuntimeError(f"config_manager: no agent context — current='{name}', known={list(_agent_contexts.keys())}")
     agent, settings = _agent_contexts[name]
