@@ -29,6 +29,7 @@ dependencies = [
     "openai>=2.38.0",
     "prompt-toolkit>=3.0.52",
     "serper-toolkit>=0.0.13",
+    "ddgs>=9.0",
     "requests>=2.33.1",
     "mcp>=1.0",
     "textual>=8.0",

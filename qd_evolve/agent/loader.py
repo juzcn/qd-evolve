@@ -110,8 +110,13 @@ def _a2a_enabled(settings: Settings) -> bool:
 
 # ── Runtime environment collection ───────────────────────────────────
 
-def _collect_runtime_context() -> tuple[str, str]:
+def _collect_runtime_context(env_vars: dict[str, str] | None = None) -> tuple[str, str]:
     """Collect actual runtime environment info at startup.
+
+    Args:
+        env_vars: Optional dict of environment variable names to values
+                  (e.g. from config.json env_vars). Used to report which
+                  services are already configured.
 
     Returns a markdown list string suitable for injection into the
     system prompt.  Uses only stdlib @no dependency on OAT tools.
@@ -183,6 +188,12 @@ def _collect_runtime_context() -> tuple[str, str]:
     if active_proxies:
         proxy_parts = ", ".join(f"{name}={val}" for name, val in active_proxies)
         lines.append(f"- **Proxy:** {proxy_parts}")
+
+    # --- Configured API keys ---
+    if env_vars:
+        configured = [k for k, v in env_vars.items() if v and (k.endswith("_API_KEY") or k.endswith("_KEY"))]
+        if configured:
+            lines.append(f"- **Configured API keys:** {', '.join(configured)}")
 
     return "\n".join(lines), shell_name
 
@@ -291,7 +302,7 @@ def create_agent(name: str, settings: Settings, *, need_a2a: bool | None = None,
     )
 
     # ── Runtime environment detection ──────────────────────────
-    runtime_context, current_shell = _collect_runtime_context()
+    runtime_context, current_shell = _collect_runtime_context(settings.env_vars)
 
     # Map current shell to the appropriate execution tool
     _shell_tool_map = {
