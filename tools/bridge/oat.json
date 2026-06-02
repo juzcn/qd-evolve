@@ -9,6 +9,10 @@
     "repo": "https://github.com/Open-Agent-Tools/basic-open-agent-tools",
     "loadout": "docs"
   },
+  "boat-json": {
+    "package": "tools.bridge._oat_json",
+    "loadout": "json_file_tools"
+  },
   "coat": {
     "package": "coding_open_agent_tools",
     "repo": "https://github.com/Open-Agent-Tools/coding-open-agent-tools",
