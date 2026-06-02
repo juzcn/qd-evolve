@@ -47,13 +47,13 @@ class PromptTemplateManager:
             lstrip_blocks=True,
         )
 
-    def render(self, name: str, **context: Any) -> str:
+    def render(self, template_name: str, **context: Any) -> str:
         """Render a named template with the given context variables."""
-        template = self._env.get_template(f"{name}.j2")
+        template = self._env.get_template(f"{template_name}.j2")
         ctx = self._default_context()
         ctx.update(context)
         result = template.render(**ctx)
-        logger.debug("Prompt: rendered template '%s' (%s chars)", name, len(result))
+        logger.debug("Prompt: rendered template '%s' (%s chars)", template_name, len(result))
         return result
 
     def has_template(self, name: str) -> bool:

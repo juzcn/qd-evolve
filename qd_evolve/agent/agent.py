@@ -185,10 +185,9 @@ class Agent:
         provider: str | None = None,
         model: str | None = None,
     ) -> str:
-        from qd_evolve.tools.config_manager import set_current_agent, clear_current_agent
+        from qd_evolve.tools.config_manager import _current_agent_var
         agent_name = getattr(self, "name", "")
-        if agent_name:
-            set_current_agent(agent_name)
+        tok = _current_agent_var.set(agent_name) if agent_name else None
         try:
             with self._run_lock:
                 self._running = True
@@ -197,8 +196,8 @@ class Agent:
                 finally:
                     self._running = False
         finally:
-            if agent_name:
-                clear_current_agent()
+            if tok is not None:
+                _current_agent_var.reset(tok)
 
     def _run_inner(
         self,
@@ -233,6 +232,14 @@ class Agent:
 
         while True:
             self.iteration += 1
+
+            # Inject completed sub-agent results before each LLM request
+            from qd_evolve.tools.config_manager import collect_sub_results
+            sub = collect_sub_results()
+            if sub:
+                self.messages.append({"role": "user", "content": sub})
+                logger.debug("Agent: injected sub-agent result (%s chars)", len(sub))
+
             if self._on_event:
                 self._on_event({"type": "iteration", "num": self.iteration,
                               "provider": self._provider_name, "model": self._model})
@@ -933,5 +940,8 @@ class Agent:
         self._recalled.clear()
         self.total_input_tokens = 0
         self.total_output_tokens = 0
+        self._active_tools = set(self._always_active)
+        self._loaded_skill_names.clear()
+        self._loaded_cli_names.clear()
         if self.memory:
             self.memory.new_session()

@@ -4,7 +4,7 @@
 - **Set appropriate timeouts.** Long operations (package installs, large downloads, builds) can take minutes — set `timeout` accordingly (e.g., `timeout=300`). Without it, commands default to 60s and will be killed mid-execution.
 
 ## Sub-Agents — Parallel Workers
-Use `create_sub_agent` / `run_sub_agent` / `get_sub_result` to delegate work to isolated worker agents. Sub-agents are in-memory, inherit your tools, and run in background threads.
+Use `create_sub_agent` / `run_sub_agent` to delegate work to isolated worker agents. Sub-agents are in-memory, inherit your tools, and run in background threads.
 
 **When to use:**
 - Multiple independent tasks that can run in parallel (e.g., search three topics simultaneously, process several files concurrently)
@@ -17,10 +17,12 @@ Use `create_sub_agent` / `run_sub_agent` / `get_sub_result` to delegate work to 
 - Tasks that depend on previous sub-agent results — run them sequentially yourself instead
 - Tasks requiring multi-turn conversation — sub-agents are single-shot
 
-**Parallel pattern:**
+**How results arrive (push model):**
 1. `create_sub_agent(name="A", ...)` and `create_sub_agent(name="B", ...)` — create workers
-2. `run_sub_agent(name="A", task="...")` → task_id_a, `run_sub_agent(name="B", task="...")` → task_id_b
-3. `get_sub_result(task_id_a)` and `get_sub_result(task_id_b)` — poll both until done
-4. Synthesize results into your final answer
+2. `run_sub_agent(name="A", task="...")` → starts background task, returns task_id. Do NOT poll — results are pushed to you automatically.
+3. Continue with other work or wait — when a sub-agent completes, its result will appear as a new message in the conversation: `[Sub-agent 'A' completed task ...]`
+4. Synthesize all results into your final answer
+
+**CRITICAL: Do NOT use `get_sub_result` to poll.** Results arrive automatically via push. Polling wastes iterations and achieves nothing. `get_sub_result` is only for checking status of a task you haven't heard back from yet.
 
 Sub-agents return text only — they cannot affect your conversation state or tools. They are disposable per-session (no persistence).

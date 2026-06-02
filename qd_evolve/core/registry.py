@@ -48,6 +48,7 @@ class ToolRegistry:
             return f"Error: Tool '{tool_name}' is disabled"
 
         from qd_evolve.core.config import DEFAULT_TOOL_TIMEOUT, REGISTRY_TIMEOUT_BUFFER
+        import contextvars
         import threading
 
         tool_timeout = kwargs.get("timeout", None)
@@ -60,7 +61,8 @@ class ToolRegistry:
             except Exception as e:
                 result["error"] = e
 
-        t = threading.Thread(target=_target, daemon=True)
+        ctx = contextvars.copy_context()
+        t = threading.Thread(target=lambda: ctx.run(_target), daemon=True)
         try:
             t.start()
             t.join(timeout=registry_timeout)
