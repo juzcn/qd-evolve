@@ -55,7 +55,7 @@ class TestCombinedLoader:
 class TestPromptTemplateManager:
     def test_render_builtin_default(self):
         mgr = PromptTemplateManager()
-        result = mgr.render("default", agent_name="testbot", os_name="Linux", python_cmd="python", cwd="/tmp", skills_dir="skills")
+        result = mgr.render("default", agent_name="testbot", runtime_context="- **OS:** Linux")
         assert "testbot" in result
         assert "Linux" in result
 
@@ -67,29 +67,27 @@ class TestPromptTemplateManager:
 
     def test_render_with_a2a_enabled(self):
         mgr = PromptTemplateManager()
-        result = mgr.render("a2a-default", agent_name="bot", os_name="Linux", python_cmd="python",
-                            cwd="/tmp", skills_dir="skills", a2a_enabled=True,
-                            available_agents="bot, helper")
+        result = mgr.render("a2a-default", agent_name="bot", runtime_context="- **OS:** Linux",
+                            a2a_enabled=True, available_agents="bot, helper")
         assert "Inter-Agent Communication" in result
         assert "bot, helper" in result
 
     def test_render_with_a2a_disabled(self):
         mgr = PromptTemplateManager()
-        result = mgr.render("default", agent_name="bot", os_name="Linux", python_cmd="python",
-                            cwd="/tmp", skills_dir="skills")
+        result = mgr.render("default", agent_name="bot", runtime_context="- **OS:** Linux")
         assert "Inter-Agent Communication" not in result
 
     def test_render_with_unloaded_tools(self):
         mgr = PromptTemplateManager()
-        result = mgr.render("default", agent_name="bot", os_name="Linux", python_cmd="python",
-                            cwd="/tmp", skills_dir="skills", unloaded_tools="- echo: Echo tool\n- fetch: Fetch tool")
+        result = mgr.render("default", agent_name="bot", runtime_context="- **OS:** Linux",
+                            unloaded_tools="- echo: Echo tool\n- fetch: Fetch tool")
         assert "Unloaded Func Tools Summary" in result
         assert "- echo: Echo tool" in result
 
     def test_render_with_preloaded_skills(self):
         mgr = PromptTemplateManager()
-        result = mgr.render("default", agent_name="bot", os_name="Linux", python_cmd="python",
-                            cwd="/tmp", skills_dir="skills", preloaded_skills="Skill content here")
+        result = mgr.render("default", agent_name="bot", runtime_context="- **OS:** Linux",
+                            preloaded_skills="Skill content here")
         assert "Preloaded Skills SKILL.md" in result
 
     def test_render_custom_template(self, tmp_path):

@@ -492,7 +492,10 @@ async def _async_chat_loop(
                             except (CancelledError, EOFError, KeyboardInterrupt):
                                 pass
                         color = _agent_color(agent_name)
-                        console.print(f"[bold {color}]{fn}>[/bold {color}] {event.get('content', '')}")
+                        content = event.get("content", "")
+                        sys.stdout.write("\r\033[K")
+                        sys.stdout.flush()
+                        console.print(f"[dim](heartbeat)[/dim] [bold {color}]{fn}>[/bold {color}] {content}")
                         if is_current:
                             user_input = None
                             break

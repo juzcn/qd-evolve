@@ -263,8 +263,10 @@ class MCPToolBridge:
             if self._loop.is_running():
                 future = asyncio.run_coroutine_threadsafe(self._async_disconnect(), self._loop)
                 future.result(timeout=10)
+        except TimeoutError:
+            logger.error("MCP: error disconnecting %s: timed out after 10s", self.config.name)
         except Exception as e:
-            logger.error("MCP: error disconnecting %s: %s", self.config.name, e)
+            logger.error("MCP: error disconnecting %s: %s", self.config.name, e or type(e).__name__)
         self._loop.call_soon_threadsafe(self._loop.stop)
 
     async def _async_disconnect(self) -> None:

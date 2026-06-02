@@ -1,4 +1,4 @@
-"""Agent loader — centralized initialization and factory.
+"""Agent loader @centralized initialization and factory.
 
 init_process(settings): per-process setup (SkillRegistry, CLIRegistry, BridgeManager).
 create_agent(name, settings): per-agent factory → Agent or A2AAgent.
@@ -8,7 +8,10 @@ get_agent_entry(settings, name): lookup AgentEntry from config.
 from __future__ import annotations
 
 import json
+import os
 import platform
+import shutil
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -96,6 +99,85 @@ def get_agent_entry(settings: Settings, name: str) -> AgentEntry | None:
 def _a2a_enabled(settings: Settings) -> bool:
     """A2A tools and system prompt section are auto-enabled when >1 agent."""
     return len(settings.agents_config.agents) > 1
+
+
+# ── Runtime environment collection ───────────────────────────────────
+
+def _collect_runtime_context() -> tuple[str, str]:
+    """Collect actual runtime environment info at startup.
+
+    Returns a markdown list string suitable for injection into the
+    system prompt.  Uses only stdlib @no dependency on OAT tools.
+    """
+    lines: list[str] = []
+
+    # --- OS ---
+    system = platform.system()
+    release = platform.release()
+    version = platform.version()
+    machine = platform.machine()
+    if system == "Windows":
+        os_label = f"Windows {release} (build {version}, {machine})"
+    elif system == "Darwin":
+        os_label = f"macOS {release} (version {version}, {machine})"
+    else:
+        os_label = f"{system} {release} ({version}, {machine})"
+    lines.append(f"- **OS:** {os_label}")
+
+    # --- Python ---
+    exe = sys.executable or "python"
+    ver = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+    lines.append(f"- **Python:** `{Path(exe).name}` {ver} at `{exe}`")
+
+    # --- Virtual environment ---
+    venv = os.environ.get("VIRTUAL_ENV")
+    if venv:
+        lines.append(f"- **Virtual env:** `{venv}`")
+    elif sys.prefix != getattr(sys, "base_prefix", sys.prefix):
+        lines.append(f"- **Virtual env:** yes (prefix: `{sys.prefix}`)")
+
+    # --- Current shell ---
+    try:
+        import shellingham
+        shell_name, _ = shellingham.detect_shell()
+    except Exception:
+        shell_name = os.environ.get("SHELL") or ("cmd" if system == "Windows" else "/bin/sh")
+    lines.append(f"- **Current shell:** {shell_name}")
+
+    # --- Package tools ---
+    pkg_items: list[str] = []
+    uv_path = shutil.which("uv")
+    pip_path = shutil.which("pip") or shutil.which("pip3")
+    if uv_path:
+        pkg_items.append("`uv` [Y] (use `uv pip install <pkg>`)")
+    else:
+        pkg_items.append("`uv` [N]")
+    if pip_path:
+        pkg_items.append("`pip` [Y]")
+    else:
+        pkg_items.append("`pip` [N]")
+    lines.append(f"- **Package tools:** {'  '.join(pkg_items)}")
+
+    # --- Working directory ---
+    cwd = Path.cwd()
+    is_git = (cwd / ".git").is_dir()
+    if is_git:
+        lines.append(f"- **Working directory:** `{cwd}` (git repository)")
+    else:
+        lines.append(f"- **Working directory:** `{cwd}`")
+
+    # --- Proxy ---
+    proxy_vars = [
+        ("HTTP_PROXY", os.environ.get("HTTP_PROXY") or os.environ.get("http_proxy")),
+        ("HTTPS_PROXY", os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy")),
+        ("NO_PROXY", os.environ.get("NO_PROXY") or os.environ.get("no_proxy")),
+    ]
+    active_proxies = [(name, val) for name, val in proxy_vars if val]
+    if active_proxies:
+        proxy_parts = ", ".join(f"{name}={val}" for name, val in active_proxies)
+        lines.append(f"- **Proxy:** {proxy_parts}")
+
+    return "\n".join(lines), shell_name
 
 
 # ── Per-agent factory ──────────────────────────────────────────────
@@ -201,6 +283,19 @@ def create_agent(name: str, settings: Settings, *, need_a2a: bool | None = None,
         sum(1 for l in (unloaded_cli or "").splitlines() if l.startswith("- ")),
     )
 
+    # ── Runtime environment detection ──────────────────────────
+    runtime_context, current_shell = _collect_runtime_context()
+
+    # Map current shell to the appropriate execution tool
+    _shell_tool_map = {
+        "powershell": "run_powershell",
+        "pwsh": "run_powershell",
+        "bash": "run_bash",
+        "zsh": "run_bash",
+        "fish": "run_bash",
+    }
+    shell_tool = _shell_tool_map.get(current_shell, "run_shell")
+
     # ── System prompt via template ────────────────────────────
     template_mgr = PromptTemplateManager()
 
@@ -221,9 +316,9 @@ def create_agent(name: str, settings: Settings, *, need_a2a: bool | None = None,
         "unloaded_tools": unloaded_tools,
         "preloaded_skills": active_skills_content,
         "preloaded_cli": active_cli_content,
-        "os_name": platform.system(),
-        "python_cmd": "python",
-        "cwd": str(Path.cwd()),
+        "runtime_context": runtime_context,
+        "current_shell": current_shell,
+        "shell_tool": shell_tool,
         "agent_name": entry.name,
         "available_agents": ", ".join(a.name for a in settings.agents_config.agents),
         "has_human_agent": any(a.is_human for a in settings.agents_config.agents),

@@ -27,7 +27,7 @@ Look at the tools already available — schemas, skill summaries, and CLI tool l
 - **Skill** → check if `skills/<name>/` already exists
 - **MCP server** → check if `tools/mcp/<name>.json` already exists
 - **CLI tool** → check if `tools/cli/<name>.yaml` already exists
-- **Python library** → check if already listed in `pyproject.toml`
+- **Python library** → check if already listed in the project's dependency file
 
 If a conflict exists, ask the user whether to overwrite or abort. Do not proceed without confirmation.
 
@@ -36,8 +36,8 @@ Determine the tool type and follow the corresponding steps:
 - **Skill**
   1. Fetch the SKILL.md and read it for dependency requirements.
   2. Install every missing dependency:
-     - Python packages → `uv pip install`
-     - System packages (ffmpeg, git, etc.) → winget / choco / apt
+     - Python packages → use the package tool shown in your Runtime Environment (e.g., `uv pip install`, `pip install`)
+     - System packages → use the system's native package manager (e.g., winget / choco on Windows, apt / brew on Unix)
      - Other ecosystems (npm, cargo, etc.) → their native package manager
   3. Clone the repository into `skills/`.
 
@@ -49,26 +49,21 @@ Determine the tool type and follow the corresponding steps:
 
 - **CLI tool**
   1. Fetch the URL and read the installation guide.
-  2. Install the tool itself: Python CLI → `uv pip install`; system binary → winget / choco / apt.
-  3. Install any additional dependencies the guide mentions (same rules as Skill above).
-  4. Use the `register-cli` skill to create `tools/cli/<name>.yaml`.
+  2. Install the tool and its dependencies (same rules as Skill above).
+  3. Use the `register-cli` skill to create `tools/cli/<name>.yaml`.
 
 - **Python library**
   1. Fetch the URL and read the README.
-  2. Install with `uv pip install`.
-
-**After any successful `uv pip install`**, add the package to `pyproject.toml` under `[project.dependencies]` — otherwise it will be lost on the next `uv sync`.
+  2. Install using the package tool shown in your Runtime Environment.
 
 ## 4. Report to user
 
 After installation, for all types, report:
 - What was installed and its version
 - Whether it succeeded
-- All dependencies installed, grouped by category:
-  - Python packages → remind the user to run `uv sync` before the next session
-  - System packages (ffmpeg, git, etc.) → tell the user what was installed
-  - Other ecosystems (npm, cargo, etc.) → tell the user what was installed
+- All dependencies installed, grouped by category (Python / system / other ecosystems)
 - Any follow-up actions needed (API keys, environment variables, restart, etc.)
+- Remind the user: new Python packages will be lost if the virtual environment is recreated — consider adding them to the project's dependency file
 
 ## 5. Done
 
@@ -77,4 +72,4 @@ After installation, for all types, report:
 - **CLI tool** → YAML in `tools/cli/`, command available immediately
 - **Python library** → importable immediately
 
-The tool is ready to use immediately. Environment persistence is ensured by the `pyproject.toml` update and the `uv sync` reminder in the report above.
+The tool is ready to use immediately.

@@ -1,6 +1,7 @@
 """Chat CLI — single in-process agent, no A2A."""
 
 import asyncio
+import sys
 from asyncio import CancelledError
 from pathlib import Path
 from typing import Any
@@ -349,13 +350,12 @@ async def _async_chat_loop(
                 etype = event.get("type", "")
                 if etype == "heartbeat":
                     hb[0] = 0
-                    logger.info("Chat: heartbeat fired for '%s' (%s chars)", agent_name, len(event.get('content', '')))
-                    _app = getattr(input_session, "app", None)
-                    if _app and _app.is_running:
-                        _app.renderer.erase()
-                    console.print(f"[bold #ff6b6b]{agent_name}>[/bold #ff6b6b] {event.get('content', '')}")
-                    if _app and _app.is_running:
-                        _app.invalidate()
+                    content = event.get("content", "")
+                    logger.info("Chat: heartbeat fired for '%s' (%s chars)", agent_name, len(content))
+                    # ANSI: carriage-return + clear-line to erase the You> prompt
+                    sys.stdout.write("\r\033[K")
+                    sys.stdout.flush()
+                    console.print(f"[dim](heartbeat)[/dim] [bold #ff6b6b]{agent_name}>[/bold #ff6b6b] {content}")
                     input_task.cancel()
                     try:
                         await input_task
