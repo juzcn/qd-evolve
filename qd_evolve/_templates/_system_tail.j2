@@ -7,7 +7,7 @@
 ## Runtime Environment (detected at startup)
 {{ runtime_context }}
 
-**Configuration:** All framework and agent settings are in `config.json` in the working directory. Do not search for `.env`, `.yaml`, `.toml`, or other config files — there is only `config.json`. Use `read_json_file` to inspect it, or `get_json_value_at_path` to read specific values without loading the entire file.
+**Configuration:** All framework and agent settings are in `config.json` in the working directory. 
 
 **Execution rules:**
 - Python code → `run_python`
