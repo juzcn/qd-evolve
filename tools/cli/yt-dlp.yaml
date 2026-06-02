@@ -1,0 +1,50 @@
+name: yt-dlp
+command: yt-dlp
+description: "Feature-rich command-line audio/video downloader supporting 1000+ sites including X/Twitter, YouTube, Bilibili, and more"
+help_summary: |
+  Usage: yt-dlp [OPTIONS] URL [URL...]
+
+  General:
+    -h, --help            Print help
+    --version             Print version
+    -U, --update          Check for updates
+    -i, --ignore-errors   Ignore download errors
+
+  Video Selection:
+    -f, --format FORMAT   Video format code (e.g. best, worst, 1080p)
+    -F, --list-formats    List available formats
+
+  Download:
+    -o, --output TEMPLATE Output filename template
+    -P, --paths PATH      Download paths
+    -N, --concurrent-fragments N  Concurrent fragment downloads
+    -r, --limit-rate RATE Download rate limit
+
+  Post-Processing:
+    -x, --extract-audio   Convert to audio-only (requires ffmpeg)
+    --audio-format FORMAT Audio format (mp3, m4a, etc.)
+    --audio-quality QUALITY  Audio quality (0=best, 10=worst)
+    --remux-video FORMAT  Remux video container
+    --write-subs          Write subtitle file
+    --write-thumbnail     Write thumbnail image
+
+  Auth:
+    --cookies FILE        Load cookies from file
+    --cookies-from-browser BROWSER  Load cookies from browser
+    -u, --username USERNAME
+    -p, --password PASSWORD
+
+  Simulation:
+    -s, --simulate        Do not download, just simulate
+    -j, --dump-json       Print JSON video info
+    --skip-download       Skip download but write related files
+
+  Network:
+    --proxy URL           Use proxy
+    --impersonate CLIENT  Impersonate browser client (e.g. chrome)
+examples:
+  - "yt-dlp https://x.com/username/status/123456789"
+  - "yt-dlp -f best https://x.com/username/status/123456789 -o \"%(title)s.%(ext)s\""
+  - "yt-dlp -x --audio-format mp3 https://www.youtube.com/watch?v=xxxxxxxxx"
+  - "yt-dlp --cookies-from-browser chrome https://x.com/username/status/123456789"
+  - "yt-dlp -F https://x.com/username/status/123456789"
