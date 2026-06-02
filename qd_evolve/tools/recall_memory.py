@@ -65,7 +65,7 @@ def _recall_memory(
 registry = get_registry()
 registry.register(
     name="recall_memory",
-    description="Search past conversation memories across sessions. Combines semantic similarity, keyword matching, and time filtering to find relevant past interactions.",
+    description="Search past conversation memories across sessions. Combines semantic similarity (sqlite-vec KNN), keyword matching (FTS5 BM25 with phrase search), and time filtering to find relevant past interactions.",
     input_schema={
         "type": "object",
         "properties": {
@@ -76,7 +76,7 @@ registry.register(
             "keywords": {
                 "type": "array",
                 "items": {"type": "string"},
-                "description": "Specific words or phrases to match. Combined with semantic search for hybrid retrieval. E.g. ['timeout', 'postgres']",
+                "description": "Specific words or phrases to match via FTS5 BM25 full-text search. Each keyword is treated as a phrase query and joined with OR (e.g. ['timeout', 'postgres'] matches memories containing either phrase). Results are ranked by BM25 relevance score.",
             },
             "time_range": {
                 "type": "string",

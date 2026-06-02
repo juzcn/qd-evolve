@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import typer
 from pydantic import ValidationError
 from rich.console import Console
@@ -116,6 +117,28 @@ class SearchScreen(ModalScreen):
         self.dismiss(event.value)
 
 
+class KeywordsScreen(ModalScreen):
+    """Modal screen for entering keyword search terms (FTS5 BM25)."""
+
+    BINDINGS = [Binding("escape", "dismiss", "Cancel")]
+
+    def compose(self) -> ComposeResult:
+        yield Static(
+            "Enter keywords (FTS5 BM25 phrase search — each keyword is quoted and OR'd):",
+            id="keywords-label",
+        )
+        yield Input(
+            placeholder="e.g. timeout, postgres or connection pool (comma or 'or' separated)",
+            id="keywords-input",
+        )
+
+    def on_mount(self) -> None:
+        self.query_one("#keywords-input", Input).focus()
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        self.dismiss(event.value)
+
+
 class TimeRangeScreen(ModalScreen):
     """Modal screen for entering a time range filter."""
 
@@ -143,8 +166,9 @@ class MemoryApp(App):
 
     BINDINGS = [
         Binding("up,j", "cursor_up", "Up", show=False),
-        Binding("down,k", "cursor_down", "Down", show=False),
+        Binding("down", "cursor_down", "Down", show=False),
         Binding("/", "search", "Search"),
+        Binding("k", "keywords", "Keywords"),
         Binding("t", "time_range", "Time Range"),
         Binding("l", "cycle_limit", "Cycle Limit"),
         Binding("r", "refresh", "Refresh"),
@@ -156,6 +180,7 @@ class MemoryApp(App):
         self._store = store
         self._entries: list[MemoryEntry] = []
         self._query = ""
+        self._keywords: list[str] = []
         self._time_range = ""
         self._limit = 10
         if agent_name:
@@ -176,9 +201,10 @@ class MemoryApp(App):
         yield Footer()
 
     def _load_entries(self) -> None:
-        if self._query or self._time_range:
+        if self._query or self._keywords or self._time_range:
             self._entries = self._store.recall(
                 query=self._query or None,
+                keywords=self._keywords or None,
                 time_range=self._time_range or None,
                 limit=self._limit,
             )
@@ -202,10 +228,17 @@ class MemoryApp(App):
             table.add_row(str(i), e.key, score, detail)
 
         status = self.query_one("#status-bar", Static)
+        filters = []
         if self._query:
-            status.update(f"[bold]Search:[/bold] '{self._query}'  |  {len(self._entries)} results  |  limit={self._limit}  |  time_range={self._time_range or 'all'}")
-        elif self._time_range:
-            status.update(f"[bold]Browse by time[/bold]  |  {len(self._entries)} entries  |  limit={self._limit}  |  time_range={self._time_range}")
+            filters.append(f"query='{self._query}'")
+        if self._keywords:
+            filters.append(f"keywords=[{', '.join(self._keywords)}]")
+        if self._time_range:
+            filters.append(f"time_range={self._time_range}")
+        filter_str = "  ".join(filters)
+
+        if filter_str:
+            status.update(f"[bold]Search[/bold] ({filter_str})  |  {len(self._entries)} results  |  limit={self._limit}")
         else:
             status.update(f"[bold]Browse all[/bold]  |  {len(self._entries)} entries  |  limit={self._limit}")
 
@@ -249,6 +282,16 @@ class MemoryApp(App):
                 self._render_table()
 
         self.push_screen(SearchScreen(), on_result)
+
+    def action_keywords(self) -> None:
+        def on_result(value: str | None) -> None:
+            if value is not None:
+                raw = value.strip()
+                self._keywords = [kw.strip() for kw in re.split(r",|\s+or\s+", raw, flags=re.IGNORECASE) if kw.strip()] if raw else []
+                self._load_entries()
+                self._render_table()
+
+        self.push_screen(KeywordsScreen(), on_result)
 
     def action_time_range(self) -> None:
         def on_result(value: str | None) -> None:

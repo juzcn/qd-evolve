@@ -1,4 +1,4 @@
-﻿"""Persistent memory store —SQLite + sqlite-vec for semantic + keyword search."""
+﻿"""Persistent memory store — sqlite-vec for semantic search, FTS5 BM25 for keyword search."""
 
 
 import re
@@ -128,6 +128,20 @@ class MemoryStore:
                 )
             """)
 
+        # FTS5 for BM25 keyword search
+        self._db.execute(
+            "CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts USING fts5(content)"
+        )
+
+        # Migrate: populate FTS from existing memories if FTS is empty
+        fts_count = self._db.execute("SELECT COUNT(*) FROM memories_fts").fetchone()[0]
+        if fts_count == 0:
+            self._db.execute(
+                "INSERT INTO memories_fts (rowid, content) SELECT id, content FROM memories"
+            )
+            mem_count = self._db.execute("SELECT COUNT(*) FROM memories").fetchone()[0]
+            logger.info("Memory: populated FTS5 index with %d existing entries", mem_count)
+
         self._db.commit()
 
     @property
@@ -161,6 +175,10 @@ class MemoryStore:
             "INSERT INTO memory_vec (rowid, embedding) VALUES (?, ?)",
             (memory_id, embedding),
         )
+        self._db.execute(
+            "INSERT INTO memories_fts (rowid, content) VALUES (?, ?)",
+            (memory_id, content),
+        )
         self._db.commit()
         logger.debug("Memory: saved memory id=%s, key=%s", memory_id, key)
         return memory_id
@@ -171,6 +189,10 @@ class MemoryStore:
             self._db.execute("DELETE FROM memory_vec WHERE rowid = ?", (memory_id,))
         except Exception:
             logger.debug("memory: delete vec rowid=%s failed", memory_id, exc_info=True)
+        try:
+            self._db.execute("DELETE FROM memories_fts WHERE rowid = ?", (memory_id,))
+        except Exception:
+            logger.debug("memory: delete fts rowid=%s failed", memory_id, exc_info=True)
         self._db.commit()
         return True
 
@@ -320,36 +342,41 @@ class MemoryStore:
             except Exception as e:
                 logger.warning("Memory: semantic search failed: %s", e)
 
-        # Keyword search
+        # Keyword search (FTS5 + BM25)
         if keywords:
-            for kw in keywords:
-                clauses = ["session_id != ?", "content LIKE ?"]
-                params_kw: list[Any] = [self._session_id, f"%{kw}%"]
-                if start:
-                    clauses.append("key >= ?")
-                    params_kw.append(start)
-                if end:
-                    clauses.append("key < ?")
-                    params_kw.append(end)
-                where = " AND ".join(clauses)
-                params_kw.append(limit)
+            # Build FTS5 query: each keyword as a phrase, joined with OR
+            escaped = [kw.replace('"', '""') for kw in keywords]
+            fts_query = " OR ".join(f'"{kw}"' for kw in escaped)
 
-                rows = self._db.execute(f"""
-                    SELECT id, key, session_id, user_msg, assistant_msg, content, accessed_at, access_count
-                    FROM memories
-                    WHERE {where}
-                    ORDER BY key DESC
-                    LIMIT ?
-                """, params_kw).fetchall()
+            clauses = ["m.session_id != ?", "memories_fts MATCH ?"]
+            params_kw: list[Any] = [self._session_id, fts_query]
+            if start:
+                clauses.append("m.key >= ?")
+                params_kw.append(start)
+            if end:
+                clauses.append("m.key < ?")
+                params_kw.append(end)
+            where = " AND ".join(clauses)
+            params_kw.append(limit)
 
-                for row in rows:
-                    if row[0] not in results:
-                        entry = MemoryEntry(
-                            id=row[0], key=row[1], session_id=row[2], user_msg=row[3],
-                            assistant_msg=row[4], content=row[5], accessed_at=row[6],
-                            access_count=row[7],
-                        )
-                        results[entry.id] = entry
+            rows = self._db.execute(f"""
+                SELECT m.id, m.key, m.session_id, m.user_msg, m.assistant_msg, m.content,
+                       m.accessed_at, m.access_count, bm25(memories_fts) AS rank
+                FROM memories m
+                JOIN memories_fts ON m.id = memories_fts.rowid
+                WHERE {where}
+                ORDER BY rank
+                LIMIT ?
+            """, params_kw).fetchall()
+
+            for row in rows:
+                if row[0] not in results:
+                    entry = MemoryEntry(
+                        id=row[0], key=row[1], session_id=row[2], user_msg=row[3],
+                        assistant_msg=row[4], content=row[5], accessed_at=row[6],
+                        access_count=row[7],
+                    )
+                    results[entry.id] = entry
 
         # No query or keywords: just time-bounded listing
         if not query and not keywords:
