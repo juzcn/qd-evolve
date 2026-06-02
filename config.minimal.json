@@ -1,8 +1,9 @@
 {
-  "_note": "Copy to config.json and set your API key. See README.md for full options.",
+  "_note": "Copy to config.json and fill in your API keys. See config.json.example for all options.",
   "env_vars": {
     "PYTHONIOENCODING": "utf-8",
-    "PYTHONUTF8": "1"
+    "PYTHONUTF8": "1",
+    "SERPER_API_KEY": "YOUR_SERPER_API_KEY"
   },
   "default_provider": "deepseek",
   "default_model": "deepseek-v4-pro",

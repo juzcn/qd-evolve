@@ -11,71 +11,114 @@ Multi-agent AI framework with A2A protocol support, group chat, persistent memor
 
 ### Prerequisites
 
-- **Python 3.13+**
+- **Python 3.13+** — [download](https://www.python.org/downloads/)
 - **Mosquitto v5 broker** (MQTT/GChat mode only) — [download](https://mosquitto.org/download/)
 
-### Install from PyPI
+Verify Python is ready:
 
-```bash
-pip install qd-evolve
+**Windows**
 
-# Or with uv
-uv add qd-evolve
-
-# Optional: BOAT bridge extras
-pip install qd-evolve[boat]
+```
+python --version
+# Python 3.13.x  ← must be 3.13 or newer
 ```
 
-### Initialize working directory
+If the command is not found:
+1. Re-run the Python installer
+2. Check **"Add python.exe to PATH"** at the bottom of the first screen
+3. Or search "Manage app execution aliases" in Windows Settings and turn off the Python alias that opens the Store
 
-After installing, run `init` to copy default tools, skills, and config template into your current directory:
+**macOS / Linux**
+
+```
+python3 --version
+# Python 3.13.x  ← must be 3.13 or newer
+```
+
+### Step 1 — Create a project folder
+
+```
+mkdir my-agent
+cd my-agent
+```
+
+### Step 2 — Create and activate a virtual environment
+
+**Windows**
+
+```
+python -m venv .venv
+.venv\Scripts\activate
+```
+
+**macOS / Linux**
+
+```
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+### Step 3 — Install qd-evolve
+
+```
+pip install qd-evolve --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
+
+# Optional extras
+pip install qd-evolve[memory] --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu   # Embeddings & conversation memory
+pip install qd-evolve[boat] --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu     # BOAT bridge
+```
+
+> If you use [uv](https://docs.astral.sh/uv/) instead of pip, the extra index is configured automatically — just run `uv add qd-evolve`.
+
+### Step 4 — Initialize your project
 
 ```bash
 qd-evolve init
 ```
 
-This creates:
+This copies default tools, skills, and config templates into your project folder:
 
 ```
-./tools/                  # User tools (func, cli, mcp, bridge) — add/delete freely
-./skills/                 # Skills (SKILL.md files) — add/delete freely
-./config.minimal.json     # Minimal config — copy to config.json, set your API key
-./config.json.example     # Full config reference — all available options
+my-agent/
+├── .venv/                 # Virtual environment
+├── tools/                 # User tools — add/delete freely
+│   ├── bridge/            #   Bridge connectors (OAT, MCP)
+│   ├── cli/               #   CLI tool wrappers
+│   ├── func/              #   Python function tools
+│   └── mcp/               #   MCP server configs
+├── skills/                # Skills — add/delete freely
+│   ├── baidu-search/
+│   ├── register-cli/
+│   ├── search-tools/
+│   └── ...
+├── config.minimal.json    # Minimal config — copy to config.json
+└── config.json.example    # Full config reference
 ```
 
-Running `init` again is safe: existing files are never overwritten. New default files (from package updates) are added.
+Running `init` again is safe: existing files are never overwritten. New default files from package updates are added.
 
-### Install from source
+### Step 5 — Configure
 
 ```bash
-git clone https://github.com/juzcn/qd-evolve
-cd qd-evolve
-
-# Install dependencies
-uv sync
-
-# Optional: BOAT bridge extras
-uv sync --extra boat
+copy config.minimal.json config.json    # Windows
+# cp config.minimal.json config.json     # macOS / Linux
 ```
 
-Source installs have `tools/` and `skills/` already in the project root — no `init` needed.
-
-### Configuration
-
-Copy `config.minimal.json` to `config.json`, then fill in your API key. For all available options, see `config.json.example`.
+Edit `config.json` and set your API key. Minimal setup for single-agent chat:
 
 ```json
 {
   "env_vars": {
     "PYTHONIOENCODING": "utf-8",
-    "PYTHONUTF8": "1"
+    "PYTHONUTF8": "1",
+    "SERPER_API_KEY": "YOUR_SERPER_API_KEY"
   },
   "default_provider": "deepseek",
   "default_model": "deepseek-v4-pro",
   "providers": [
     {
       "name": "deepseek",
-      "api_key": "...",
+      "api_key": "YOUR_DEEPSEEK_API_KEY",
       "base_url": "https://api.deepseek.com",
       "api": "openai-completions",
       "models": [
@@ -100,7 +143,11 @@ Copy `config.minimal.json` to `config.json`, then fill in your API key. For all 
 }
 ```
 
-See [Configuration](#configuration-1) below for full multi-agent, MQTT, and toolbox setup.
+> **API keys you'll need:**
+> - **Provider key** (DeepSeek, OpenAI, Anthropic, etc.) — required for chat
+> - **Serper key** — optional, for web search. Free tier at [serper.dev](https://serper.dev). Without it the agent may open browser windows to search.
+>
+> See [Configuration](#configuration-1) below for full multi-agent, MQTT, and toolbox setup.
 
 ### Verify
 
@@ -108,12 +155,42 @@ See [Configuration](#configuration-1) below for full multi-agent, MQTT, and tool
 qd-evolve chat --agent default
 ```
 
+### Troubleshooting
+
+**`pip install` fails with CMake / nmake errors**
+
+This means pip is trying to build `llama-cpp-python` from source. Make sure you included `--extra-index-url`:
+
+```
+pip install qd-evolve --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
+```
+
+**Browser windows open when the agent searches the web**
+
+The agent has a search tool that needs a Serper API key (`SERPER_API_KEY` in `env_vars`). Without it, the agent may fall back to the browser MCP tool which opens visible browser windows. Get a free key at [serper.dev](https://serper.dev) and add it to `config.json`.
+
+**`'python' is not recognized` or `python: command not found`**
+
+Python is not installed or not on your PATH. See the verification steps in [Prerequisites](#prerequisites) above.
+
+### Install from source
+
+```bash
+git clone https://github.com/juzcn/qd-evolve
+cd qd-evolve
+
+# Install dependencies
+uv sync
+
+# Optional: BOAT bridge extras
+uv sync --extra boat
+```
+
+Source installs have `tools/` and `skills/` already in the project root — no `init` needed.
+
 ## Quick Start
 
 ```bash
-# Initialize your project directory (copy defaults: tools, skills, config)
-qd-evolve init
-
 # Single-agent chat
 qd-evolve chat --agent default
 
@@ -337,9 +414,8 @@ See [DESIGN.md](DESIGN.md) for architecture and full module map.
 ## Requirements
 
 - Python 3.13+
-- [uv](https://docs.astral.sh/uv/) for dependency management
 - External Mosquitto v5 broker (MQTT/GChat mode only)
-- API keys for configured providers
+- API keys for configured providers (DeepSeek, OpenAI, Anthropic, etc.)
 
 ## License
 

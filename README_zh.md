@@ -10,71 +10,114 @@
 
 ### 前置条件
 
-- **Python 3.13+**
+- **Python 3.13+** — [下载](https://www.python.org/downloads/)
 - **Mosquitto v5 代理**（仅 MQTT/GChat 模式需要）— [下载](https://mosquitto.org/download/)
 
-### 从 PyPI 安装
+验证 Python 是否就绪：
 
-```bash
-pip install qd-evolve
+**Windows**
 
-# 或使用 uv
-uv add qd-evolve
-
-# 可选：BOAT 桥接扩展
-pip install qd-evolve[boat]
+```
+python --version
+# Python 3.13.x  ← 必须是 3.13 或更新
 ```
 
-### 初始化工作目录
+如果提示找不到命令：
+1. 重新运行 Python 安装程序
+2. 在第一个界面底部勾选 **"Add python.exe to PATH"**
+3. 或者搜索 Windows 设置中的"管理应用执行别名"，关闭打开 Microsoft Store 的 Python 别名
 
-安装后运行 `init` 命令，将默认工具、技能和配置模板复制到当前目录：
+**macOS / Linux**
+
+```
+python3 --version
+# Python 3.13.x  ← 必须是 3.13 或更新
+```
+
+### 第一步 — 创建项目文件夹
+
+```
+mkdir my-agent
+cd my-agent
+```
+
+### 第二步 — 创建并激活虚拟环境
+
+**Windows**
+
+```
+python -m venv .venv
+.venv\Scripts\activate
+```
+
+**macOS / Linux**
+
+```
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+### 第三步 — 安装 qd-evolve
+
+```
+pip install qd-evolve --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
+
+# 可选扩展
+pip install qd-evolve[memory] --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu   # 嵌入与对话记忆
+pip install qd-evolve[boat] --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu     # BOAT 桥接
+```
+
+> 如果你使用 [uv](https://docs.astral.sh/uv/) 代替 pip，额外索引会自动配置 — 直接 `uv add qd-evolve` 即可。
+
+### 第四步 — 初始化项目
 
 ```bash
 qd-evolve init
 ```
 
-这会创建：
+将默认工具、技能和配置模板复制到项目文件夹中：
 
 ```
-./tools/                  # 用户工具（func、cli、mcp、bridge）— 可自由增删
-./skills/                 # 技能（SKILL.md 文件）— 可自由增删
-./config.minimal.json     # 最小配置 — 复制为 config.json，填入 API 密钥
-./config.json.example     # 完整配置参考 — 所有可用选项
+my-agent/
+├── .venv/                 # 虚拟环境
+├── tools/                 # 用户工具 — 可自由增删
+│   ├── bridge/            #   桥接连接器（OAT、MCP）
+│   ├── cli/               #   CLI 工具封装
+│   ├── func/              #   Python 函数工具
+│   └── mcp/               #   MCP 服务器配置
+├── skills/                # 技能 — 可自由增删
+│   ├── baidu-search/
+│   ├── register-cli/
+│   ├── search-tools/
+│   └── ...
+├── config.minimal.json    # 最小配置 — 复制为 config.json
+└── config.json.example    # 完整配置参考
 ```
 
 重复运行 `init` 是安全的：已存在的文件不会被覆盖。包更新带来的新默认文件会被添加。
 
-### 从源码安装
+### 第五步 — 配置
 
 ```bash
-git clone https://github.com/juzcn/qd-evolve
-cd qd-evolve
-
-# 安装依赖
-uv sync
-
-# 可选：BOAT 桥接扩展
-uv sync --extra boat
+copy config.minimal.json config.json    # Windows
+# cp config.minimal.json config.json     # macOS / Linux
 ```
 
-源码安装项目根目录已有 `tools/` 和 `skills/`，无需 `init`。
-
-### 配置
-
-将 `config.minimal.json` 复制为 `config.json`，填入 API 密钥。完整选项见 `config.json.example`。
+编辑 `config.json`，填入 API 密钥。单智能体对话的最小配置：
 
 ```json
 {
   "env_vars": {
     "PYTHONIOENCODING": "utf-8",
-    "PYTHONUTF8": "1"
+    "PYTHONUTF8": "1",
+    "SERPER_API_KEY": "YOUR_SERPER_API_KEY"
   },
   "default_provider": "deepseek",
   "default_model": "deepseek-v4-pro",
   "providers": [
     {
       "name": "deepseek",
-      "api_key": "...",
+      "api_key": "YOUR_DEEPSEEK_API_KEY",
       "base_url": "https://api.deepseek.com",
       "api": "openai-completions",
       "models": [
@@ -99,7 +142,11 @@ uv sync --extra boat
 }
 ```
 
-完整的多智能体、MQTT 和工具箱配置请参见下方[配置](#配置-1)章节。
+> **需要的 API 密钥：**
+> - **提供商密钥**（DeepSeek、OpenAI、Anthropic 等）— 对话必需
+> - **Serper 密钥** — 可选，用于网页搜索。免费额度在 [serper.dev](https://serper.dev)。不配的话 agent 可能会打开浏览器窗口来搜索。
+>
+> 完整的多智能体、MQTT 和工具箱配置请参见下方[配置](#配置-1)章节。
 
 ### 验证
 
@@ -107,12 +154,42 @@ uv sync --extra boat
 qd-evolve chat --agent default
 ```
 
+### 常见问题
+
+**`pip install` 报 CMake / nmake 错误**
+
+这说明 pip 在尝试从源码编译 `llama-cpp-python`。请确认安装命令带了 `--extra-index-url`：
+
+```
+pip install qd-evolve --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
+```
+
+**Agent 搜索网页时打开了浏览器窗口**
+
+Agent 的搜索工具需要 Serper API 密钥（`env_vars` 中的 `SERPER_API_KEY`）。没有密钥时，agent 会回退到浏览器 MCP 工具，导致打开可见的浏览器窗口。在 [serper.dev](https://serper.dev) 免费注册获取密钥并添加到 `config.json` 即可解决。
+
+**`'python' 不是内部或外部命令`**
+
+Python 未安装或未添加到 PATH。请参见上方[前置条件](#前置条件)中的验证步骤。
+
+### 从源码安装
+
+```bash
+git clone https://github.com/juzcn/qd-evolve
+cd qd-evolve
+
+# 安装依赖
+uv sync
+
+# 可选：BOAT 桥接扩展
+uv sync --extra boat
+```
+
+源码安装项目根目录已有 `tools/` 和 `skills/`，无需 `init`。
+
 ## 快速开始
 
 ```bash
-# 初始化项目目录（复制默认工具、技能、配置）
-qd-evolve init
-
 # 单智能体对话
 qd-evolve chat --agent default
 
@@ -346,9 +423,8 @@ qd-evolve/
 ## 运行要求
 
 - Python 3.13+
-- [uv](https://docs.astral.sh/uv/) 用于依赖管理
 - 外部 Mosquitto v5 代理（仅 MQTT/GChat 模式）
-- 所配置提供商的 API 密钥
+- 所配置提供商的 API 密钥（DeepSeek、OpenAI、Anthropic 等）
 
 ## 许可证
 

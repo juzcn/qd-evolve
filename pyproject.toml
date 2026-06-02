@@ -1,6 +1,6 @@
 [project]
 name = "qd-evolve"
-version = "0.1.10"
+version = "0.1.11"
 description = "Multi-agent AI framework with A2A protocol support, group chat, persistent memory, and extensible tool system"
 readme = "README.md"
 license = "MIT"
@@ -30,9 +30,6 @@ dependencies = [
     "prompt-toolkit>=3.0.52",
     "serper-toolkit>=0.0.13",
     "requests>=2.33.1",
-    "sentence-transformers>=5.5.1",
-    "numpy>=2.4.4",
-    "llama-cpp-python>=0.3.23",
     "mcp>=1.0",
     "textual>=8.0",
     "basic-open-agent-tools[xml]>=1.3.2",
@@ -54,6 +51,11 @@ Issues = "https://github.com/juzcn/qd-evolve/issues"
 
 [project.optional-dependencies]
 boat = ["basic-open-agent-tools[all]>=1.3"]
+memory = [
+    "sentence-transformers>=5.5.1",
+    "llama-cpp-python>=0.3.23",
+    "numpy>=2.4.4",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

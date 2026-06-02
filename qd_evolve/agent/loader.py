@@ -56,6 +56,13 @@ def init_process(settings: Settings, agent_name: str = "") -> None:
     registry injection into loader tools."""
     global _skill_registry, _cli_registry, _bridges
 
+    # Ensure CWD is on sys.path so user tools/ and skills/ are importable.
+    # Needed when running via pip entry point which may strip CWD from path.
+    import sys as _sys
+    _cwd = str(Path.cwd())
+    if _cwd not in _sys.path:
+        _sys.path.insert(0, _cwd)
+
     # Skill registry
     from qd_evolve.skills import SkillRegistry
     if _skill_registry is None:

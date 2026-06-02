@@ -2,11 +2,18 @@
 
 import importlib
 import importlib.util
+import sys as _sys
 from pathlib import Path
 from typing import Any, Callable
 
 from qd_evolve.core.logger import logger
 from pydantic import BaseModel
+
+# Ensure CWD is on sys.path so user tools/ and skills/ are importable.
+# Needed when running via pip entry point which may strip CWD from path.
+_cwd = str(Path.cwd())
+if _cwd not in _sys.path:
+    _sys.path.insert(0, _cwd)
 
 
 class ToolDef(BaseModel):
