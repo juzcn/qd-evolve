@@ -352,15 +352,24 @@ async def _async_chat_loop(
                     hb[0] = 0
                     content = event.get("content", "")
                     logger.info("Chat: heartbeat fired for '%s' (%s chars)", agent_name, len(content))
-                    # ANSI: carriage-return + clear-line to erase the You> prompt
-                    sys.stdout.write("\r\033[K")
-                    sys.stdout.flush()
-                    console.print(f"[dim](heartbeat)[/dim] [bold #ff6b6b]{agent_name}>[/bold #ff6b6b] {content}")
+                    # Cancel input first — let prompt_toolkit clean up its rendering
                     input_task.cancel()
                     try:
                         await input_task
                     except (CancelledError, EOFError, KeyboardInterrupt):
                         pass
+                    console.print(f"[dim](heartbeat)[/dim] [bold #ff6b6b]{agent_name}>[/bold #ff6b6b] {content}")
+                    user_input = None
+                    break
+                elif etype == "sub_agent_result":
+                    content = event.get("content", "")
+                    logger.info("Chat: sub-agent result pushed for '%s' (%s chars)", agent_name, len(content))
+                    input_task.cancel()
+                    try:
+                        await input_task
+                    except (CancelledError, EOFError, KeyboardInterrupt):
+                        pass
+                    console.print(f"[bold #ff6b6b]{agent_name}>[/bold #ff6b6b] {content}")
                     user_input = None
                     break
                 elif etype == "heartbeat_silent":

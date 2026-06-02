@@ -330,7 +330,7 @@ def _try_push_to_parent(parent_agent: Any, parent_name: str) -> None:
             sub = collect_sub_results()
             if sub:
                 final = parent_agent._run_inner(sub)
-                parent_agent._on_event({"type": "heartbeat", "content": final})
+                parent_agent._on_event({"type": "sub_agent_result", "content": final})
         except Exception:
             logger.debug("_try_push_to_parent: failed to push sub result", exc_info=True)
         finally:
