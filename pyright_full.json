@@ -1,0 +1,2767 @@
+Config contains unrecognized setting "$schema".
+{
+    "version": "1.1.410",
+    "time": "1780530241238",
+    "generalDiagnostics": [
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\a2a_cli.py",
+            "severity": "error",
+            "message": "\"PromptSession\" is not defined",
+            "range": {
+                "start": {
+                    "line": 47,
+                    "character": 31
+                },
+                "end": {
+                    "line": 47,
+                    "character": 44
+                }
+            },
+            "rule": "reportUndefinedVariable"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\a2a_cli.py",
+            "severity": "error",
+            "message": "\"PromptSession\" is not defined",
+            "range": {
+                "start": {
+                    "line": 75,
+                    "character": 38
+                },
+                "end": {
+                    "line": 75,
+                    "character": 51
+                }
+            },
+            "rule": "reportUndefinedVariable"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\a2a_cli.py",
+            "severity": "error",
+            "message": "\"FormattedText\" is not defined",
+            "range": {
+                "start": {
+                    "line": 81,
+                    "character": 34
+                },
+                "end": {
+                    "line": 81,
+                    "character": 47
+                }
+            },
+            "rule": "reportUndefinedVariable"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\a2a_cli.py",
+            "severity": "error",
+            "message": "\"PromptSession\" is not defined",
+            "range": {
+                "start": {
+                    "line": 245,
+                    "character": 20
+                },
+                "end": {
+                    "line": 245,
+                    "character": 33
+                }
+            },
+            "rule": "reportUndefinedVariable"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\a2a_cli.py",
+            "severity": "error",
+            "message": "Argument of type \"Spinner\" cannot be assigned to parameter \"object\" of type \"Text\" in function \"append\"\n  \"Spinner\" is not assignable to \"Text\"",
+            "range": {
+                "start": {
+                    "line": 559,
+                    "character": 29
+                },
+                "end": {
+                    "line": 559,
+                    "character": 36
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\a2a_cli.py",
+            "severity": "error",
+            "message": "Argument of type \"TeeWriter\" cannot be assigned to parameter \"file\" of type \"IO[str] | None\" in function \"__init__\"\n  Type \"TeeWriter\" is not assignable to type \"IO[str] | None\"\n    \"TeeWriter\" is not assignable to \"IO[str]\"\n    \"TeeWriter\" is not assignable to \"None\"",
+            "range": {
+                "start": {
+                    "line": 921,
+                    "character": 44
+                },
+                "end": {
+                    "line": 921,
+                    "character": 47
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\a2a_inproc_cli.py",
+            "severity": "error",
+            "message": "\"PromptSession\" is not defined",
+            "range": {
+                "start": {
+                    "line": 45,
+                    "character": 31
+                },
+                "end": {
+                    "line": 45,
+                    "character": 44
+                }
+            },
+            "rule": "reportUndefinedVariable"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\a2a_inproc_cli.py",
+            "severity": "error",
+            "message": "\"PromptSession\" is not defined",
+            "range": {
+                "start": {
+                    "line": 71,
+                    "character": 38
+                },
+                "end": {
+                    "line": 71,
+                    "character": 51
+                }
+            },
+            "rule": "reportUndefinedVariable"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\a2a_inproc_cli.py",
+            "severity": "error",
+            "message": "\"FormattedText\" is not defined",
+            "range": {
+                "start": {
+                    "line": 77,
+                    "character": 34
+                },
+                "end": {
+                    "line": 77,
+                    "character": 47
+                }
+            },
+            "rule": "reportUndefinedVariable"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\a2a_inproc_cli.py",
+            "severity": "error",
+            "message": "\"PromptSession\" is not defined",
+            "range": {
+                "start": {
+                    "line": 269,
+                    "character": 20
+                },
+                "end": {
+                    "line": 269,
+                    "character": 33
+                }
+            },
+            "rule": "reportUndefinedVariable"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\a2a_inproc_cli.py",
+            "severity": "error",
+            "message": "Argument of type \"Spinner\" cannot be assigned to parameter \"object\" of type \"Text\" in function \"append\"\n  \"Spinner\" is not assignable to \"Text\"",
+            "range": {
+                "start": {
+                    "line": 466,
+                    "character": 29
+                },
+                "end": {
+                    "line": 466,
+                    "character": 36
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\a2a_inproc_cli.py",
+            "severity": "error",
+            "message": "Argument of type \"TeeWriter\" cannot be assigned to parameter \"file\" of type \"IO[str] | None\" in function \"__init__\"\n  Type \"TeeWriter\" is not assignable to type \"IO[str] | None\"\n    \"TeeWriter\" is not assignable to \"IO[str]\"\n    \"TeeWriter\" is not assignable to \"None\"",
+            "range": {
+                "start": {
+                    "line": 658,
+                    "character": 44
+                },
+                "end": {
+                    "line": 658,
+                    "character": 47
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\agent\\a2a_agent.py",
+            "severity": "error",
+            "message": "Type \"None\" is not assignable to return type \"str\"\n  \"None\" is not assignable to \"str\"",
+            "range": {
+                "start": {
+                    "line": 50,
+                    "character": 19
+                },
+                "end": {
+                    "line": 50,
+                    "character": 23
+                }
+            },
+            "rule": "reportReturnType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\agent\\a2a_agent.py",
+            "severity": "error",
+            "message": "Type \"None\" is not assignable to return type \"str\"\n  \"None\" is not assignable to \"str\"",
+            "range": {
+                "start": {
+                    "line": 68,
+                    "character": 19
+                },
+                "end": {
+                    "line": 68,
+                    "character": 23
+                }
+            },
+            "rule": "reportReturnType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\agent\\agent.py",
+            "severity": "error",
+            "message": "\"threading\" is not defined",
+            "range": {
+                "start": {
+                    "line": 52,
+                    "character": 25
+                },
+                "end": {
+                    "line": 52,
+                    "character": 34
+                }
+            },
+            "rule": "reportUndefinedVariable"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\agent\\agent.py",
+            "severity": "error",
+            "message": "Type \"None\" is not assignable to return type \"str\"\n  \"None\" is not assignable to \"str\"",
+            "range": {
+                "start": {
+                    "line": 110,
+                    "character": 19
+                },
+                "end": {
+                    "line": 110,
+                    "character": 23
+                }
+            },
+            "rule": "reportReturnType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\agent\\agent.py",
+            "severity": "error",
+            "message": "Type \"None\" is not assignable to return type \"str\"\n  \"None\" is not assignable to \"str\"",
+            "range": {
+                "start": {
+                    "line": 121,
+                    "character": 19
+                },
+                "end": {
+                    "line": 121,
+                    "character": 23
+                }
+            },
+            "rule": "reportReturnType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\agent\\agent.py",
+            "severity": "error",
+            "message": "Argument of type \"str | None\" cannot be assigned to parameter \"model\" of type \"str\" in function \"get_context_window\"\n  Type \"str | None\" is not assignable to type \"str\"\n    \"None\" is not assignable to \"str\"",
+            "range": {
+                "start": {
+                    "line": 306,
+                    "character": 49
+                },
+                "end": {
+                    "line": 306,
+                    "character": 60
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\agent\\agent.py",
+            "severity": "error",
+            "message": "Argument of type \"str | None\" cannot be assigned to parameter \"model\" of type \"str\" in function \"get_reasoning\"\n  Type \"str | None\" is not assignable to type \"str\"\n    \"None\" is not assignable to \"str\"",
+            "range": {
+                "start": {
+                    "line": 486,
+                    "character": 46
+                },
+                "end": {
+                    "line": 486,
+                    "character": 57
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\agent\\agent.py",
+            "severity": "error",
+            "message": "\"chunk\" is possibly unbound",
+            "range": {
+                "start": {
+                    "line": 618,
+                    "character": 15
+                },
+                "end": {
+                    "line": 618,
+                    "character": 20
+                }
+            },
+            "rule": "reportPossiblyUnboundVariable"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\agent\\agent.py",
+            "severity": "error",
+            "message": "\"chunk\" is possibly unbound",
+            "range": {
+                "start": {
+                    "line": 619,
+                    "character": 24
+                },
+                "end": {
+                    "line": 619,
+                    "character": 29
+                }
+            },
+            "rule": "reportPossiblyUnboundVariable"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\agent\\loader.py",
+            "severity": "error",
+            "message": "Cannot assign to attribute \"name\" for class \"Agent\"\n  Attribute \"name\" is unknown",
+            "range": {
+                "start": {
+                    "line": 367,
+                    "character": 10
+                },
+                "end": {
+                    "line": 367,
+                    "character": 14
+                }
+            },
+            "rule": "reportAttributeAccessIssue"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\agent\\mqtt_agent.py",
+            "severity": "error",
+            "message": "Type \"None\" is not assignable to return type \"str\"\n  \"None\" is not assignable to \"str\"",
+            "range": {
+                "start": {
+                    "line": 90,
+                    "character": 19
+                },
+                "end": {
+                    "line": 90,
+                    "character": 23
+                }
+            },
+            "rule": "reportReturnType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\agent\\mqtt_agent.py",
+            "severity": "error",
+            "message": "Type \"None\" is not assignable to return type \"str\"\n  \"None\" is not assignable to \"str\"",
+            "range": {
+                "start": {
+                    "line": 110,
+                    "character": 19
+                },
+                "end": {
+                    "line": 110,
+                    "character": 23
+                }
+            },
+            "rule": "reportReturnType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\agent\\mqtt_agent.py",
+            "severity": "error",
+            "message": "Cannot assign to attribute \"_hb_idle_seconds\" for class \"A2AAgent\"\n  Attribute \"_hb_idle_seconds\" is unknown",
+            "range": {
+                "start": {
+                    "line": 124,
+                    "character": 19
+                },
+                "end": {
+                    "line": 124,
+                    "character": 35
+                }
+            },
+            "rule": "reportAttributeAccessIssue"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\agent\\mqtt_agent.py",
+            "severity": "error",
+            "message": "Cannot assign to attribute \"_hb_event\" for class \"A2AAgent\"\n  Attribute \"_hb_event\" is unknown",
+            "range": {
+                "start": {
+                    "line": 125,
+                    "character": 19
+                },
+                "end": {
+                    "line": 125,
+                    "character": 28
+                }
+            },
+            "rule": "reportAttributeAccessIssue"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\agent\\mqtt_agent.py",
+            "severity": "error",
+            "message": "Cannot access attribute \"_hb_event\" for class \"A2AAgent\"\n  Attribute \"_hb_event\" is unknown",
+            "range": {
+                "start": {
+                    "line": 130,
+                    "character": 54
+                },
+                "end": {
+                    "line": 130,
+                    "character": 63
+                }
+            },
+            "rule": "reportAttributeAccessIssue"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\agent\\mqtt_agent.py",
+            "severity": "error",
+            "message": "Cannot access attribute \"_hb_idle_seconds\" for class \"A2AAgent\"\n  Attribute \"_hb_idle_seconds\" is unknown",
+            "range": {
+                "start": {
+                    "line": 130,
+                    "character": 91
+                },
+                "end": {
+                    "line": 130,
+                    "character": 107
+                }
+            },
+            "rule": "reportAttributeAccessIssue"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\agent\\mqtt_agent.py",
+            "severity": "error",
+            "message": "Cannot access attribute \"_hb_event\" for class \"A2AAgent\"\n  Attribute \"_hb_event\" is unknown",
+            "range": {
+                "start": {
+                    "line": 131,
+                    "character": 31
+                },
+                "end": {
+                    "line": 131,
+                    "character": 40
+                }
+            },
+            "rule": "reportAttributeAccessIssue"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\agent\\mqtt_agent.py",
+            "severity": "error",
+            "message": "Cannot access attribute \"_hb_event\" for class \"A2AAgent\"\n  Attribute \"_hb_event\" is unknown",
+            "range": {
+                "start": {
+                    "line": 133,
+                    "character": 31
+                },
+                "end": {
+                    "line": 133,
+                    "character": 40
+                }
+            },
+            "rule": "reportAttributeAccessIssue"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\agent\\mqtt_agent.py",
+            "severity": "error",
+            "message": "Cannot access attribute \"_hb_idle_seconds\" for class \"A2AAgent\"\n  Attribute \"_hb_idle_seconds\" is unknown",
+            "range": {
+                "start": {
+                    "line": 135,
+                    "character": 81
+                },
+                "end": {
+                    "line": 135,
+                    "character": 97
+                }
+            },
+            "rule": "reportAttributeAccessIssue"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\agent\\mqtt_agent.py",
+            "severity": "error",
+            "message": "Object of type \"None\" cannot be called",
+            "range": {
+                "start": {
+                    "line": 544,
+                    "character": 16
+                },
+                "end": {
+                    "line": 544,
+                    "character": 40
+                }
+            },
+            "rule": "reportOptionalCall"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\agent\\mqtt_agent.py",
+            "severity": "error",
+            "message": "Object of type \"None\" cannot be called",
+            "range": {
+                "start": {
+                    "line": 582,
+                    "character": 16
+                },
+                "end": {
+                    "line": 582,
+                    "character": 40
+                }
+            },
+            "rule": "reportOptionalCall"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\agent\\mqtt_transport.py",
+            "severity": "error",
+            "message": "Argument of type \"dict[Unknown, Unknown] | Any\" cannot be assigned to parameter \"task\" of type \"Task\" in function \"_extract_task_text\"\n  Type \"dict[Unknown, Unknown] | Any\" is not assignable to type \"Task\"\n    \"dict[Unknown, Unknown]\" is not assignable to \"Task\"",
+            "range": {
+                "start": {
+                    "line": 524,
+                    "character": 62
+                },
+                "end": {
+                    "line": 524,
+                    "character": 73
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\agent\\mqtt_transport.py",
+            "severity": "error",
+            "message": "Cannot access attribute \"status\" for class \"dict[Unknown, Unknown]\"\n  Attribute \"status\" is unknown",
+            "range": {
+                "start": {
+                    "line": 528,
+                    "character": 64
+                },
+                "end": {
+                    "line": 528,
+                    "character": 70
+                }
+            },
+            "rule": "reportAttributeAccessIssue"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\agent\\server.py",
+            "severity": "error",
+            "message": "\"model_dump\" is not a known attribute of \"None\"",
+            "range": {
+                "start": {
+                    "line": 153,
+                    "character": 25
+                },
+                "end": {
+                    "line": 153,
+                    "character": 35
+                }
+            },
+            "rule": "reportOptionalMemberAccess"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\agent\\server.py",
+            "severity": "error",
+            "message": "Type \"StreamResponse\" is not assignable to return type \"Response\"\n  \"StreamResponse\" is not assignable to \"Response\"",
+            "range": {
+                "start": {
+                    "line": 171,
+                    "character": 23
+                },
+                "end": {
+                    "line": 171,
+                    "character": 74
+                }
+            },
+            "rule": "reportReturnType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\agent\\server.py",
+            "severity": "error",
+            "message": "Type \"StreamResponse\" is not assignable to return type \"Response\"\n  \"StreamResponse\" is not assignable to \"Response\"",
+            "range": {
+                "start": {
+                    "line": 177,
+                    "character": 23
+                },
+                "end": {
+                    "line": 177,
+                    "character": 77
+                }
+            },
+            "rule": "reportReturnType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\agent\\server.py",
+            "severity": "error",
+            "message": "\"model_copy\" is not a known attribute of \"None\"",
+            "range": {
+                "start": {
+                    "line": 477,
+                    "character": 29
+                },
+                "end": {
+                    "line": 477,
+                    "character": 39
+                }
+            },
+            "rule": "reportOptionalMemberAccess"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\agent\\server.py",
+            "severity": "error",
+            "message": "\"capabilities\" is not a known attribute of \"None\"",
+            "range": {
+                "start": {
+                    "line": 479,
+                    "character": 40
+                },
+                "end": {
+                    "line": 479,
+                    "character": 52
+                }
+            },
+            "rule": "reportOptionalMemberAccess"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\agent\\server.py",
+            "severity": "error",
+            "message": "\"model_copy\" is not a known attribute of \"None\"",
+            "range": {
+                "start": {
+                    "line": 492,
+                    "character": 29
+                },
+                "end": {
+                    "line": 492,
+                    "character": 39
+                }
+            },
+            "rule": "reportOptionalMemberAccess"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\agent\\server.py",
+            "severity": "error",
+            "message": "\"capabilities\" is not a known attribute of \"None\"",
+            "range": {
+                "start": {
+                    "line": 494,
+                    "character": 40
+                },
+                "end": {
+                    "line": 494,
+                    "character": 52
+                }
+            },
+            "rule": "reportOptionalMemberAccess"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\agent\\server.py",
+            "severity": "error",
+            "message": "\"model_copy\" is not a known attribute of \"None\"",
+            "range": {
+                "start": {
+                    "line": 515,
+                    "character": 25
+                },
+                "end": {
+                    "line": 515,
+                    "character": 35
+                }
+            },
+            "rule": "reportOptionalMemberAccess"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\agent\\server.py",
+            "severity": "error",
+            "message": "\"capabilities\" is not a known attribute of \"None\"",
+            "range": {
+                "start": {
+                    "line": 517,
+                    "character": 36
+                },
+                "end": {
+                    "line": 517,
+                    "character": 48
+                }
+            },
+            "rule": "reportOptionalMemberAccess"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\agent\\server.py",
+            "severity": "error",
+            "message": "\"capabilities\" is not a known attribute of \"None\"",
+            "range": {
+                "start": {
+                    "line": 518,
+                    "character": 45
+                },
+                "end": {
+                    "line": 518,
+                    "character": 57
+                }
+            },
+            "rule": "reportOptionalMemberAccess"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\agent\\transport.py",
+            "severity": "error",
+            "message": "\"Any\" is not defined",
+            "range": {
+                "start": {
+                    "line": 39,
+                    "character": 24
+                },
+                "end": {
+                    "line": 39,
+                    "character": 27
+                }
+            },
+            "rule": "reportUndefinedVariable"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\agent\\transport.py",
+            "severity": "error",
+            "message": "\"Any\" is not defined",
+            "range": {
+                "start": {
+                    "line": 41,
+                    "character": 31
+                },
+                "end": {
+                    "line": 41,
+                    "character": 34
+                }
+            },
+            "rule": "reportUndefinedVariable"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\agent\\transport.py",
+            "severity": "error",
+            "message": "\"TaskStatusUpdateEvent\" is unbound",
+            "range": {
+                "start": {
+                    "line": 126,
+                    "character": 46
+                },
+                "end": {
+                    "line": 126,
+                    "character": 67
+                }
+            },
+            "rule": "reportUnboundVariable"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\agent\\transport.py",
+            "severity": "error",
+            "message": "\"TaskStatusUpdateEvent\" is possibly unbound",
+            "range": {
+                "start": {
+                    "line": 154,
+                    "character": 54
+                },
+                "end": {
+                    "line": 154,
+                    "character": 75
+                }
+            },
+            "rule": "reportPossiblyUnboundVariable"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\agent\\transport.py",
+            "severity": "error",
+            "message": "\"TaskStatusUpdateEvent\" is possibly unbound",
+            "range": {
+                "start": {
+                    "line": 249,
+                    "character": 54
+                },
+                "end": {
+                    "line": 249,
+                    "character": 75
+                }
+            },
+            "rule": "reportPossiblyUnboundVariable"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\agent\\transport.py",
+            "severity": "error",
+            "message": "\"Any\" is not defined",
+            "range": {
+                "start": {
+                    "line": 264,
+                    "character": 48
+                },
+                "end": {
+                    "line": 264,
+                    "character": 51
+                }
+            },
+            "rule": "reportUndefinedVariable"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\agent\\transport.py",
+            "severity": "error",
+            "message": "\"Any\" is not defined",
+            "range": {
+                "start": {
+                    "line": 264,
+                    "character": 56
+                },
+                "end": {
+                    "line": 264,
+                    "character": 59
+                }
+            },
+            "rule": "reportUndefinedVariable"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\agent\\transport.py",
+            "severity": "error",
+            "message": "\"Any\" is not defined",
+            "range": {
+                "start": {
+                    "line": 299,
+                    "character": 24
+                },
+                "end": {
+                    "line": 299,
+                    "character": 27
+                }
+            },
+            "rule": "reportUndefinedVariable"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\agent\\transport.py",
+            "severity": "error",
+            "message": "\"Any\" is not defined",
+            "range": {
+                "start": {
+                    "line": 301,
+                    "character": 31
+                },
+                "end": {
+                    "line": 301,
+                    "character": 34
+                }
+            },
+            "rule": "reportUndefinedVariable"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\agent\\transport.py",
+            "severity": "error",
+            "message": "\"MqttTransport\" is not defined",
+            "range": {
+                "start": {
+                    "line": 522,
+                    "character": 41
+                },
+                "end": {
+                    "line": 522,
+                    "character": 54
+                }
+            },
+            "rule": "reportUndefinedVariable"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\agent\\transport.py",
+            "severity": "error",
+            "message": "\"MqttTransport\" is not defined",
+            "range": {
+                "start": {
+                    "line": 526,
+                    "character": 70
+                },
+                "end": {
+                    "line": 526,
+                    "character": 83
+                }
+            },
+            "rule": "reportUndefinedVariable"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\agent\\transport.py",
+            "severity": "error",
+            "message": "Cannot access attribute \"is_online\" for class \"InprocTransport\"\n  Attribute \"is_online\" is unknown",
+            "range": {
+                "start": {
+                    "line": 576,
+                    "character": 35
+                },
+                "end": {
+                    "line": 576,
+                    "character": 44
+                }
+            },
+            "rule": "reportAttributeAccessIssue"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\bridge\\wechat_clawbot_client.py",
+            "severity": "error",
+            "message": "Operator \"<\" not supported for types \"float | tuple[int, ...] | None\" and \"Literal[128]\"\n  Operator \"<\" not supported for types \"tuple[int, ...]\" and \"Literal[128]\"\n  Operator \"<\" not supported for types \"None\" and \"Literal[128]\"",
+            "range": {
+                "start": {
+                    "line": 80,
+                    "character": 34
+                },
+                "end": {
+                    "line": 80,
+                    "character": 62
+                }
+            },
+            "rule": "reportOperatorIssue"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\chat_cli.py",
+            "severity": "error",
+            "message": "\"PromptSession\" is not defined",
+            "range": {
+                "start": {
+                    "line": 42,
+                    "character": 31
+                },
+                "end": {
+                    "line": 42,
+                    "character": 44
+                }
+            },
+            "rule": "reportUndefinedVariable"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\chat_cli.py",
+            "severity": "error",
+            "message": "\"PromptSession\" is not defined",
+            "range": {
+                "start": {
+                    "line": 69,
+                    "character": 38
+                },
+                "end": {
+                    "line": 69,
+                    "character": 51
+                }
+            },
+            "rule": "reportUndefinedVariable"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\chat_cli.py",
+            "severity": "error",
+            "message": "\"FormattedText\" is not defined",
+            "range": {
+                "start": {
+                    "line": 79,
+                    "character": 27
+                },
+                "end": {
+                    "line": 79,
+                    "character": 40
+                }
+            },
+            "rule": "reportUndefinedVariable"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\chat_cli.py",
+            "severity": "error",
+            "message": "\"PromptSession\" is not defined",
+            "range": {
+                "start": {
+                    "line": 255,
+                    "character": 20
+                },
+                "end": {
+                    "line": 255,
+                    "character": 33
+                }
+            },
+            "rule": "reportUndefinedVariable"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\chat_cli.py",
+            "severity": "error",
+            "message": "Argument of type \"Spinner\" cannot be assigned to parameter \"object\" of type \"Text\" in function \"append\"\n  \"Spinner\" is not assignable to \"Text\"",
+            "range": {
+                "start": {
+                    "line": 291,
+                    "character": 21
+                },
+                "end": {
+                    "line": 291,
+                    "character": 28
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\chat_cli.py",
+            "severity": "error",
+            "message": "No parameter named \"shutdown\"",
+            "range": {
+                "start": {
+                    "line": 458,
+                    "character": 25
+                },
+                "end": {
+                    "line": 458,
+                    "character": 33
+                }
+            },
+            "rule": "reportCallIssue"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\chat_cli.py",
+            "severity": "error",
+            "message": "Argument of type \"TeeWriter\" cannot be assigned to parameter \"file\" of type \"IO[str] | None\" in function \"__init__\"\n  Type \"TeeWriter\" is not assignable to type \"IO[str] | None\"\n    \"TeeWriter\" is not assignable to \"IO[str]\"\n    \"TeeWriter\" is not assignable to \"None\"",
+            "range": {
+                "start": {
+                    "line": 544,
+                    "character": 44
+                },
+                "end": {
+                    "line": 544,
+                    "character": 47
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\core\\memory.py",
+            "severity": "error",
+            "message": "Type \"int | None\" is not assignable to return type \"int\"\n  Type \"int | None\" is not assignable to type \"int\"\n    \"None\" is not assignable to \"int\"",
+            "range": {
+                "start": {
+                    "line": 183,
+                    "character": 15
+                },
+                "end": {
+                    "line": 183,
+                    "character": 24
+                }
+            },
+            "rule": "reportReturnType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\core\\prompts.py",
+            "severity": "error",
+            "message": "Expected class but received \"(obj: object, /) -> TypeIs[(...) -> object]\"",
+            "range": {
+                "start": {
+                    "line": 18,
+                    "character": 85
+                },
+                "end": {
+                    "line": 18,
+                    "character": 93
+                }
+            },
+            "rule": "reportGeneralTypeIssues"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\gchat_cli.py",
+            "severity": "error",
+            "message": "\"environ\" is not a known attribute of module \"sys\"",
+            "range": {
+                "start": {
+                    "line": 50,
+                    "character": 43
+                },
+                "end": {
+                    "line": 50,
+                    "character": 50
+                }
+            },
+            "rule": "reportAttributeAccessIssue"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\gchat_cli.py",
+            "severity": "error",
+            "message": "\"Table\" is unbound",
+            "range": {
+                "start": {
+                    "line": 82,
+                    "character": 16
+                },
+                "end": {
+                    "line": 82,
+                    "character": 21
+                }
+            },
+            "rule": "reportUnboundVariable"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\gchat_cli.py",
+            "severity": "error",
+            "message": "\"try_restore_session\" is not a known attribute of \"None\"",
+            "range": {
+                "start": {
+                    "line": 388,
+                    "character": 35
+                },
+                "end": {
+                    "line": 388,
+                    "character": 54
+                }
+            },
+            "rule": "reportOptionalMemberAccess"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\gchat_cli.py",
+            "severity": "error",
+            "message": "\"login\" is not a known attribute of \"None\"",
+            "range": {
+                "start": {
+                    "line": 393,
+                    "character": 55
+                },
+                "end": {
+                    "line": 393,
+                    "character": 60
+                }
+            },
+            "rule": "reportOptionalMemberAccess"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\gchat_cli.py",
+            "severity": "error",
+            "message": "\"start\" is not a known attribute of \"None\"",
+            "range": {
+                "start": {
+                    "line": 397,
+                    "character": 36
+                },
+                "end": {
+                    "line": 397,
+                    "character": 41
+                }
+            },
+            "rule": "reportOptionalMemberAccess"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\gchat_cli.py",
+            "severity": "error",
+            "message": "\"get_session_dict\" is not a known attribute of \"None\"",
+            "range": {
+                "start": {
+                    "line": 398,
+                    "character": 53
+                },
+                "end": {
+                    "line": 398,
+                    "character": 69
+                }
+            },
+            "rule": "reportOptionalMemberAccess"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\gchat_cli.py",
+            "severity": "error",
+            "message": "\"stop\" is not a known attribute of \"None\"",
+            "range": {
+                "start": {
+                    "line": 407,
+                    "character": 36
+                },
+                "end": {
+                    "line": 407,
+                    "character": 40
+                }
+            },
+            "rule": "reportOptionalMemberAccess"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\gchat_cli.py",
+            "severity": "error",
+            "message": "\"stop\" is not a known attribute of \"None\"",
+            "range": {
+                "start": {
+                    "line": 416,
+                    "character": 36
+                },
+                "end": {
+                    "line": 416,
+                    "character": 40
+                }
+            },
+            "rule": "reportOptionalMemberAccess"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\gchat_cli.py",
+            "severity": "error",
+            "message": "Cannot access attribute \"start_heartbeat_loop\" for class \"GroupChatWechatHuman\"\n  Attribute \"start_heartbeat_loop\" is unknown",
+            "range": {
+                "start": {
+                    "line": 425,
+                    "character": 24
+                },
+                "end": {
+                    "line": 425,
+                    "character": 44
+                }
+            },
+            "rule": "reportAttributeAccessIssue"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\gchat_cli.py",
+            "severity": "error",
+            "message": "Cannot access attribute \"start_heartbeat_loop\" for class \"GroupChatHuman\"\n  Attribute \"start_heartbeat_loop\" is unknown",
+            "range": {
+                "start": {
+                    "line": 425,
+                    "character": 24
+                },
+                "end": {
+                    "line": 425,
+                    "character": 44
+                }
+            },
+            "rule": "reportAttributeAccessIssue"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\mqtt_cli.py",
+            "severity": "error",
+            "message": "\"PromptSession\" is not defined",
+            "range": {
+                "start": {
+                    "line": 52,
+                    "character": 31
+                },
+                "end": {
+                    "line": 52,
+                    "character": 44
+                }
+            },
+            "rule": "reportUndefinedVariable"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\mqtt_cli.py",
+            "severity": "error",
+            "message": "\"PromptSession\" is not defined",
+            "range": {
+                "start": {
+                    "line": 80,
+                    "character": 38
+                },
+                "end": {
+                    "line": 80,
+                    "character": 51
+                }
+            },
+            "rule": "reportUndefinedVariable"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\mqtt_cli.py",
+            "severity": "error",
+            "message": "\"FormattedText\" is not defined",
+            "range": {
+                "start": {
+                    "line": 86,
+                    "character": 34
+                },
+                "end": {
+                    "line": 86,
+                    "character": 47
+                }
+            },
+            "rule": "reportUndefinedVariable"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\mqtt_cli.py",
+            "severity": "error",
+            "message": "\"PromptSession\" is not defined",
+            "range": {
+                "start": {
+                    "line": 262,
+                    "character": 20
+                },
+                "end": {
+                    "line": 262,
+                    "character": 33
+                }
+            },
+            "rule": "reportUndefinedVariable"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\mqtt_cli.py",
+            "severity": "error",
+            "message": "Argument of type \"Spinner\" cannot be assigned to parameter \"object\" of type \"Text\" in function \"append\"\n  \"Spinner\" is not assignable to \"Text\"",
+            "range": {
+                "start": {
+                    "line": 585,
+                    "character": 29
+                },
+                "end": {
+                    "line": 585,
+                    "character": 36
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\mqtt_cli.py",
+            "severity": "error",
+            "message": "Argument of type \"object\" cannot be assigned to parameter \"mqtt_config\" of type \"MqttConfig\" in function \"__init__\"\n  \"object\" is not assignable to \"MqttConfig\"",
+            "range": {
+                "start": {
+                    "line": 896,
+                    "character": 64
+                },
+                "end": {
+                    "line": 896,
+                    "character": 75
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\mqtt_cli.py",
+            "severity": "error",
+            "message": "Argument of type \"TeeWriter\" cannot be assigned to parameter \"file\" of type \"IO[str] | None\" in function \"__init__\"\n  Type \"TeeWriter\" is not assignable to type \"IO[str] | None\"\n    \"TeeWriter\" is not assignable to \"IO[str]\"\n    \"TeeWriter\" is not assignable to \"None\"",
+            "range": {
+                "start": {
+                    "line": 947,
+                    "character": 44
+                },
+                "end": {
+                    "line": 947,
+                    "character": 47
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\mqtt_cli.py",
+            "severity": "error",
+            "message": "Cannot access attribute \"agents_config\" for class \"object\"\n  Attribute \"agents_config\" is unknown",
+            "range": {
+                "start": {
+                    "line": 975,
+                    "character": 22
+                },
+                "end": {
+                    "line": 975,
+                    "character": 35
+                }
+            },
+            "rule": "reportAttributeAccessIssue"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\toolbox_tui.py",
+            "severity": "error",
+            "message": "Argument of type \"str | None\" cannot be assigned to parameter \"agent_name\" of type \"str\" in function \"toggle\"\n  Type \"str | None\" is not assignable to type \"str\"\n    \"None\" is not assignable to \"str\"",
+            "range": {
+                "start": {
+                    "line": 84,
+                    "character": 58
+                },
+                "end": {
+                    "line": 84,
+                    "character": 68
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\toolbox_tui.py",
+            "severity": "error",
+            "message": "Argument of type \"str | None\" cannot be assigned to parameter \"agent_name\" of type \"str\" in function \"set_state\"\n  Type \"str | None\" is not assignable to type \"str\"\n    \"None\" is not assignable to \"str\"",
+            "range": {
+                "start": {
+                    "line": 92,
+                    "character": 63
+                },
+                "end": {
+                    "line": 92,
+                    "character": 73
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\toolbox_tui.py",
+            "severity": "error",
+            "message": "Argument of type \"str | None\" cannot be assigned to parameter \"agent_name\" of type \"str\" in function \"set_state\"\n  Type \"str | None\" is not assignable to type \"str\"\n    \"None\" is not assignable to \"str\"",
+            "range": {
+                "start": {
+                    "line": 100,
+                    "character": 64
+                },
+                "end": {
+                    "line": 100,
+                    "character": 74
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\toolbox_tui.py",
+            "severity": "error",
+            "message": "Argument of type \"str | None\" cannot be assigned to parameter \"agent_name\" of type \"str\" in function \"set_state\"\n  Type \"str | None\" is not assignable to type \"str\"\n    \"None\" is not assignable to \"str\"",
+            "range": {
+                "start": {
+                    "line": 111,
+                    "character": 67
+                },
+                "end": {
+                    "line": 111,
+                    "character": 77
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\toolbox_tui.py",
+            "severity": "error",
+            "message": "Argument of type \"str | None\" cannot be assigned to parameter \"agent_name\" of type \"str\" in function \"get_state\"\n  Type \"str | None\" is not assignable to type \"str\"\n    \"None\" is not assignable to \"str\"",
+            "range": {
+                "start": {
+                    "line": 156,
+                    "character": 55
+                },
+                "end": {
+                    "line": 156,
+                    "character": 65
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\toolbox_tui.py",
+            "severity": "error",
+            "message": "Argument of type \"str | None\" cannot be assigned to parameter \"agent_name\" of type \"str\" in function \"get_state\"\n  Type \"str | None\" is not assignable to type \"str\"\n    \"None\" is not assignable to \"str\"",
+            "range": {
+                "start": {
+                    "line": 170,
+                    "character": 92
+                },
+                "end": {
+                    "line": 170,
+                    "character": 102
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\toolbox_tui.py",
+            "severity": "error",
+            "message": "Argument of type \"str | None\" cannot be assigned to parameter \"agent_name\" of type \"str\" in function \"get_state\"\n  Type \"str | None\" is not assignable to type \"str\"\n    \"None\" is not assignable to \"str\"",
+            "range": {
+                "start": {
+                    "line": 177,
+                    "character": 97
+                },
+                "end": {
+                    "line": 177,
+                    "character": 107
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\toolbox_tui.py",
+            "severity": "error",
+            "message": "\"settings\" is not defined",
+            "range": {
+                "start": {
+                    "line": 180,
+                    "character": 44
+                },
+                "end": {
+                    "line": 180,
+                    "character": 52
+                }
+            },
+            "rule": "reportUndefinedVariable"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\toolbox_tui.py",
+            "severity": "error",
+            "message": "Argument of type \"str | None\" cannot be assigned to parameter \"agent_name\" of type \"str\" in function \"get_disabled_bridges\"\n  Type \"str | None\" is not assignable to type \"str\"\n    \"None\" is not assignable to \"str\"",
+            "range": {
+                "start": {
+                    "line": 181,
+                    "character": 55
+                },
+                "end": {
+                    "line": 181,
+                    "character": 65
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\toolbox_tui.py",
+            "severity": "error",
+            "message": "Argument of type \"str | None\" cannot be assigned to parameter \"agent_name\" of type \"str\" in function \"get_state\"\n  Type \"str | None\" is not assignable to type \"str\"\n    \"None\" is not assignable to \"str\"",
+            "range": {
+                "start": {
+                    "line": 299,
+                    "character": 99
+                },
+                "end": {
+                    "line": 299,
+                    "character": 109
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\toolbox_tui.py",
+            "severity": "error",
+            "message": "Argument of type \"str | None\" cannot be assigned to parameter \"agent_name\" of type \"str\" in function \"get_state\"\n  Type \"str | None\" is not assignable to type \"str\"\n    \"None\" is not assignable to \"str\"",
+            "range": {
+                "start": {
+                    "line": 301,
+                    "character": 101
+                },
+                "end": {
+                    "line": 301,
+                    "character": 111
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\toolbox_tui.py",
+            "severity": "error",
+            "message": "Argument of type \"str | None\" cannot be assigned to parameter \"agent_name\" of type \"str\" in function \"get_state\"\n  Type \"str | None\" is not assignable to type \"str\"\n    \"None\" is not assignable to \"str\"",
+            "range": {
+                "start": {
+                    "line": 313,
+                    "character": 87
+                },
+                "end": {
+                    "line": 313,
+                    "character": 97
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\toolbox_tui.py",
+            "severity": "error",
+            "message": "Argument of type \"str | None\" cannot be assigned to parameter \"agent_name\" of type \"str\" in function \"get_disabled_bridges\"\n  Type \"str | None\" is not assignable to type \"str\"\n    \"None\" is not assignable to \"str\"",
+            "range": {
+                "start": {
+                    "line": 318,
+                    "character": 50
+                },
+                "end": {
+                    "line": 318,
+                    "character": 60
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\toolbox_tui.py",
+            "severity": "error",
+            "message": "Argument of type \"str | None\" cannot be assigned to parameter \"agent_name\" of type \"str\" in function \"get_state\"\n  Type \"str | None\" is not assignable to type \"str\"\n    \"None\" is not assignable to \"str\"",
+            "range": {
+                "start": {
+                    "line": 333,
+                    "character": 89
+                },
+                "end": {
+                    "line": 333,
+                    "character": 99
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\toolbox_tui.py",
+            "severity": "error",
+            "message": "Argument of type \"str | None\" cannot be assigned to parameter \"agent_name\" of type \"str\" in function \"get_state\"\n  Type \"str | None\" is not assignable to type \"str\"\n    \"None\" is not assignable to \"str\"",
+            "range": {
+                "start": {
+                    "line": 341,
+                    "character": 79
+                },
+                "end": {
+                    "line": 341,
+                    "character": 89
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\toolbox_tui.py",
+            "severity": "error",
+            "message": "Cannot access attribute \"action_cursor_up\" for class \"Widget\"\n  Attribute \"action_cursor_up\" is unknown",
+            "range": {
+                "start": {
+                    "line": 512,
+                    "character": 20
+                },
+                "end": {
+                    "line": 512,
+                    "character": 36
+                }
+            },
+            "rule": "reportAttributeAccessIssue"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\toolbox_tui.py",
+            "severity": "error",
+            "message": "Cannot access attribute \"action_cursor_down\" for class \"Widget\"\n  Attribute \"action_cursor_down\" is unknown",
+            "range": {
+                "start": {
+                    "line": 517,
+                    "character": 20
+                },
+                "end": {
+                    "line": 517,
+                    "character": 38
+                }
+            },
+            "rule": "reportAttributeAccessIssue"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\toolbox_tui.py",
+            "severity": "error",
+            "message": "Argument of type \"str | None\" cannot be assigned to parameter \"agent_name\" of type \"str\" in function \"get_state\"\n  Type \"str | None\" is not assignable to type \"str\"\n    \"None\" is not assignable to \"str\"",
+            "range": {
+                "start": {
+                    "line": 562,
+                    "character": 65
+                },
+                "end": {
+                    "line": 562,
+                    "character": 67
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\toolbox_tui.py",
+            "severity": "error",
+            "message": "Argument of type \"str | None\" cannot be assigned to parameter \"agent_name\" of type \"str\" in function \"set_state\"\n  Type \"str | None\" is not assignable to type \"str\"\n    \"None\" is not assignable to \"str\"",
+            "range": {
+                "start": {
+                    "line": 564,
+                    "character": 66
+                },
+                "end": {
+                    "line": 564,
+                    "character": 68
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\toolbox_tui.py",
+            "severity": "error",
+            "message": "Argument of type \"str | None\" cannot be assigned to parameter \"agent_name\" of type \"str\" in function \"set_state\"\n  Type \"str | None\" is not assignable to type \"str\"\n    \"None\" is not assignable to \"str\"",
+            "range": {
+                "start": {
+                    "line": 572,
+                    "character": 111
+                },
+                "end": {
+                    "line": 572,
+                    "character": 113
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\toolbox_tui.py",
+            "severity": "error",
+            "message": "Argument of type \"str | None\" cannot be assigned to parameter \"section\" of type \"str\" in function \"get_state\"\n  Type \"str | None\" is not assignable to type \"str\"\n    \"None\" is not assignable to \"str\"",
+            "range": {
+                "start": {
+                    "line": 575,
+                    "character": 32
+                },
+                "end": {
+                    "line": 575,
+                    "character": 39
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\toolbox_tui.py",
+            "severity": "error",
+            "message": "Argument of type \"str | None\" cannot be assigned to parameter \"agent_name\" of type \"str\" in function \"get_state\"\n  Type \"str | None\" is not assignable to type \"str\"\n    \"None\" is not assignable to \"str\"",
+            "range": {
+                "start": {
+                    "line": 575,
+                    "character": 58
+                },
+                "end": {
+                    "line": 575,
+                    "character": 60
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\toolbox_tui.py",
+            "severity": "error",
+            "message": "Argument of type \"str | None\" cannot be assigned to parameter \"section\" of type \"str\" in function \"set_state\"\n  Type \"str | None\" is not assignable to type \"str\"\n    \"None\" is not assignable to \"str\"",
+            "range": {
+                "start": {
+                    "line": 577,
+                    "character": 22
+                },
+                "end": {
+                    "line": 577,
+                    "character": 29
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\toolbox_tui.py",
+            "severity": "error",
+            "message": "Argument of type \"str | None\" cannot be assigned to parameter \"agent_name\" of type \"str\" in function \"set_state\"\n  Type \"str | None\" is not assignable to type \"str\"\n    \"None\" is not assignable to \"str\"",
+            "range": {
+                "start": {
+                    "line": 577,
+                    "character": 59
+                },
+                "end": {
+                    "line": 577,
+                    "character": 61
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\toolbox_tui.py",
+            "severity": "error",
+            "message": "Argument of type \"str | None\" cannot be assigned to parameter \"section\" of type \"str\" in function \"get_state\"\n  Type \"str | None\" is not assignable to type \"str\"\n    \"None\" is not assignable to \"str\"",
+            "range": {
+                "start": {
+                    "line": 590,
+                    "character": 28
+                },
+                "end": {
+                    "line": 590,
+                    "character": 35
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\toolbox_tui.py",
+            "severity": "error",
+            "message": "Argument of type \"str | None\" cannot be assigned to parameter \"agent_name\" of type \"str\" in function \"get_state\"\n  Type \"str | None\" is not assignable to type \"str\"\n    \"None\" is not assignable to \"str\"",
+            "range": {
+                "start": {
+                    "line": 590,
+                    "character": 54
+                },
+                "end": {
+                    "line": 590,
+                    "character": 56
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\toolbox_tui.py",
+            "severity": "error",
+            "message": "Argument of type \"str | None\" cannot be assigned to parameter \"section\" of type \"str\" in function \"set_state\"\n  Type \"str | None\" is not assignable to type \"str\"\n    \"None\" is not assignable to \"str\"",
+            "range": {
+                "start": {
+                    "line": 592,
+                    "character": 22
+                },
+                "end": {
+                    "line": 592,
+                    "character": 29
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\toolbox_tui.py",
+            "severity": "error",
+            "message": "Argument of type \"str | None\" cannot be assigned to parameter \"agent_name\" of type \"str\" in function \"set_state\"\n  Type \"str | None\" is not assignable to type \"str\"\n    \"None\" is not assignable to \"str\"",
+            "range": {
+                "start": {
+                    "line": 592,
+                    "character": 59
+                },
+                "end": {
+                    "line": 592,
+                    "character": 61
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\toolbox_tui.py",
+            "severity": "error",
+            "message": "Argument of type \"str | None\" cannot be assigned to parameter \"section\" of type \"str\" in function \"set_state\"\n  Type \"str | None\" is not assignable to type \"str\"\n    \"None\" is not assignable to \"str\"",
+            "range": {
+                "start": {
+                    "line": 594,
+                    "character": 22
+                },
+                "end": {
+                    "line": 594,
+                    "character": 29
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\toolbox_tui.py",
+            "severity": "error",
+            "message": "Argument of type \"str | None\" cannot be assigned to parameter \"agent_name\" of type \"str\" in function \"set_state\"\n  Type \"str | None\" is not assignable to type \"str\"\n    \"None\" is not assignable to \"str\"",
+            "range": {
+                "start": {
+                    "line": 594,
+                    "character": 59
+                },
+                "end": {
+                    "line": 594,
+                    "character": 61
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\toolbox_tui.py",
+            "severity": "error",
+            "message": "Argument of type \"str | None\" cannot be assigned to parameter \"section\" of type \"str\" in function \"set_state\"\n  Type \"str | None\" is not assignable to type \"str\"\n    \"None\" is not assignable to \"str\"",
+            "range": {
+                "start": {
+                    "line": 596,
+                    "character": 22
+                },
+                "end": {
+                    "line": 596,
+                    "character": 29
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\toolbox_tui.py",
+            "severity": "error",
+            "message": "Argument of type \"str | None\" cannot be assigned to parameter \"agent_name\" of type \"str\" in function \"set_state\"\n  Type \"str | None\" is not assignable to type \"str\"\n    \"None\" is not assignable to \"str\"",
+            "range": {
+                "start": {
+                    "line": 596,
+                    "character": 59
+                },
+                "end": {
+                    "line": 596,
+                    "character": 61
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\toolbox_tui.py",
+            "severity": "error",
+            "message": "Argument of type \"str | None\" cannot be assigned to parameter \"section\" of type \"str\" in function \"get_state\"\n  Type \"str | None\" is not assignable to type \"str\"\n    \"None\" is not assignable to \"str\"",
+            "range": {
+                "start": {
+                    "line": 598,
+                    "character": 42
+                },
+                "end": {
+                    "line": 598,
+                    "character": 49
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\toolbox_tui.py",
+            "severity": "error",
+            "message": "Argument of type \"str | None\" cannot be assigned to parameter \"agent_name\" of type \"str\" in function \"get_state\"\n  Type \"str | None\" is not assignable to type \"str\"\n    \"None\" is not assignable to \"str\"",
+            "range": {
+                "start": {
+                    "line": 598,
+                    "character": 68
+                },
+                "end": {
+                    "line": 598,
+                    "character": 70
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\toolbox_tui.py",
+            "severity": "error",
+            "message": "No overloads for \"push_screen\" match the provided arguments",
+            "range": {
+                "start": {
+                    "line": 604,
+                    "character": 8
+                },
+                "end": {
+                    "line": 604,
+                    "character": 51
+                }
+            },
+            "rule": "reportCallIssue"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\toolbox_tui.py",
+            "severity": "error",
+            "message": "Argument of type \"(result: str) -> None\" cannot be assigned to parameter \"callback\" of type \"ScreenResultCallbackType[ScreenResultType@push_screen] | None\" in function \"push_screen\"\n  Type \"(result: str) -> None\" is not assignable to type \"((Unknown | None) -> None) | ((Unknown | None) -> Awaitable[None]) | None\"\n    Type \"(result: str) -> None\" is not assignable to type \"(Unknown | None) -> None\"\n      Parameter 1: type \"Unknown | None\" is incompatible with type \"str\"\n        Type \"Unknown | None\" is not assignable to type \"str\"\n          \"None\" is not assignable to \"str\"\n    Type \"(result: str) -> None\" is not assignable to type \"(Unknown | None) -> Awaitable[None]\"\n      Parameter 1: type \"Unknown | None\" is incompatible with type \"str\"\n        Type \"Unknown | None\" is not assignable to type \"str\"\n  ...",
+            "range": {
+                "start": {
+                    "line": 604,
+                    "character": 42
+                },
+                "end": {
+                    "line": 604,
+                    "character": 50
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\toolbox_tui.py",
+            "severity": "error",
+            "message": "Argument of type \"str | None\" cannot be assigned to parameter \"agent_name\" of type \"str\" in function \"get_state\"\n  Type \"str | None\" is not assignable to type \"str\"\n    \"None\" is not assignable to \"str\"",
+            "range": {
+                "start": {
+                    "line": 670,
+                    "character": 76
+                },
+                "end": {
+                    "line": 670,
+                    "character": 91
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\qd_evolve\\tools\\sub_agent_manager.py",
+            "severity": "error",
+            "message": "Cannot assign to attribute \"name\" for class \"Agent\"\n  Attribute \"name\" is unknown",
+            "range": {
+                "start": {
+                    "line": 114,
+                    "character": 10
+                },
+                "end": {
+                    "line": 114,
+                    "character": 14
+                }
+            },
+            "rule": "reportAttributeAccessIssue"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\tests\\agent\\test_a2a_models.py",
+            "severity": "error",
+            "message": "\"name\" is not a known attribute of \"None\"",
+            "range": {
+                "start": {
+                    "line": 147,
+                    "character": 25
+                },
+                "end": {
+                    "line": 147,
+                    "character": 29
+                }
+            },
+            "rule": "reportOptionalMemberAccess"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\tests\\agent\\test_a2a_models.py",
+            "severity": "error",
+            "message": "Object of type \"None\" is not subscriptable",
+            "range": {
+                "start": {
+                    "line": 151,
+                    "character": 15
+                },
+                "end": {
+                    "line": 151,
+                    "character": 24
+                }
+            },
+            "rule": "reportOptionalSubscript"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\tests\\agent\\test_a2a_models.py",
+            "severity": "error",
+            "message": "\"parts\" is not a known attribute of \"None\"",
+            "range": {
+                "start": {
+                    "line": 184,
+                    "character": 26
+                },
+                "end": {
+                    "line": 184,
+                    "character": 31
+                }
+            },
+            "rule": "reportOptionalMemberAccess"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\tests\\agent\\test_group_chat_agent.py",
+            "severity": "error",
+            "message": "Cannot access attribute \"assert_called_once_with\" for class \"MethodType\"\n  Attribute \"assert_called_once_with\" is unknown",
+            "range": {
+                "start": {
+                    "line": 133,
+                    "character": 16
+                },
+                "end": {
+                    "line": 133,
+                    "character": 39
+                }
+            },
+            "rule": "reportAttributeAccessIssue"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\tests\\agent\\test_group_chat_agent.py",
+            "severity": "error",
+            "message": "Cannot access attribute \"assert_called_once_with\" for class \"MethodType\"\n  Attribute \"assert_called_once_with\" is unknown",
+            "range": {
+                "start": {
+                    "line": 139,
+                    "character": 16
+                },
+                "end": {
+                    "line": 139,
+                    "character": 39
+                }
+            },
+            "rule": "reportAttributeAccessIssue"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\tests\\agent\\test_group_chat_agent.py",
+            "severity": "error",
+            "message": "Cannot access attribute \"assert_called_once_with\" for class \"MethodType\"\n  Attribute \"assert_called_once_with\" is unknown",
+            "range": {
+                "start": {
+                    "line": 145,
+                    "character": 16
+                },
+                "end": {
+                    "line": 145,
+                    "character": 39
+                }
+            },
+            "rule": "reportAttributeAccessIssue"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\tests\\agent\\test_group_chat_agent.py",
+            "severity": "error",
+            "message": "Cannot access attribute \"assert_called_once_with\" for class \"MethodType\"\n  Attribute \"assert_called_once_with\" is unknown",
+            "range": {
+                "start": {
+                    "line": 152,
+                    "character": 20
+                },
+                "end": {
+                    "line": 152,
+                    "character": 43
+                }
+            },
+            "rule": "reportAttributeAccessIssue"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\tests\\agent\\test_group_chat_agent.py",
+            "severity": "error",
+            "message": "Cannot assign to attribute \"side_effect\" for class \"MethodType\"\n  Attribute \"side_effect\" is unknown",
+            "range": {
+                "start": {
+                    "line": 157,
+                    "character": 16
+                },
+                "end": {
+                    "line": 157,
+                    "character": 27
+                }
+            },
+            "rule": "reportAttributeAccessIssue"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\tests\\agent\\test_group_chat_agent.py",
+            "severity": "error",
+            "message": "Cannot access attribute \"assert_called_once_with\" for class \"MethodType\"\n  Attribute \"assert_called_once_with\" is unknown",
+            "range": {
+                "start": {
+                    "line": 174,
+                    "character": 16
+                },
+                "end": {
+                    "line": 174,
+                    "character": 39
+                }
+            },
+            "rule": "reportAttributeAccessIssue"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\tests\\agent\\test_group_chat_agent.py",
+            "severity": "error",
+            "message": "Cannot access attribute \"assert_called_once_with\" for class \"MethodType\"\n  Attribute \"assert_called_once_with\" is unknown",
+            "range": {
+                "start": {
+                    "line": 185,
+                    "character": 16
+                },
+                "end": {
+                    "line": 185,
+                    "character": 39
+                }
+            },
+            "rule": "reportAttributeAccessIssue"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\tests\\agent\\test_group_chat_agent.py",
+            "severity": "error",
+            "message": "Cannot access attribute \"assert_called_with\" for class \"MethodType\"\n  Attribute \"assert_called_with\" is unknown",
+            "range": {
+                "start": {
+                    "line": 234,
+                    "character": 24
+                },
+                "end": {
+                    "line": 234,
+                    "character": 42
+                }
+            },
+            "rule": "reportAttributeAccessIssue"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\tests\\agent\\test_group_chat_agent.py",
+            "severity": "error",
+            "message": "Cannot assign to attribute \"side_effect\" for class \"MethodType\"\n  Attribute \"side_effect\" is unknown",
+            "range": {
+                "start": {
+                    "line": 238,
+                    "character": 16
+                },
+                "end": {
+                    "line": 238,
+                    "character": 27
+                }
+            },
+            "rule": "reportAttributeAccessIssue"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\tests\\agent\\test_group_chat_agent.py",
+            "severity": "error",
+            "message": "Cannot access attribute \"assert_called_once\" for class \"MethodType\"\n  Attribute \"assert_called_once\" is unknown",
+            "range": {
+                "start": {
+                    "line": 272,
+                    "character": 32
+                },
+                "end": {
+                    "line": 272,
+                    "character": 50
+                }
+            },
+            "rule": "reportAttributeAccessIssue"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\tests\\agent\\test_mqtt_agent.py",
+            "severity": "error",
+            "message": "Cannot access attribute \"assert_called_once_with\" for class \"MethodType\"\n  Attribute \"assert_called_once_with\" is unknown",
+            "range": {
+                "start": {
+                    "line": 93,
+                    "character": 16
+                },
+                "end": {
+                    "line": 93,
+                    "character": 39
+                }
+            },
+            "rule": "reportAttributeAccessIssue"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\tests\\agent\\test_mqtt_agent.py",
+            "severity": "error",
+            "message": "Cannot access attribute \"assert_called_once_with\" for class \"MethodType\"\n  Attribute \"assert_called_once_with\" is unknown",
+            "range": {
+                "start": {
+                    "line": 109,
+                    "character": 24
+                },
+                "end": {
+                    "line": 109,
+                    "character": 47
+                }
+            },
+            "rule": "reportAttributeAccessIssue"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\tests\\agent\\test_mqtt_agent.py",
+            "severity": "error",
+            "message": "Cannot access attribute \"assert_called_with\" for class \"MethodType\"\n  Attribute \"assert_called_with\" is unknown",
+            "range": {
+                "start": {
+                    "line": 166,
+                    "character": 24
+                },
+                "end": {
+                    "line": 166,
+                    "character": 42
+                }
+            },
+            "rule": "reportAttributeAccessIssue"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\tests\\agent\\test_mqtt_agent.py",
+            "severity": "error",
+            "message": "Cannot access attribute \"assert_called_with\" for class \"MethodType\"\n  Attribute \"assert_called_with\" is unknown",
+            "range": {
+                "start": {
+                    "line": 173,
+                    "character": 24
+                },
+                "end": {
+                    "line": 173,
+                    "character": 42
+                }
+            },
+            "rule": "reportAttributeAccessIssue"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\tests\\agent\\test_mqtt_agent.py",
+            "severity": "error",
+            "message": "Cannot assign to attribute \"side_effect\" for class \"MethodType\"\n  Attribute \"side_effect\" is unknown",
+            "range": {
+                "start": {
+                    "line": 177,
+                    "character": 16
+                },
+                "end": {
+                    "line": 177,
+                    "character": 27
+                }
+            },
+            "rule": "reportAttributeAccessIssue"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\tests\\agent\\test_mqtt_agent.py",
+            "severity": "error",
+            "message": "Cannot access attribute \"assert_called_once\" for class \"MethodType\"\n  Attribute \"assert_called_once\" is unknown",
+            "range": {
+                "start": {
+                    "line": 204,
+                    "character": 32
+                },
+                "end": {
+                    "line": 204,
+                    "character": 50
+                }
+            },
+            "rule": "reportAttributeAccessIssue"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\tests\\agent\\test_mqtt_human_agent.py",
+            "severity": "error",
+            "message": "\"status\" is not a known attribute of \"None\"",
+            "range": {
+                "start": {
+                    "line": 88,
+                    "character": 20
+                },
+                "end": {
+                    "line": 88,
+                    "character": 26
+                }
+            },
+            "rule": "reportOptionalMemberAccess"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\tests\\agent\\test_mqtt_human_agent.py",
+            "severity": "error",
+            "message": "\"status\" is not a known attribute of \"None\"",
+            "range": {
+                "start": {
+                    "line": 109,
+                    "character": 20
+                },
+                "end": {
+                    "line": 109,
+                    "character": 26
+                }
+            },
+            "rule": "reportOptionalMemberAccess"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\tests\\agent\\test_mqtt_human_agent.py",
+            "severity": "error",
+            "message": "\"status\" is not a known attribute of \"None\"",
+            "range": {
+                "start": {
+                    "line": 118,
+                    "character": 20
+                },
+                "end": {
+                    "line": 118,
+                    "character": 26
+                }
+            },
+            "rule": "reportOptionalMemberAccess"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\tests\\agent\\test_mqtt_human_agent.py",
+            "severity": "error",
+            "message": "\"status\" is not a known attribute of \"None\"",
+            "range": {
+                "start": {
+                    "line": 128,
+                    "character": 20
+                },
+                "end": {
+                    "line": 128,
+                    "character": 26
+                }
+            },
+            "rule": "reportOptionalMemberAccess"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\tests\\agent\\test_push_notification.py",
+            "severity": "error",
+            "message": "Cannot assign to attribute \"send_task\" for class \"TransportRouter\"\n  Type \"(agent: Unknown, msg: Unknown) -> CoroutineType[Any, Any, Task]\" is not assignable to type \"(target: str, message: Message) -> CoroutineType[Any, Any, Task]\"\n    Parameter name mismatch: \"target\" versus \"agent\"\n    Parameter name mismatch: \"message\" versus \"msg\"",
+            "range": {
+                "start": {
+                    "line": 252,
+                    "character": 32
+                },
+                "end": {
+                    "line": 252,
+                    "character": 41
+                }
+            },
+            "rule": "reportAttributeAccessIssue"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\tests\\agent\\test_registry.py",
+            "severity": "error",
+            "message": "\"card\" is not a known attribute of \"None\"",
+            "range": {
+                "start": {
+                    "line": 110,
+                    "character": 31
+                },
+                "end": {
+                    "line": 110,
+                    "character": 35
+                }
+            },
+            "rule": "reportOptionalMemberAccess"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\tests\\agent\\test_server.py",
+            "severity": "error",
+            "message": "\"id\" is not a known attribute of \"None\"",
+            "range": {
+                "start": {
+                    "line": 23,
+                    "character": 34
+                },
+                "end": {
+                    "line": 23,
+                    "character": 36
+                }
+            },
+            "rule": "reportOptionalMemberAccess"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\tests\\agent\\test_server.py",
+            "severity": "error",
+            "message": "\"status\" is not a known attribute of \"None\"",
+            "range": {
+                "start": {
+                    "line": 48,
+                    "character": 34
+                },
+                "end": {
+                    "line": 48,
+                    "character": 40
+                }
+            },
+            "rule": "reportOptionalMemberAccess"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\tests\\agent\\test_server.py",
+            "severity": "error",
+            "message": "\"name\" is not a known attribute of \"None\"",
+            "range": {
+                "start": {
+                    "line": 58,
+                    "character": 27
+                },
+                "end": {
+                    "line": 58,
+                    "character": 31
+                }
+            },
+            "rule": "reportOptionalMemberAccess"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\tests\\conftest.py",
+            "severity": "error",
+            "message": "Cannot assign to attribute \"agents_config\" for class \"Settings\"\n  \"AgentEntry\" is not assignable to \"AgentsConfig\"",
+            "range": {
+                "start": {
+                    "line": 50,
+                    "character": 37
+                },
+                "end": {
+                    "line": 55,
+                    "character": 5
+                }
+            },
+            "rule": "reportAttributeAccessIssue"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\tests\\conftest.py",
+            "severity": "error",
+            "message": "Argument of type \"dict[str, str | list[AgentEntry] | dict[str, list[dict[str, str]]]]\" cannot be assigned to parameter \"agents_config\" of type \"AgentsConfig\" in function \"__init__\"",
+            "range": {
+                "start": {
+                    "line": 70,
+                    "character": 22
+                },
+                "end": {
+                    "line": 77,
+                    "character": 9
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\tests\\conftest.py",
+            "severity": "error",
+            "message": "Return type of generator function must be compatible with \"Generator[Any, Any, Any]\"\n  \"Generator[Any, Any, Any]\" is not assignable to \"MemoryStore\"",
+            "range": {
+                "start": {
+                    "line": 125,
+                    "character": 62
+                },
+                "end": {
+                    "line": 125,
+                    "character": 73
+                }
+            },
+            "rule": "reportInvalidTypeForm"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\tests\\conftest.py",
+            "severity": "error",
+            "message": "Return type of generator function must be compatible with \"Generator[MemoryStore, Any, Any]\"\n  \"Generator[MemoryStore, Unknown, Unknown]\" is not assignable to \"MemoryStore\"",
+            "range": {
+                "start": {
+                    "line": 133,
+                    "character": 10
+                },
+                "end": {
+                    "line": 133,
+                    "character": 15
+                }
+            },
+            "rule": "reportReturnType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\tests\\core\\test_config.py",
+            "severity": "error",
+            "message": "Argument missing for parameter \"max_tokens\"",
+            "range": {
+                "start": {
+                    "line": 53,
+                    "character": 12
+                },
+                "end": {
+                    "line": 53,
+                    "character": 25
+                }
+            },
+            "rule": "reportCallIssue"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\tests\\core\\test_prompts.py",
+            "severity": "error",
+            "message": "Argument of type \"None\" cannot be assigned to parameter \"environment\" of type \"Environment\" in function \"get_source\"\n  \"None\" is not assignable to \"Environment\"",
+            "range": {
+                "start": {
+                    "line": 12,
+                    "character": 55
+                },
+                "end": {
+                    "line": 12,
+                    "character": 59
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\tests\\core\\test_prompts.py",
+            "severity": "error",
+            "message": "Argument of type \"None\" cannot be assigned to parameter \"environment\" of type \"Environment\" in function \"get_source\"\n  \"None\" is not assignable to \"Environment\"",
+            "range": {
+                "start": {
+                    "line": 22,
+                    "character": 55
+                },
+                "end": {
+                    "line": 22,
+                    "character": 59
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\tests\\core\\test_prompts.py",
+            "severity": "error",
+            "message": "Argument of type \"None\" cannot be assigned to parameter \"environment\" of type \"Environment\" in function \"get_source\"\n  \"None\" is not assignable to \"Environment\"",
+            "range": {
+                "start": {
+                    "line": 33,
+                    "character": 41
+                },
+                "end": {
+                    "line": 33,
+                    "character": 45
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\tests\\core\\test_prompts.py",
+            "severity": "error",
+            "message": "Argument of type \"None\" cannot be assigned to parameter \"environment\" of type \"Environment\" in function \"get_source\"\n  \"None\" is not assignable to \"Environment\"",
+            "range": {
+                "start": {
+                    "line": 42,
+                    "character": 30
+                },
+                "end": {
+                    "line": 42,
+                    "character": 34
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\tests\\core\\test_prompts.py",
+            "severity": "error",
+            "message": "Argument of type \"None\" cannot be assigned to parameter \"primary\" of type \"Path\" in function \"__init__\"\n  \"None\" is not assignable to \"Path\"",
+            "range": {
+                "start": {
+                    "line": 49,
+                    "character": 33
+                },
+                "end": {
+                    "line": 49,
+                    "character": 37
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\tests\\core\\test_prompts.py",
+            "severity": "error",
+            "message": "Argument of type \"None\" cannot be assigned to parameter \"environment\" of type \"Environment\" in function \"get_source\"\n  \"None\" is not assignable to \"Environment\"",
+            "range": {
+                "start": {
+                    "line": 50,
+                    "character": 41
+                },
+                "end": {
+                    "line": 50,
+                    "character": 45
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\tests\\core\\test_providers.py",
+            "severity": "error",
+            "message": "Argument of type \"SimpleNamespace\" cannot be assigned to parameter \"value\" of type \"ModuleType\" in function \"__setitem__\"\n  \"SimpleNamespace\" is not assignable to \"ModuleType\"",
+            "range": {
+                "start": {
+                    "line": 15,
+                    "character": 4
+                },
+                "end": {
+                    "line": 15,
+                    "character": 28
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\tests\\core\\test_providers.py",
+            "severity": "error",
+            "message": "Argument of type \"SimpleNamespace\" cannot be assigned to parameter \"value\" of type \"ModuleType\" in function \"__setitem__\"\n  \"SimpleNamespace\" is not assignable to \"ModuleType\"",
+            "range": {
+                "start": {
+                    "line": 17,
+                    "character": 4
+                },
+                "end": {
+                    "line": 17,
+                    "character": 25
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\tests\\tools\\test_adk_schema.py",
+            "severity": "error",
+            "message": "Function with declared return type \"str\" must return value on all code paths\n  \"None\" is not assignable to \"str\"",
+            "range": {
+                "start": {
+                    "line": 72,
+                    "character": 47
+                },
+                "end": {
+                    "line": 72,
+                    "character": 50
+                }
+            },
+            "rule": "reportReturnType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\tests\\tools\\test_adk_schema.py",
+            "severity": "error",
+            "message": "Function with declared return type \"str\" must return value on all code paths\n  \"None\" is not assignable to \"str\"",
+            "range": {
+                "start": {
+                    "line": 84,
+                    "character": 51
+                },
+                "end": {
+                    "line": 84,
+                    "character": 54
+                }
+            },
+            "rule": "reportReturnType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\tests\\tools\\test_adk_schema.py",
+            "severity": "error",
+            "message": "Function with declared return type \"str\" must return value on all code paths\n  \"None\" is not assignable to \"str\"",
+            "range": {
+                "start": {
+                    "line": 92,
+                    "character": 63
+                },
+                "end": {
+                    "line": 92,
+                    "character": 66
+                }
+            },
+            "rule": "reportReturnType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\tests\\tools\\test_adk_schema.py",
+            "severity": "error",
+            "message": "Function with declared return type \"str\" must return value on all code paths\n  \"None\" is not assignable to \"str\"",
+            "range": {
+                "start": {
+                    "line": 100,
+                    "character": 37
+                },
+                "end": {
+                    "line": 100,
+                    "character": 40
+                }
+            },
+            "rule": "reportReturnType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\tests\\tools\\test_adk_schema.py",
+            "severity": "error",
+            "message": "Function with declared return type \"str\" must return value on all code paths\n  \"None\" is not assignable to \"str\"",
+            "range": {
+                "start": {
+                    "line": 111,
+                    "character": 41
+                },
+                "end": {
+                    "line": 111,
+                    "character": 44
+                }
+            },
+            "rule": "reportReturnType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\tests\\tools\\test_adk_schema.py",
+            "severity": "error",
+            "message": "Function with declared return type \"str\" must return value on all code paths\n  \"None\" is not assignable to \"str\"",
+            "range": {
+                "start": {
+                    "line": 119,
+                    "character": 47
+                },
+                "end": {
+                    "line": 119,
+                    "character": 50
+                }
+            },
+            "rule": "reportReturnType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\tests\\tools\\test_adk_schema.py",
+            "severity": "error",
+            "message": "Function with declared return type \"str\" must return value on all code paths\n  \"None\" is not assignable to \"str\"",
+            "range": {
+                "start": {
+                    "line": 126,
+                    "character": 65
+                },
+                "end": {
+                    "line": 126,
+                    "character": 68
+                }
+            },
+            "rule": "reportReturnType"
+        },
+        {
+            "file": "d:\\Dev\\Workspace\\qd-evolve\\tests\\tools\\test_adk_schema.py",
+            "severity": "error",
+            "message": "Cannot assign to attribute \"__str__\" for class \"MagicMock\"\n  Type \"(self: Unknown) -> Literal['str']\" is not assignable to type \"() -> str\"\n    Extra parameter \"self\"",
+            "range": {
+                "start": {
+                    "line": 149,
+                    "character": 28
+                },
+                "end": {
+                    "line": 149,
+                    "character": 46
+                }
+            },
+            "rule": "reportAttributeAccessIssue"
+        }
+    ],
+    "summary": {
+        "filesAnalyzed": 94,
+        "errorCount": 172,
+        "warningCount": 0,
+        "informationCount": 0,
+        "timeInSec": 4.08
+    }
+}
+
