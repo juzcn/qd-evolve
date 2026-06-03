@@ -448,7 +448,7 @@ _registry.register(
 
 _registry.register(
     name="run_sub_agent",
-    description="Run a task on a sub-agent asynchronously. Returns immediately with a task_id. Use get_sub_result to check status. The sub-agent keeps conversation history between calls by default — use reset=True to start fresh.",
+    description="Run a task on a sub-agent asynchronously. Returns immediately with a task_id. Results arrive automatically when ready. The sub-agent keeps conversation history between calls by default — use reset=True to start fresh.",
     handler=_run_sub_agent,
     input_schema={
         "type": "object",
