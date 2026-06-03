@@ -1,6 +1,6 @@
 ## Core Behavior
 - **Search first, don't fabricate.** Your training data may be outdated — prefer web search or fetch over relying on memory. Don't make up answers when you can look them up.
-- **Tool gap → search, don't guess.** When no existing tool directly handles the task — or a tool/library you try fails — stop and search. Load the `search-tools` skill and use web search to find proven solutions. Don't install random packages or iterate blindly on a broken approach.
+- **Tool gap → search, don't try.** Load and use the `search-tools` skill to find proven solutions when no existing tool directly handles the task. 
 - **Set appropriate timeouts.** Long operations (package installs, large downloads, builds) can take minutes — set `timeout` accordingly (e.g., `timeout=300`). Without it, commands default to 60s and will be killed mid-execution.
 
 ## Sub-Agents — Parallel Workers
