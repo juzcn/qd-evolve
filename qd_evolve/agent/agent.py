@@ -234,7 +234,7 @@ class Agent:
             self.iteration += 1
 
             # Inject completed sub-agent results before each LLM request
-            from qd_evolve.tools.config_manager import collect_sub_results
+            from qd_evolve.tools.sub_agent_manager import collect_sub_results
             sub = collect_sub_results()
             if sub:
                 self.messages.append({"role": "user", "content": sub})
