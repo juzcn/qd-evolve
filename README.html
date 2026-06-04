@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>QD-Evolve - README</title>
+<style>
+    @page {
+        margin: 2cm 2.5cm;
+    }
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
+    body {
+        font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+        font-size: 11pt;
+        line-height: 1.7;
+        color: #1a1a2e;
+        padding: 20px 0;
+    }
+    .container {
+        max-width: 1000px;
+        margin: 0 auto;
+        padding: 0 20px;
+    }
+    h1 {
+        font-size: 28pt;
+        color: #0a1628;
+        border-bottom: 3px solid #2563eb;
+        padding-bottom: 12px;
+        margin-top: 10px;
+        margin-bottom: 20px;
+    }
+    h2 {
+        font-size: 18pt;
+        color: #1e3a5f;
+        border-bottom: 2px solid #e2e8f0;
+        padding-bottom: 8px;
+        margin-top: 30px;
+        margin-bottom: 15px;
+    }
+    h3 {
+        font-size: 14pt;
+        color: #2563eb;
+        margin-top: 20px;
+        margin-bottom: 10px;
+    }
+    h4 {
+        font-size: 12pt;
+        color: #334155;
+        margin-top: 15px;
+        margin-bottom: 8px;
+    }
+    p {
+        margin-bottom: 10px;
+        text-align: justify;
+    }
+    a {
+        color: #2563eb;
+        text-decoration: none;
+    }
+    code {
+        font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+        font-size: 9.5pt;
+        background: #f1f5f9;
+        padding: 2px 6px;
+        border-radius: 3px;
+        color: #0f172a;
+    }
+    pre {
+        background: #0f172a;
+        color: #e2e8f0;
+        padding: 14px 18px;
+        border-radius: 6px;
+        overflow-x: auto;
+        margin: 12px 0;
+        font-size: 9.5pt;
+        line-height: 1.5;
+    }
+    pre code {
+        background: transparent;
+        padding: 0;
+        color: inherit;
+        font-size: inherit;
+    }
+    blockquote {
+        border-left: 4px solid #2563eb;
+        background: #f8fafc;
+        padding: 10px 16px;
+        margin: 12px 0;
+        color: #475569;
+    }
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 12px 0;
+        font-size: 10pt;
+    }
+    th {
+        background: #1e3a5f;
+        color: white;
+        padding: 8px 12px;
+        text-align: left;
+        font-weight: 600;
+    }
+    td {
+        padding: 8px 12px;
+        border: 1px solid #e2e8f0;
+    }
+    tr:nth-child(even) {
+        background: #f8fafc;
+    }
+    ul, ol {
+        margin: 8px 0 8px 20px;
+    }
+    li {
+        margin-bottom: 4px;
+    }
+    hr {
+        border: none;
+        border-top: 2px solid #e2e8f0;
+        margin: 24px 0;
+    }
+    img {
+        max-width: 100%;
+        border-radius: 4px;
+    }
+    .footer {
+        margin-top: 40px;
+        padding-top: 16px;
+        border-top: 1px solid #e2e8f0;
+        font-size: 9pt;
+        color: #94a3b8;
+        text-align: center;
+    }
+</style>
+</head>
+<body>
+<div class="container">
+<h1>QD-Evolve</h1>
+<p><a href="https://pypi.org/project/qd-evolve/"><img alt="PyPI version" src="https://img.shields.io/pypi/v/qd-evolve" /></a>
+<a href="https://github.com/juzcn/qd-evolve/blob/main/README_zh.md">中文版</a></p>
+<p>Multi-agent AI framework with A2A protocol support, group chat, persistent memory, and extensible tool system.</p>
+<ul>
+<li><a href="DESIGN.md">DESIGN.md</a> — design philosophy, invariants, architecture, implementation</li>
+</ul>
+<h2>Installation</h2>
+<h3>Prerequisites</h3>
+<ul>
+<li><strong>Python 3.13+</strong> — <a href="https://www.python.org/downloads/">download</a></li>
+<li><strong>Mosquitto v5 broker</strong> (MQTT/GChat mode only) — <a href="https://mosquitto.org/download/">download</a></li>
+</ul>
+<p>Verify Python is ready:</p>
+<p><strong>Windows</strong></p>
+<div class="codehilite"><pre><span></span><code>python --version
+# Python 3.13.x  ← must be 3.13 or newer
+</code></pre></div>
+
+<p>If the command is not found:
+1. Re-run the Python installer
+2. Check <strong>"Add python.exe to PATH"</strong> at the bottom of the first screen
+3. Or search "Manage app execution aliases" in Windows Settings and turn off the Python alias that opens the Store</p>
+<p><strong>macOS / Linux</strong></p>
+<div class="codehilite"><pre><span></span><code>python3 --version
+# Python 3.13.x  ← must be 3.13 or newer
+</code></pre></div>
+
+<h3>Step 1 — Create a project folder</h3>
+<div class="codehilite"><pre><span></span><code>mkdir my-agent
+cd my-agent
+</code></pre></div>
+
+<h3>Step 2 — Create and activate a virtual environment</h3>
+<p><strong>Windows</strong></p>
+<div class="codehilite"><pre><span></span><code><span class="nf">python</span><span class="w"> </span><span class="p">-</span><span class="no">m</span><span class="w"> </span><span class="no">venv</span><span class="w"> </span><span class="no">.venv</span>
+<span class="na">.venv</span><span class="err">\</span><span class="no">Scripts</span><span class="err">\</span><span class="no">activate</span>
+</code></pre></div>
+
+<p><strong>macOS / Linux</strong></p>
+<div class="codehilite"><pre><span></span><code>python3 -m venv .venv
+source .venv/bin/activate
+</code></pre></div>
+
+<h3>Step 3 — Install qd-evolve</h3>
+<div class="codehilite"><pre><span></span><code><span class="n">pip</span><span class="w"> </span><span class="n">install</span><span class="w"> </span><span class="n">qd</span><span class="o">-</span><span class="n">evolve</span><span class="w"> </span><span class="c1">--extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu</span>
+
+<span class="err">#</span><span class="w"> </span><span class="n">Optional</span><span class="w"> </span><span class="n">extras</span>
+<span class="n">pip</span><span class="w"> </span><span class="n">install</span><span class="w"> </span><span class="n">qd</span><span class="o">-</span><span class="n">evolve</span><span class="o">[</span><span class="n">memory</span><span class="o">]</span><span class="w"> </span><span class="c1">--extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu   # Embeddings &amp; conversation memory</span>
+<span class="n">pip</span><span class="w"> </span><span class="n">install</span><span class="w"> </span><span class="n">qd</span><span class="o">-</span><span class="n">evolve</span><span class="o">[</span><span class="n">boat</span><span class="o">]</span><span class="w"> </span><span class="c1">--extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu     # BOAT bridge</span>
+</code></pre></div>
+
+<blockquote>
+<p>If you use <a href="https://docs.astral.sh/uv/">uv</a> instead of pip, the extra index is configured automatically — just run <code>uv add qd-evolve</code>.</p>
+</blockquote>
+<h3>Step 4 — Initialize your project</h3>
+<div class="codehilite"><pre><span></span><code>qd-evolve<span class="w"> </span>init
+</code></pre></div>
+
+<p>This copies default tools, skills, and config templates into your project folder:</p>
+<div class="codehilite"><pre><span></span><code><span class="n">my</span><span class="o">-</span><span class="n">agent</span><span class="o">/</span>
+<span class="err">├──</span><span class="w"> </span><span class="o">.</span><span class="n">venv</span><span class="o">/</span><span class="w">                 </span><span class="c1"># Virtual environment</span>
+<span class="err">├──</span><span class="w"> </span><span class="n">tools</span><span class="o">/</span><span class="w">                 </span><span class="c1"># User tools — add/delete freely</span>
+<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">bridge</span><span class="o">/</span><span class="w">            </span><span class="c1">#   Bridge connectors (OAT, MCP)</span>
+<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">cli</span><span class="o">/</span><span class="w">               </span><span class="c1">#   CLI tool wrappers</span>
+<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="k">func</span><span class="o">/</span><span class="w">              </span><span class="c1">#   Python function tools</span>
+<span class="err">│</span><span class="w">   </span><span class="err">└──</span><span class="w"> </span><span class="n">mcp</span><span class="o">/</span><span class="w">               </span><span class="c1">#   MCP server configs</span>
+<span class="err">├──</span><span class="w"> </span><span class="n">skills</span><span class="o">/</span><span class="w">                </span><span class="c1"># Skills — add/delete freely</span>
+<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">baidu</span><span class="o">-</span><span class="n">search</span><span class="o">/</span>
+<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">register</span><span class="o">-</span><span class="n">cli</span><span class="o">/</span>
+<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">search</span><span class="o">-</span><span class="n">tools</span><span class="o">/</span>
+<span class="err">│</span><span class="w">   </span><span class="err">└──</span><span class="w"> </span><span class="o">...</span>
+<span class="err">├──</span><span class="w"> </span><span class="n">config</span><span class="o">.</span><span class="n">minimal</span><span class="o">.</span><span class="n">json</span><span class="w">    </span><span class="c1"># Minimal config — copy to config.json</span>
+<span class="err">└──</span><span class="w"> </span><span class="n">config</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">example</span><span class="w">    </span><span class="c1"># Full config reference</span>
+</code></pre></div>
+
+<p>Running <code>init</code> again is safe: existing files are never overwritten. New default files from package updates are added.</p>
+<h3>Step 5 — Configure</h3>
+<div class="codehilite"><pre><span></span><code>copy<span class="w"> </span>config.minimal.json<span class="w"> </span>config.json<span class="w">    </span><span class="c1"># Windows</span>
+<span class="c1"># cp config.minimal.json config.json     # macOS / Linux</span>
+</code></pre></div>
+
+<p>Edit <code>config.json</code> and set your API key. Minimal setup for single-agent chat:</p>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;env_vars&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;PYTHONIOENCODING&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;utf-8&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;PYTHONUTF8&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;1&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;SERPER_API_KEY&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;YOUR_SERPER_API_KEY&quot;</span>
+<span class="w">  </span><span class="p">},</span>
+<span class="w">  </span><span class="nt">&quot;default_provider&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;deepseek&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;default_model&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;deepseek-v4-pro&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;providers&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;deepseek&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;api_key&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;YOUR_DEEPSEEK_API_KEY&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;base_url&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;https://api.deepseek.com&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;api&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;openai-completions&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;models&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">        </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;deepseek-v4-pro&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;reasoning&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;context_window&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1000000</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;max_tokens&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">131072</span><span class="w"> </span><span class="p">}</span>
+<span class="w">      </span><span class="p">]</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">],</span>
+<span class="w">  </span><span class="nt">&quot;agents_config&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;agents&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">      </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;default&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;toolbox&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">          </span><span class="nt">&quot;tools&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="nt">&quot;load_func&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;preload&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;load_skill&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;preload&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;load_cli&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;preload&quot;</span>
+<span class="w">          </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">    </span><span class="p">]</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<blockquote>
+<p><strong>API keys you'll need:</strong>
+- <strong>Provider key</strong> (DeepSeek, OpenAI, Anthropic, etc.) — required for chat
+- <strong>Serper key</strong> — optional, for web search. Free tier at <a href="https://serper.dev">serper.dev</a>. Without it the agent may open browser windows to search.</p>
+<p>See <a href="#configuration-1">Configuration</a> below for full multi-agent, MQTT, and toolbox setup.</p>
+</blockquote>
+<h3>Verify</h3>
+<div class="codehilite"><pre><span></span><code>qd-evolve<span class="w"> </span>chat<span class="w"> </span>--agent<span class="w"> </span>default
+</code></pre></div>
+
+<h3>Troubleshooting</h3>
+<p><strong><code>pip install</code> fails with CMake / nmake errors</strong></p>
+<p>This means pip is trying to build <code>llama-cpp-python</code> from source. Make sure you included <code>--extra-index-url</code>:</p>
+<div class="codehilite"><pre><span></span><code>pip install qd-evolve --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
+</code></pre></div>
+
+<p><strong>Browser windows open when the agent searches the web</strong></p>
+<p>The agent has a search tool that needs a Serper API key (<code>SERPER_API_KEY</code> in <code>env_vars</code>). Without it, the agent may fall back to the browser MCP tool which opens visible browser windows. Get a free key at <a href="https://serper.dev">serper.dev</a> and add it to <code>config.json</code>.</p>
+<p><strong><code>'python' is not recognized</code> or <code>python: command not found</code></strong></p>
+<p>Python is not installed or not on your PATH. See the verification steps in <a href="#prerequisites">Prerequisites</a> above.</p>
+<h3>Install from source</h3>
+<div class="codehilite"><pre><span></span><code>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/juzcn/qd-evolve
+<span class="nb">cd</span><span class="w"> </span>qd-evolve
+
+<span class="c1"># Install dependencies</span>
+uv<span class="w"> </span>sync
+
+<span class="c1"># Optional: BOAT bridge extras</span>
+uv<span class="w"> </span>sync<span class="w"> </span>--extra<span class="w"> </span>boat
+</code></pre></div>
+
+<p>Source installs have <code>tools/</code> and <code>skills/</code> already in the project root — no <code>init</code> needed.</p>
+<h2>Quick Start</h2>
+<div class="codehilite"><pre><span></span><code><span class="c1"># Single-agent chat</span>
+qd-evolve<span class="w"> </span>chat<span class="w"> </span>--agent<span class="w"> </span>default
+
+<span class="c1"># Multi-agent A2A chat over HTTP</span>
+qd-evolve<span class="w"> </span>a2a-http
+
+<span class="c1"># Run an agent as standalone A2A HTTP server</span>
+qd-evolve<span class="w"> </span>a2a-http<span class="w"> </span>serve<span class="w"> </span>--agent<span class="w"> </span>&lt;name&gt;
+
+<span class="c1"># Multi-agent in-process chat (all agents loaded locally, no network)</span>
+qd-evolve<span class="w"> </span>a2a-inproc
+
+<span class="c1"># Multi-agent MQTT chat (requires Mosquitto v5 broker)</span>
+qd-evolve<span class="w"> </span>a2a-mqtt
+
+<span class="c1"># Run an agent as MQTT-accessible server</span>
+qd-evolve<span class="w"> </span>a2a-mqtt<span class="w"> </span>serve<span class="w"> </span>--agent<span class="w"> </span>&lt;name&gt;
+
+<span class="c1"># Group chat — WeChat-style multi-agent group (requires Mosquitto v5 broker)</span>
+<span class="c1"># Supports: AI agents, terminal human agents, WeChat human agents</span>
+qd-evolve<span class="w"> </span>gchat<span class="w"> </span>--agent<span class="w"> </span>&lt;name&gt;
+
+<span class="c1"># Manage tool enable/disable/preload</span>
+qd-evolve<span class="w"> </span>toolbox<span class="w"> </span>--agent<span class="w"> </span>&lt;name&gt;
+
+<span class="c1"># Browse and search conversation memories</span>
+qd-evolve<span class="w"> </span>memory<span class="w"> </span>--agent<span class="w"> </span>&lt;name&gt;
+</code></pre></div>
+
+<h2>Four Systems</h2>
+<table>
+<thead>
+<tr>
+<th>System</th>
+<th>Entry</th>
+<th>Transport</th>
+<th>Use Case</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Chat</td>
+<td><code>qd-evolve chat --agent &lt;name&gt;</code></td>
+<td>In-process only</td>
+<td>Single-agent, no network</td>
+</tr>
+<tr>
+<td>A2A Inproc</td>
+<td><code>qd-evolve a2a-inproc</code></td>
+<td>In-process only</td>
+<td>Multi-agent in-process</td>
+</tr>
+<tr>
+<td>A2A</td>
+<td><code>qd-evolve a2a-http</code></td>
+<td>HTTP + in-proc</td>
+<td>Multi-agent over HTTP/SSE</td>
+</tr>
+<tr>
+<td>MQTT</td>
+<td><code>qd-evolve a2a-mqtt</code></td>
+<td>MQTT v5 + in-proc</td>
+<td>Multi-agent over MQTT</td>
+</tr>
+<tr>
+<td>GChat</td>
+<td><code>qd-evolve gchat</code></td>
+<td>MQTT v5 (group topics)</td>
+<td>WeChat-style group chat</td>
+</tr>
+</tbody>
+</table>
+<p>Each system is fully independent — no protocol fallback between them. See <a href="DESIGN.md">DESIGN.md</a> for the full architecture.</p>
+<h2>Configuration</h2>
+<p>All configuration via <code>config.json</code>. No CLI config commands, no <code>.env</code> files.</p>
+<h3>Provider &amp; Model</h3>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;default_provider&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;openai&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;default_model&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;gpt-4o&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;providers&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;openai&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;api_key&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;sk-...&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;base_url&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;https://api.openai.com/v1&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;api&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;openai-completions&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;models&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">        </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;gpt-4o&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;context_window&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">128000</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;max_tokens&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">4096</span><span class="w"> </span><span class="p">}</span>
+<span class="w">      </span><span class="p">]</span>
+<span class="w">    </span><span class="p">},</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;anthropic&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;api_key&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;sk-ant-...&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;api&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;anthropic&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;models&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">        </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;claude-sonnet-4-6&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;context_window&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">200000</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;max_tokens&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">8192</span><span class="w"> </span><span class="p">}</span>
+<span class="w">      </span><span class="p">]</span>
+<span class="w">    </span><span class="p">},</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;deepseek&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;api_key&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;...&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;base_url&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;https://api.deepseek.com&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;api&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;openai-completions&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;models&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">        </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;deepseek-v4-pro&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;reasoning&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;context_window&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1000000</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;max_tokens&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">131072</span><span class="w"> </span><span class="p">}</span>
+<span class="w">      </span><span class="p">]</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">]</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>Three API types: <code>openai-completions</code>, <code>openai-response</code>, <code>anthropic</code>. Set at provider level via <code>api</code> field. Streaming is global (<code>stream</code> field). Reasoning/thinking is per-model (<code>reasoning: true</code>).</p>
+<h3>Multi-Agent</h3>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;agents_config&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;chat_agent&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;planner&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;agents&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">      </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;planner&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;description&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Plans and delegates tasks&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;provider&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;openai&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;model&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;gpt-4o&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;memory_db&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;planner.db&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;server&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;host&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;127.0.0.1&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;port&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">8001</span><span class="w"> </span><span class="p">},</span>
+<span class="w">        </span><span class="nt">&quot;toolbox&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;tools&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{}</span><span class="w"> </span><span class="p">}</span>
+<span class="w">      </span><span class="p">},</span>
+<span class="w">      </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;human&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;description&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Human for approvals&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;provider&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;human&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;server&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;host&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;127.0.0.1&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;port&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">8002</span><span class="w"> </span><span class="p">}</span>
+<span class="w">      </span><span class="p">},</span>
+<span class="w">      </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;wechat_user&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;description&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Human via WeChat iLink&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;provider&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;wechat-human&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;server&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;host&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;127.0.0.1&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;port&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">8003</span><span class="w"> </span><span class="p">}</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">    </span><span class="p">]</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>Per-agent provider/model with global fallback. <code>provider: "human"</code> for terminal human agents, <code>"wechat-human"</code> for WeChat iLink bridge. Each agent has its own memory DB, server config, and toolbox state. WeChat human agents persist their session token via the <code>wechat_session</code> field.</p>
+<h3>MQTT Broker</h3>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;agents_config&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;mqtt_broker&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;host&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;127.0.0.1&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;port&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1883</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>Requires external Mosquitto v5 broker.</p>
+<h3>Toolbox</h3>
+<p>Tool enable/disable/preload per agent, managed via <code>qd-evolve toolbox --agent &lt;name&gt;</code> (Textual TUI) or by editing <code>config.json</code> directly.</p>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;agents_config&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;agents&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[{</span>
+<span class="w">      </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;planner&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;toolbox&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">&quot;tools&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;run_shell&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;preload&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;web_search&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;enabled&quot;</span><span class="w"> </span><span class="p">},</span>
+<span class="w">        </span><span class="nt">&quot;mcp_servers&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;filesystem&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;disabled&quot;</span><span class="w"> </span><span class="p">},</span>
+<span class="w">        </span><span class="nt">&quot;bridge&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;oat:boat&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;enabled&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;oat:coat&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;disabled&quot;</span><span class="w"> </span><span class="p">},</span>
+<span class="w">        </span><span class="nt">&quot;cli&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;git&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;preload&quot;</span><span class="w"> </span><span class="p">},</span>
+<span class="w">        </span><span class="nt">&quot;skills&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;code-review&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;preload&quot;</span><span class="w"> </span><span class="p">}</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}]</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>Three states: <code>enabled</code> (on-demand schema), <code>preload</code> (schema at startup), <code>disabled</code> (invisible to agent).</p>
+<h2>Runtime Features</h2>
+<h3>Slash Commands</h3>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>/models</code></td>
+<td>Switch provider/model</td>
+</tr>
+<tr>
+<td><code>/agents</code></td>
+<td>Switch agent</td>
+</tr>
+<tr>
+<td><code>/tools</code></td>
+<td>List tools</td>
+</tr>
+<tr>
+<td><code>/load &lt;tool&gt;</code></td>
+<td>Load tool schema</td>
+</tr>
+<tr>
+<td><code>/memory</code></td>
+<td>List saved memories with full content</td>
+</tr>
+<tr>
+<td><code>/compress</code></td>
+<td>Force context compression</td>
+</tr>
+<tr>
+<td><code>/clear</code></td>
+<td>Clear conversation</td>
+</tr>
+<tr>
+<td><code>/help</code></td>
+<td>Show help</td>
+</tr>
+<tr>
+<td><code>/quit</code></td>
+<td>Exit</td>
+</tr>
+</tbody>
+</table>
+<h3>Heartbeat</h3>
+<p>Agent-managed idle detection. When no activity for <code>heartbeat_idle_seconds</code>, sends a heartbeat prompt to the LLM. If LLM responds with <code>"."</code>, stays silent. Set <code>0</code> to disable. Mode-specific templates selected automatically.</p>
+<h3>Replay Mode</h3>
+<p><code>--replay &lt;file&gt;</code> feeds pre-recorded inputs for automated testing. <code>--output &lt;file&gt;</code> captures output.</p>
+<h3>Token Stats</h3>
+<p>Per-turn and cumulative input/output tokens with context window usage percentage.</p>
+<h2>A2A Protocol</h2>
+<p>Full <a href="https://google.github.io/A2A/">A2A v1.0</a> implementation:</p>
+<ul>
+<li><strong>Agent discovery</strong>: <code>/.well-known/agent.json</code></li>
+<li><strong>Methods</strong>: <code>message/send</code>, <code>message/stream</code>, <code>tasks/get</code>, <code>tasks/cancel</code>, <code>tasks/resubscribe</code>, <code>tasks/pushNotification</code>, <code>agent/getExtendedAgentCard</code></li>
+<li><strong>Task lifecycle</strong>: submitted → working → completed / failed / canceled / input_required</li>
+<li><strong>SSE streaming</strong>: <code>message/stream</code> returns <code>StreamResponse</code> events</li>
+<li><strong>Push notifications</strong>: webhook callbacks on task completion</li>
+</ul>
+<h2>Group Chat</h2>
+<p>WeChat-style multi-agent group via MQTT. All configured agents form a single group.</p>
+<ul>
+<li><strong>AI agents</strong>: Background loop processes <code>@mentions</code>, runs agent in parallel, publishes responses</li>
+<li><strong>Terminal human agents</strong> (<code>provider: "human"</code>): Interactive prompt — type messages, see group activity</li>
+<li><strong>WeChat human agents</strong> (<code>provider: "wechat-human"</code>): Bidirectional WeChat iLink bridge — long-poll for incoming WeChat messages, forward group responses back to WeChat. QR login on startup, session persisted to <code>config.json</code></li>
+<li><code>@all</code> mentions everyone; specific <code>@agent_name</code> directs to one agent</li>
+</ul>
+<h2>Project Layout</h2>
+<div class="codehilite"><pre><span></span><code><span class="n">qd</span><span class="o">-</span><span class="n">evolve</span><span class="o">/</span>
+<span class="err">├──</span><span class="w"> </span><span class="n">qd_evolve</span><span class="o">/</span><span class="w">       </span><span class="c1"># Main package (agent, core, tools, utils, _templates)</span>
+<span class="err">├──</span><span class="w"> </span><span class="n">tools</span><span class="o">/</span><span class="w">           </span><span class="c1"># User tools (func, cli, mcp, bridge)</span>
+<span class="err">├──</span><span class="w"> </span><span class="n">skills</span><span class="o">/</span><span class="w">          </span><span class="c1"># Skills (SKILL.md files)</span>
+<span class="err">├──</span><span class="w"> </span><span class="n">templates</span><span class="o">/</span><span class="w">       </span><span class="c1"># User Jinja2 template overrides</span>
+<span class="err">├──</span><span class="w"> </span><span class="n">tests</span><span class="o">/</span><span class="w">           </span><span class="c1"># pytest suite</span>
+<span class="err">├──</span><span class="w"> </span><span class="n">config</span><span class="o">.</span><span class="n">json</span><span class="w">      </span><span class="c1"># All configuration</span>
+<span class="err">├──</span><span class="w"> </span><span class="n">memory</span><span class="o">.</span><span class="n">db</span><span class="w">        </span><span class="c1"># Conversation memory (SQLite + sqlite-vec)</span>
+<span class="err">└──</span><span class="w"> </span><span class="n">pyproject</span><span class="o">.</span><span class="n">toml</span><span class="w">   </span><span class="c1"># Dependencies and build config</span>
+</code></pre></div>
+
+<p>See <a href="DESIGN.md">DESIGN.md</a> for architecture and full module map.</p>
+<h2>Requirements</h2>
+<ul>
+<li>Python 3.13+</li>
+<li>External Mosquitto v5 broker (MQTT/GChat mode only)</li>
+<li>API keys for configured providers (DeepSeek, OpenAI, Anthropic, etc.)</li>
+</ul>
+<h2>License</h2>
+<p>MIT</p>
+<div class="footer">
+    Generated from README.md · QD-Evolve
+</div>
+</div>
+</body>
+</html>

@@ -1,4 +1,8 @@
 ## Core Behavior
 - **Search first, don't fabricate.** Your training data may be outdated — prefer web search or fetch over relying on memory. Don't make up answers when you can look them up.
-- **Load (if not already) and use `search-tools` skill over blindly installing anything.** When no built-in tool can handle the task, search the web for existing skills, MCP servers, or CLI tools first.
+- **Check the Toolbox before installing anything.** Installation is a last resort. Before `pip install`, `npm install`, or similar:
+  1. Scan the Func Tools, Skills, and CLI Tools summaries for tools that already cover the task (MCP servers like `playwright`, `browser-use` or OAT services often have dozens of pre-registered tools).
+  2. Use `load_func` to inspect any tool whose name or description looks relevant — you may discover capabilities not obvious from the one-liner.
+  3. Use `load_skill` / `search-tools` to find existing skills or MCP servers before writing custom code.
+  4. Only install if the above steps confirm nothing suitable exists.
 - **Set appropriate timeouts.** Long operations (package installs, large downloads, builds) can take minutes — set `timeout` accordingly (e.g., `timeout=300`). Without it, commands default to 60s and will be killed mid-execution.
