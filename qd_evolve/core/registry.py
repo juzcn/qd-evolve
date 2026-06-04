@@ -168,6 +168,8 @@ class ToolRegistry:
 
         Builtins (no source tag) first, then MCP services, then OAT sources.
         Each line is tagged [preloaded], [loaded], or [unloaded].
+        Within each group, items are sorted by status (preloaded → loaded →
+        unloaded), then alphabetically.
         """
         import re
 
@@ -180,6 +182,15 @@ class ToolRegistry:
             if name in loaded:
                 return "[loaded]"
             return "[unloaded]"
+
+        def _status_sort_key(item: tuple[str, str, str]) -> tuple[int, str]:
+            """Sort by status tag order, then name."""
+            tag, name = item[2], item[0]
+            if tag == "[preloaded]":
+                return (0, name)
+            if tag == "[loaded]":
+                return (1, name)
+            return (2, name)
 
         _src_pat = re.compile(r"^\[([^\]]+)\]\s*")
 
@@ -207,6 +218,7 @@ class ToolRegistry:
         sections: list[str] = []
 
         if builtins:
+            builtins.sort(key=_status_sort_key)
             sections.append(f"### Builtins ({len(builtins)} tools)")
             for name, desc, tag in builtins:
                 sections.append(f"- {tag} {name}: {desc}")
@@ -217,6 +229,7 @@ class ToolRegistry:
             sections.append(f"### MCP Services ({sum(len(t) for t in mcp_sources.values())} tools)")
             for src in sorted(mcp_sources):
                 tools = mcp_sources[src]
+                tools.sort(key=_status_sort_key)
                 sections.append("")
                 sections.append(f"#### {src} ({len(tools)} tools)")
                 for name, desc, tag in tools:
@@ -224,6 +237,7 @@ class ToolRegistry:
 
         for src in sorted(oat_sources):
             tools = oat_sources[src]
+            tools.sort(key=_status_sort_key)
             if sections:
                 sections.append("")
             sections.append(f"### {src} ({len(tools)} tools)")

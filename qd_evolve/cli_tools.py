@@ -68,13 +68,22 @@ class CLIRegistry:
 
         Tags: [preloaded] (startup), [loaded] (runtime), [unloaded].
         Preloaded CLI tools include full JSON detail indented below the tag line.
+        Items are sorted by status (preloaded → loaded → unloaded), then alphabetically.
         """
         if not self._tools:
             return ""
         preloaded = preloaded or set()
         loaded = loaded or set()
+
+        def _sort_key(tool: CLIToolDef) -> tuple[int, str]:
+            if tool.name in preloaded:
+                return (0, tool.name)
+            if tool.name in loaded:
+                return (1, tool.name)
+            return (2, tool.name)
+
         lines = []
-        for tool in self._tools.values():
+        for tool in sorted(self._tools.values(), key=_sort_key):
             if tool.name in self._disabled:
                 continue
             if tool.name in preloaded:

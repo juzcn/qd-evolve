@@ -124,7 +124,7 @@ class TestPromptTemplateManager:
         mgr = PromptTemplateManager()
         result = mgr.render("default", agent_name="bot", runtime_context="- **OS:** Linux",
                             skills_section="- [unloaded] s: Skill")
-        assert "status  name — description" in result
+        assert "tag  name — description" in result
 
     def test_status_tag_legend(self):
         mgr = PromptTemplateManager()

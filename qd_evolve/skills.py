@@ -131,13 +131,22 @@ class SkillRegistry:
 
         Tags: [preloaded] (startup), [loaded] (runtime), [unloaded].
         Preloaded skills include full SKILL.md content indented below the tag line.
+        Items are sorted by status (preloaded → loaded → unloaded), then alphabetically.
         """
         if not self._skills:
             return ""
         preloaded = preloaded or set()
         loaded = loaded or set()
+
+        def _sort_key(s: SkillInfo) -> tuple[int, str]:
+            if s.name in preloaded:
+                return (0, s.name)
+            if s.name in loaded:
+                return (1, s.name)
+            return (2, s.name)
+
         lines = []
-        for s in self._skills.values():
+        for s in sorted(self._skills.values(), key=_sort_key):
             if s.name in self._disabled:
                 continue
             if s.name in preloaded:
