@@ -25,8 +25,8 @@ def _load_cli(name: str) -> str:
 
 registry = get_registry()
 registry.register(
-    name="load_cli",
-    description="Load the full definition for a CLI tool by name. Returns name, command, description, help_summary, and examples.",
+    name="enable_cli",
+    description="Enable a CLI command by name. Returns the full definition: command, description, help summary, and examples.",
     handler=_load_cli,
     input_schema={
         "type": "object",

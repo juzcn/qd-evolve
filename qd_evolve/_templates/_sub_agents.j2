@@ -1,20 +1,7 @@
-## Sub-Agents — Async Workers
-Use `create_sub_agent` / `run_sub_agent` to spawn isolated workers. Each inherits your tools, runs asynchronously, and keeps conversation history across calls (use `reset=True` to clear).
+## Running Tasks in Parallel
+Use `create_sub_agent` + `run_sub_agent` to delegate work. Each sub-agent has its own context — useful for parallel tasks or long-running jobs.
 
-Best for parallel independent tasks, long-running work, or tasks that benefit from a fresh context window.
-
-### How to use (3 steps)
-1. `create_sub_agent(name="...", description="...")` — create a worker
-2. `run_sub_agent(name="...", task="...")` — assign task; result arrives **automatically**
-3. ✅ Result appears in your conversation: `[Sub-agent 'A' completed task ...]`
-
-### ⚠️ Don't poll — it's async!
-- **Do NOT** call `get_sub_result` to wait for a task — the result is pushed to you automatically.
-- **Do NOT** `sleep` + `get_sub_result` in a loop — that wastes iterations on polling.
-- If you need to check status (cancellation debugging etc.), `get_sub_result` exists but is **optional**.
-- **Rule of thumb:** Submit tasks and keep working. Results arrive when they're ready.
-
-### Other notes
-- Sub-agents are per-session only and cannot modify your tools or state.
-- Use `cancel_sub_task(task_id)` to cancel a running task (graceful checkpoint-based stop).
-- Use `reset=True` in `run_sub_agent` to clear a sub-agent's conversation history.
+- Create once with `create_sub_agent(name="...", description="...")`, then call `run_sub_agent(name="...", task="...")` for each task.
+- Results arrive automatically when done — no need to poll with `get_sub_result`.
+- Use `cancel_sub_task(task_id)` to stop a running task. Pass `reset=True` to `run_sub_agent` to clear a sub-agent's history.
+- Sub-agents live in this session only — they can't modify your tools or state.

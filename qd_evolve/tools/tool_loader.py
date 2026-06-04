@@ -18,15 +18,15 @@ def _load_tool_detail(name: str) -> str:
         available = ", ".join(t.name for t in registry.list_tools())
         return f"Error: tool '{name}' not found. Available: {available}"
     if name in _preload_tools:
-        return f"Tool '{name}' is already preloaded — schema is available in API tool definitions."
+        return f"Tool '{name}' is already active — schema is available in API tool definitions."
     desc = detail.get("description", "") if isinstance(detail, dict) else ""
-    return f"Tool '{name}' loaded. {desc} (full schema available in next request's API tool definitions.)"
+    return f"Tool '{name}' activated. {desc} (full schema available in next request's API tool definitions.)"
 
 
 registry = get_registry()
 registry.register(
-    name="load_func",
-    description="Activate a func tool by name. The schema will be included in API tool definitions on the next request.",
+    name="activate_func",
+    description="Activate a function by name. Its schema will be included in API tool definitions on the next request.",
     handler=_load_tool_detail,
     input_schema={
         "type": "object",

@@ -105,7 +105,7 @@ class TestCLIRegistry:
         reg = CLIRegistry()
         reg.discover(cli_dir)
         result = reg.format_for_prompt()
-        assert "- [unloaded] pandoc: Universal converter" in result
+        assert "- [inactive] pandoc: Universal converter" in result
 
     def test_format_for_prompt_empty(self):
         reg = CLIRegistry()
@@ -138,11 +138,11 @@ class TestCLIRegistry:
         reg.discover(cli_dir)
         # preloaded shows one-liner summary only (JSON detail in appendix)
         result = reg.format_for_prompt(preloaded={"pandoc"})
-        assert "- [preloaded] pandoc: Universal converter" in result
+        assert "- [ready] pandoc: Universal converter" in result
         assert '"name"' not in result  # JSON detail moved to appendix
         # loaded only shows summary line
         result2 = reg.format_for_prompt(loaded={"pandoc"})
-        assert "- [loaded] pandoc: Universal converter" in result2
+        assert "- [ready] pandoc: Universal converter" in result2
 
     def test_list_tools_excludes_disabled(self, tmp_path):
         cli_dir = tmp_path / "cli"

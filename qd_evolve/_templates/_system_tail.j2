@@ -3,39 +3,39 @@
 ## Relevant Past Conversations
 {{ memory_section }}
 {% endif %}
-## Toolbox
+## Available Tools
 {% if toolbox_summary %}{{ toolbox_summary }}.
-{% endif %}**Status tags:** `[preloaded]` = ready at startup, `[loaded]` = loaded this session, `[unloaded]` = call `load_func`/`load_skill`/`load_cli` first.
-- **Skills** — Instruction documents. Not callable via the API. Follow the SKILL.md instructions.
-- **CLI tools** — Shell command definitions. Not callable via the API. Execute via `{{ shell_tool }}`.
-- **Func tools** — Callable functions via the API function-calling interface. `[preloaded]` and `[loaded]` schemas are included in API definitions.
+{% endif %}`[ready]` = active, use directly. `[inactive]` = activate first via `activate_func` / `open_skill` / `enable_cli`.
+- **Functions** — API tools. `[ready]` functions are in your tool definitions.
+- **Skills** — Instruction guides. Use `open_skill` to open.
+- **CLI Commands** — Shell programs. Use `enable_cli` to enable, then run via `{{ shell_tool }}`.
 
 {% if skills_section %}
-### Skills Summary
+### Skills
 
 {{ skills_section }}
 {% endif %}
 
 {% if cli_tools_section %}
-### CLI Tools Summary
+### CLI Commands
 
 {{ cli_tools_section }}
 {% endif %}
 
 {% if func_tools_section %}
-### Func Tools Summary
+### Functions
 
 {{ func_tools_section }}
 {% endif %}
 
 {% if preloaded_skills_detail %}
-### Preloaded Skill Details
+### Active Skill Details
 
 {{ preloaded_skills_detail }}
 {% endif %}
 
 {% if preloaded_cli_detail %}
-### Preloaded CLI Details
+### Active CLI Command Details
 
 {{ preloaded_cli_detail }}
 {% endif %}

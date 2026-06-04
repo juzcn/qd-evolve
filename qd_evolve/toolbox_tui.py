@@ -290,7 +290,7 @@ def _build_data(connect_bridges: bool = True, agent_name: str = "") -> tuple[dic
         for tname in b.tool_names:
             tool_bridge[tname] = getattr(b.config, "name", "")
 
-    # System tools — from qd_evolve/tools/ (load_func, install_*, register_*, a2a, etc.)
+    # System tools — from qd_evolve/tools/ (activate_func, install_*, register_*, a2a, etc.)
     system = []
     # Func tools — from tools/func/ (run_shell, fetch, etc.)
     func = []

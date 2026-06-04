@@ -129,10 +129,9 @@ class SkillRegistry:
     def format_for_prompt(self, preloaded: set[str] | None = None, loaded: set[str] | None = None) -> str:
         """Format all skills with status tags for the system prompt.
 
-        Tags: [preloaded] (startup), [loaded] (runtime), [unloaded].
-        All items are one-liner summaries — preloaded full content is rendered
-        separately in the Preloaded Skill Details appendix.
-        Items are sorted by status (preloaded → loaded → unloaded), then alphabetically.
+        Tags: [ready] (active), [inactive] (needs open_skill).
+        All items are one-liner summaries. Items are sorted by status (ready →
+        inactive), then alphabetically.
         """
         if not self._skills:
             return ""
@@ -140,21 +139,17 @@ class SkillRegistry:
         loaded = loaded or set()
 
         def _sort_key(s: SkillInfo) -> tuple[int, str]:
-            if s.name in preloaded:
+            if s.name in preloaded or s.name in loaded:
                 return (0, s.name)
-            if s.name in loaded:
-                return (1, s.name)
-            return (2, s.name)
+            return (1, s.name)
 
         lines = []
         for s in sorted(self._skills.values(), key=_sort_key):
             if s.name in self._disabled:
                 continue
-            if s.name in preloaded:
-                lines.append(f"- [preloaded] {s.name}: {s.summary or s.content.split(chr(10))[0][:120]}")
-            elif s.name in loaded:
-                lines.append(f"- [loaded] {s.name}: {s.summary or s.content.split(chr(10))[0][:120]}")
+            if s.name in preloaded or s.name in loaded:
+                lines.append(f"- [ready] {s.name}: {s.summary or s.content.split(chr(10))[0][:120]}")
             else:
-                lines.append(f"- [unloaded] {s.name}: {s.summary or s.content.split(chr(10))[0][:120]}")
+                lines.append(f"- [inactive] {s.name}: {s.summary or s.content.split(chr(10))[0][:120]}")
         return "\n".join(lines)
 

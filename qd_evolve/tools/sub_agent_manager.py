@@ -53,7 +53,7 @@ def _create_sub_agent(name: str, description: str = "") -> str:
     from qd_evolve.core.registry import get_registry as get_tool_registry
 
     # Inherit parent's preload-sets only (not accumulated runtime state).
-    # Sub-agent loads additional tools on demand via load_func, just like
+    # Sub-agent loads additional tools on demand via activate_func, just like
     # a freshly-created agent — avoiding context bloat from preload.
     inherited_preload_tools = set(parent_agent._always_active)
     inherited_preload_skills = set(parent_agent._preload_skills)

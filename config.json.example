@@ -80,10 +80,10 @@
         },
         "toolbox": {
           "tools": {
-            "load_cli": "preload",
+            "enable_cli": "preload",
             "recall_memory": "preload",
-            "load_skill": "preload",
-            "load_func": "preload",
+            "open_skill": "preload",
+            "activate_func": "preload",
             "run_python": "preload",
             "read_file": "disabled",
             "write_file": "disabled",
@@ -112,10 +112,10 @@
         },
         "toolbox": {
           "tools": {
-            "load_cli": "preload",
+            "enable_cli": "preload",
             "recall_memory": "preload",
-            "load_skill": "preload",
-            "load_func": "preload",
+            "open_skill": "preload",
+            "activate_func": "preload",
             "run_python": "preload",
             "read_file": "disabled",
             "write_file": "disabled",

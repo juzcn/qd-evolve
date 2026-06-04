@@ -141,29 +141,28 @@ class TestFormatToolsSummary:
         registry.register("echo", "Echo tool", lambda s: s)
         registry.register("fetch", "Fetch tool", lambda u: u)
         summary = registry.format_tools_summary()
-        assert "- [unloaded] echo: Echo tool" in summary
-        assert "- [unloaded] fetch: Fetch tool" in summary
+        assert "- [inactive] echo: Echo tool" in summary
+        assert "- [inactive] fetch: Fetch tool" in summary
 
-    def test_format_preloaded_tagged(self, registry):
+    def test_format_ready_tagged(self, registry):
         registry.register("echo", "Echo tool", lambda s: s)
         registry.register("fetch", "Fetch tool", lambda u: u)
         summary = registry.format_tools_summary(preloaded={"echo"})
-        assert "- [preloaded] echo: Echo tool" in summary
-        assert "- [unloaded] fetch: Fetch tool" in summary
+        assert "- [ready] echo: Echo tool" in summary
+        assert "- [inactive] fetch: Fetch tool" in summary
 
     def test_format_loaded_tagged(self, registry):
         registry.register("echo", "Echo tool", lambda s: s)
         registry.register("fetch", "Fetch tool", lambda u: u)
         summary = registry.format_tools_summary(loaded={"echo"})
-        assert "- [loaded] echo: Echo tool" in summary
-        assert "- [unloaded] fetch: Fetch tool" in summary
+        assert "- [ready] echo: Echo tool" in summary
+        assert "- [inactive] fetch: Fetch tool" in summary
 
-    def test_format_preloaded_overrides_loaded(self, registry):
-        """preloaded takes priority over loaded if both are set."""
+    def test_format_ready_overrides_inactive(self, registry):
+        """preloaded and loaded both result in [ready]."""
         registry.register("echo", "Echo tool", lambda s: s)
         summary = registry.format_tools_summary(preloaded={"echo"}, loaded={"echo"})
-        assert "- [preloaded] echo" in summary
-        assert "- [loaded] echo" not in summary
+        assert "- [ready] echo" in summary
 
     def test_format_excludes_disabled(self, registry):
         registry.register("echo", "Echo tool", lambda s: s)

@@ -1,9 +1,8 @@
-## Core Behavior
-- **Search first, don't fabricate.** Your training data may be outdated — prefer web search or fetch over relying on memory. Don't make up answers when you can look them up.
-- **Check the Toolbox before installing anything.** Installation is a last resort. Before `pip install`, `npm install`, or similar:
-  1. Scan the Func Tools, Skills, and CLI Tools summaries for tools that already cover the task (MCP servers like `playwright`, `browser-use` or OAT services often have dozens of pre-registered tools).
-  2. Use `load_func` to inspect any tool whose name or description looks relevant — you may discover capabilities not obvious from the one-liner.
-  3. Use `load_skill` / `search-tools` to find existing skills or MCP servers before writing custom code.
-  4. Only install if the above steps confirm nothing suitable exists.
-- **When stuck, re-scan the Toolbox — don't code around it.** If two approaches fail, STOP writing Python scripts. Re-read the Toolbox summary at the top of the prompt. MCP services (`playwright` for browser/PDF, `browser-use` for web automation) and OAT services (`boat-docs` for documents) often solve the task from a completely different angle than your first attempt. Load and inspect relevant tools before trying a third approach.
-- **Set appropriate timeouts.** Long operations (package installs, large downloads, builds) can take minutes — set `timeout` accordingly (e.g., `timeout=300`). Without it, commands default to 60s and will be killed mid-execution.
+## How to Work
+- **Look things up rather than guess.** Your training data has a cutoff — use web search or fetch when you need current information.
+- **Check what's already available before installing packages.** Browse the Functions and Skills below — MCP services (playwright, browser-use) and OAT services (boat-docs) often already cover the task.
+  - If a tool's one-liner looks relevant, use `activate_func` to see its full capabilities.
+  - Use `open_skill` or `search-tools` to find task-specific guidance.
+  - Only reach for `pip install` / `npm install` when nothing here fits.
+- **If stuck, re-read the tools list.** The wrong tool can make a task seem impossible — a different service often solves it from a completely different angle. Use `activate_func` to inspect promising tools before writing custom code.
+- **Set generous timeouts.** Installs, downloads, and builds can take minutes — set `timeout` accordingly (e.g., `timeout=300`). Without it, commands default to 60s and will be killed.

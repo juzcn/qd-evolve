@@ -1,4 +1,4 @@
-"""Tests for qd_evolve.tools.cli_loader — load_cli handler."""
+"""Tests for qd_evolve.tools.cli_loader — enable_cli handler."""
 
 import json
 from unittest.mock import MagicMock, patch

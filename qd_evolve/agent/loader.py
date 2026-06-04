@@ -148,19 +148,20 @@ def build_toolbox_context(
 
     # Summary counts
     total_skills = len(skill_registry.get_all_skills()) if skill_registry else 0
-    preload_skill_n = len(preload_skills)
+    ready_skill_n = len(preload_skills)
     total_cli = len(cli_registry.list_tools()) if cli_registry else 0
-    preload_cli_n = len(preload_cli)
+    ready_cli_n = len(preload_cli)
     total_func = len(registry.list_tools())
-    preload_func_n = len(preload_tools)
+    ready_func_n = len(preload_tools)
 
     def _plural(n: int, word: str) -> str:
         return f"{n} {word}{'s' if n != 1 else ''}"
 
-    parts = [f"{_plural(total_skills, 'skill')} ({preload_skill_n} preloaded)"]
+    parts = [f"{_plural(total_func, 'function')} ({ready_func_n} active)"]
+    if total_skills:
+        parts.append(f"{_plural(total_skills, 'skill')} ({ready_skill_n} open)")
     if total_cli:
-        parts.append(f"{_plural(total_cli, 'CLI tool')} ({preload_cli_n} preloaded)")
-    parts.append(f"{_plural(total_func, 'func tool')} ({preload_func_n} preloaded)")
+        parts.append(f"{_plural(total_cli, 'CLI command')} ({ready_cli_n} enabled)")
     toolbox_summary = " — ".join(parts)
 
     return {

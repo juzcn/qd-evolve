@@ -162,14 +162,14 @@ class TestSkillRegistry:
         reg = SkillRegistry()
         reg.discover_skills(skill_dir)
         result = reg.format_for_prompt()
-        assert "- [unloaded] search-tools: Search tools" in result
+        assert "- [inactive] search-tools: Search tools" in result
 
     def test_format_for_prompt_empty(self):
         reg = SkillRegistry()
         result = reg.format_for_prompt()
         assert result == ""
 
-    def test_format_for_prompt_tags_preloaded_and_loaded(self, tmp_path):
+    def test_format_for_prompt_tags_ready_and_inactive(self, tmp_path):
         skills_dir = tmp_path / "skills"
         skill_dir = skills_dir / "test-skill"
         skill_dir.mkdir(parents=True)
@@ -180,11 +180,11 @@ class TestSkillRegistry:
         reg.discover_skills(str(skills_dir))
         # preloaded shows one-liner summary only (detail in appendix)
         prompt = reg.format_for_prompt(preloaded={"test-skill"})
-        assert "- [preloaded] test-skill: Test skill" in prompt
+        assert "- [ready] test-skill: Test skill" in prompt
         assert "Content" not in prompt  # content moved to appendix
         # loaded only shows summary line
         prompt2 = reg.format_for_prompt(loaded={"test-skill"})
-        assert "- [loaded] test-skill: Test skill" in prompt2
+        assert "- [ready] test-skill: Test skill" in prompt2
         assert "Content" not in prompt2
 
     def test_disabled_skill(self, tmp_path):

@@ -167,9 +167,9 @@ class ToolRegistry:
         """Format all func tools grouped by source with status tags.
 
         Builtins (no source tag) first, then MCP services, then OAT sources.
-        Each line is tagged [preloaded], [loaded], or [unloaded].
-        Within each group, items are sorted by status (preloaded → loaded →
-        unloaded), then alphabetically.
+        Each line is tagged [ready] or [inactive].
+        Within each group, items are sorted by status (ready → inactive), then
+        alphabetically.
         """
         import re
 
@@ -177,20 +177,16 @@ class ToolRegistry:
         loaded = loaded or set()
 
         def _tag(name: str) -> str:
-            if name in preloaded:
-                return "[preloaded]"
-            if name in loaded:
-                return "[loaded]"
-            return "[unloaded]"
+            if name in preloaded or name in loaded:
+                return "[ready]"
+            return "[inactive]"
 
         def _status_sort_key(item: tuple[str, str, str]) -> tuple[int, str]:
             """Sort by status tag order, then name."""
             tag, name = item[2], item[0]
-            if tag == "[preloaded]":
+            if tag == "[ready]":
                 return (0, name)
-            if tag == "[loaded]":
-                return (1, name)
-            return (2, name)
+            return (1, name)
 
         _src_pat = re.compile(r"^\[([^\]]+)\]\s*")
 

@@ -92,71 +92,71 @@ class TestActivateTool:
         agent_core._activate_tool("echo", {"s": "hello"}, "hello")
         assert "echo" in agent_core._active_tools
 
-    def test_activate_load_func(self, agent_core):
-        agent_core._activate_tool("load_func", {"name": "fetch"}, "schema...")
-        assert "load_func" in agent_core._active_tools
+    def test_activate_func(self, agent_core):
+        agent_core._activate_tool("activate_func", {"name": "fetch"}, "schema...")
+        assert "activate_func" in agent_core._active_tools
         assert "fetch" in agent_core._active_tools
 
-    def test_activate_load_skill(self, agent_core):
-        agent_core._activate_tool("load_skill", {"name": "search-tools"}, "skill content...")
+    def test_open_skill(self, agent_core):
+        agent_core._activate_tool("open_skill", {"name": "search-tools"}, "skill content...")
         assert "search-tools" in agent_core._loaded_skill_names
 
-    def test_activate_load_cli(self, agent_core):
-        agent_core._activate_tool("load_cli", {"name": "git"}, "cli usage...")
+    def test_enable_cli(self, agent_core):
+        agent_core._activate_tool("enable_cli", {"name": "git"}, "cli usage...")
         assert "git" in agent_core._loaded_cli_names
 
 
 class TestUpdateStatusTags:
-    def test_updates_unloaded_to_loaded_skill(self, agent_core):
+    def test_updates_inactive_to_ready_skill(self, agent_core):
         agent_core._loaded_skill_names = {"search-tools"}
-        prompt = "### Skills\n- [unloaded] search-tools: Search tools\n- [unloaded] other: Other\n## Next Section"
+        prompt = "### Skills\n- [inactive] search-tools: Search tools\n- [inactive] other: Other\n## Next Section"
         result = agent_core._update_status_tags(prompt)
-        assert "- [loaded] search-tools: Search tools" in result
-        assert "- [unloaded] other: Other" in result
-        assert "[unloaded] search-tools" not in result
+        assert "- [ready] search-tools: Search tools" in result
+        assert "- [inactive] other: Other" in result
+        assert "[inactive] search-tools" not in result
 
-    def test_updates_unloaded_to_loaded_cli(self, agent_core):
+    def test_updates_inactive_to_ready_cli(self, agent_core):
         agent_core._loaded_cli_names = {"git"}
-        prompt = "### CLI Tools\n- [unloaded] git: Git CLI\n- [unloaded] npm: NPM CLI\n## Next"
+        prompt = "### CLI Commands\n- [inactive] git: Git CLI\n- [inactive] npm: NPM CLI\n## Next"
         result = agent_core._update_status_tags(prompt)
-        assert "- [loaded] git: Git CLI" in result
-        assert "- [unloaded] npm: NPM CLI" in result
+        assert "- [ready] git: Git CLI" in result
+        assert "- [inactive] npm: NPM CLI" in result
 
-    def test_updates_unloaded_to_loaded_func(self, agent_core):
+    def test_updates_inactive_to_ready_func(self, agent_core):
         agent_core._active_tools = {"echo"}
-        prompt = "### Func Tools\n### Builtins (1 tools)\n- [unloaded] echo: Echo\n## Next"
+        prompt = "### Functions\n### Builtins (1 tools)\n- [inactive] echo: Echo\n## Next"
         result = agent_core._update_status_tags(prompt)
-        assert "- [loaded] echo: Echo" in result
+        assert "- [ready] echo: Echo" in result
 
     def test_no_changes_when_nothing_loaded(self, agent_core):
-        prompt = "### Skills\n- [unloaded] search-tools: Search tools\n## Next Section"
+        prompt = "### Skills\n- [inactive] search-tools: Search tools\n## Next Section"
         result = agent_core._update_status_tags(prompt)
         assert result == prompt
 
     def test_no_changes_when_nothing_loaded_cli(self, agent_core):
-        prompt = "### CLI Tools\n- [unloaded] git: Git CLI\n## Next Section"
+        prompt = "### CLI Commands\n- [inactive] git: Git CLI\n## Next Section"
         result = agent_core._update_status_tags(prompt)
         assert result == prompt
 
     def test_no_changes_when_nothing_loaded_func(self, agent_core):
-        prompt = "### Func Tools\n- [unloaded] echo: Echo\n## Next Section"
+        prompt = "### Functions\n- [inactive] echo: Echo\n## Next Section"
         result = agent_core._update_status_tags(prompt)
         assert result == prompt
 
-    def test_preloaded_tags_untouched(self, agent_core):
+    def test_ready_tags_untouched(self, agent_core):
         agent_core._loaded_skill_names = {"search-tools"}
-        prompt = "- [preloaded] other-skill: Other\n- [unloaded] search-tools: Search"
+        prompt = "- [ready] other-skill: Other\n- [inactive] search-tools: Search"
         result = agent_core._update_status_tags(prompt)
-        assert "- [preloaded] other-skill: Other" in result  # unchanged
-        assert "- [loaded] search-tools: Search" in result
+        assert "- [ready] other-skill: Other" in result  # unchanged
+        assert "- [ready] search-tools: Search" in result
 
     def test_exact_name_match_avoid_substring(self, agent_core):
         """Verify that updating 'git' does not affect 'github-tool'."""
         agent_core._loaded_cli_names = {"git"}
-        prompt = "- [unloaded] git: Git\n- [unloaded] github-tool: GH"
+        prompt = "- [inactive] git: Git\n- [inactive] github-tool: GH"
         result = agent_core._update_status_tags(prompt)
-        assert "- [loaded] git: Git" in result
-        assert "- [unloaded] github-tool: GH" in result  # not affected
+        assert "- [ready] git: Git" in result
+        assert "- [inactive] github-tool: GH" in result  # not affected
 
     def test_old_methods_removed(self, agent_core):
         assert not hasattr(agent_core, "_inject_loaded_content")

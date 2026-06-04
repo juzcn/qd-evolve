@@ -368,9 +368,9 @@ class Agent:
         return text
 
     def _update_status_tags(self, system_prompt: str) -> str:
-        """Update status tags from [unloaded] to [loaded] for tools loaded at runtime.
+        """Update status tags from [inactive] to [ready] for tools loaded at runtime.
 
-        Uses regex to match ``- [unloaded] <name>:`` or ``- [unloaded] <name>``
+        Uses regex to match ``- [inactive] <name>:`` or ``- [inactive] <name>``
         lines and replaces the tag.  Exact name matching (via re.escape) avoids
         substring collisions.
         """
@@ -383,9 +383,9 @@ class Agent:
         ):
             for name in names:
                 pattern = re.compile(
-                    rf'^(- )\[unloaded\] ({re.escape(name)})(:.*|\s*)$', re.MULTILINE
+                    rf'^(- )\[inactive\] ({re.escape(name)})(:.*|\s*)$', re.MULTILINE
                 )
-                system_prompt = pattern.sub(r'\1[loaded] \2\3', system_prompt)
+                system_prompt = pattern.sub(r'\1[ready] \2\3', system_prompt)
 
         return system_prompt
 
@@ -778,16 +778,16 @@ class Agent:
     def _activate_tool(self, tool_name: str, tool_args: dict, result: str = "") -> None:
         """After a tool call, activate tools and track loaded skill/CLI names."""
         self._active_tools.add(tool_name)
-        if tool_name == "load_func":
+        if tool_name == "activate_func":
             target = tool_args.get("name", "")
             if target:
                 self._active_tools.add(target)
                 logger.debug("Agent: activated tool: %s", target)
-        elif tool_name == "load_skill":
+        elif tool_name == "open_skill":
             name = tool_args.get("name", "")
             if name:
                 self._loaded_skill_names.add(name)
-        elif tool_name == "load_cli":
+        elif tool_name == "enable_cli":
             name = tool_args.get("name", "")
             if name:
                 self._loaded_cli_names.add(name)

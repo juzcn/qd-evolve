@@ -66,10 +66,9 @@ class CLIRegistry:
     def format_for_prompt(self, preloaded: set[str] | None = None, loaded: set[str] | None = None) -> str:
         """Format all CLI tools with status tags for the system prompt.
 
-        Tags: [preloaded] (startup), [loaded] (runtime), [unloaded].
-        All items are one-liner summaries — preloaded full detail is rendered
-        separately in the Preloaded CLI Details appendix.
-        Items are sorted by status (preloaded → loaded → unloaded), then alphabetically.
+        Tags: [ready] (active), [inactive] (needs enable_cli).
+        All items are one-liner summaries. Items are sorted by status (ready →
+        inactive), then alphabetically.
         """
         if not self._tools:
             return ""
@@ -77,26 +76,19 @@ class CLIRegistry:
         loaded = loaded or set()
 
         def _sort_key(tool: CLIToolDef) -> tuple[int, str]:
-            if tool.name in preloaded:
+            if tool.name in preloaded or tool.name in loaded:
                 return (0, tool.name)
-            if tool.name in loaded:
-                return (1, tool.name)
-            return (2, tool.name)
+            return (1, tool.name)
 
         lines = []
         for tool in sorted(self._tools.values(), key=_sort_key):
             if tool.name in self._disabled:
                 continue
-            if tool.name in preloaded:
-                lines.append(f"- [preloaded] {tool.name}: {tool.description or tool.command}")
-            elif tool.name in loaded:
-                line = f"- [loaded] {tool.name}: {tool.description or tool.command}"
-                if tool.examples:
-                    line += f" (e.g. {tool.examples[0]})"
-                lines.append(line)
+            if tool.name in preloaded or tool.name in loaded:
+                line = f"- [ready] {tool.name}: {tool.description or tool.command}"
             else:
-                line = f"- [unloaded] {tool.name}: {tool.description or tool.command}"
-                if tool.examples:
-                    line += f" (e.g. {tool.examples[0]})"
-                lines.append(line)
+                line = f"- [inactive] {tool.name}: {tool.description or tool.command}"
+            if tool.examples:
+                line += f" (e.g. {tool.examples[0]})"
+            lines.append(line)
         return "\n".join(lines)

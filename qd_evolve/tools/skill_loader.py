@@ -23,8 +23,8 @@ def _load_skill(name: str) -> str:
 
 registry = get_registry()
 registry.register(
-    name="load_skill",
-    description="Load the full instructions for a skill by name. Returns the complete SKILL.md content.",
+    name="open_skill",
+    description="Open a skill and read its full instructions. Returns the complete SKILL.md content.",
     handler=_load_skill,
     input_schema={
         "type": "object",

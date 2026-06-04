@@ -24,9 +24,9 @@
         "name": "default",
         "toolbox": {
           "tools": {
-            "load_func": "preload",
-            "load_skill": "preload",
-            "load_cli": "preload"
+            "activate_func": "preload",
+            "open_skill": "preload",
+            "enable_cli": "preload"
           }
         }
       }

@@ -80,68 +80,67 @@ class TestPromptTemplateManager:
     def test_render_with_func_tools_section(self):
         mgr = PromptTemplateManager()
         result = mgr.render("default", agent_name="bot", runtime_context="- **OS:** Linux",
-                            func_tools_section="- [unloaded] echo: Echo tool\n- [unloaded] fetch: Fetch tool")
-        assert "Func Tools" in result
-        assert "- [unloaded] echo: Echo tool" in result
+                            func_tools_section="- [inactive] echo: Echo tool\n- [inactive] fetch: Fetch tool")
+        assert "Functions" in result
+        assert "- [inactive] echo: Echo tool" in result
         assert "Unloaded Func Tools Summary" not in result  # old header gone
 
     def test_render_with_skills_section(self):
         mgr = PromptTemplateManager()
         result = mgr.render("default", agent_name="bot", runtime_context="- **OS:** Linux",
-                            skills_section="- [preloaded] search: Search tools\n- [unloaded] other: Other skill")
-        assert "Skills Summary" in result
-        assert "- [preloaded] search: Search tools" in result
-        assert "- [unloaded] other: Other skill" in result
+                            skills_section="- [ready] search: Search tools\n- [inactive] other: Other skill")
+        assert "Skills" in result
+        assert "- [ready] search: Search tools" in result
+        assert "- [inactive] other: Other skill" in result
 
     def test_render_with_cli_tools_section(self):
         mgr = PromptTemplateManager()
         result = mgr.render("default", agent_name="bot", runtime_context="- **OS:** Linux",
-                            cli_tools_section="- [preloaded] git: Git CLI\n  {\"name\": \"git\"}")
-        assert "CLI Tools" in result
-        assert "- [preloaded] git" in result
+                            cli_tools_section="- [ready] git: Git CLI\n  {\"name\": \"git\"}")
+        assert "CLI Commands" in result
+        assert "- [ready] git" in result
 
     def test_render_empty_sections_omitted(self):
         mgr = PromptTemplateManager()
         result = mgr.render("default", agent_name="bot", runtime_context="- **OS:** Linux",
-                            func_tools_section="- [preloaded] echo: Echo")
-        assert "### Skills Summary" not in result
-        assert "### CLI Tools" not in result
+                            func_tools_section="- [ready] echo: Echo")
+        assert "### Skills" not in result
+        assert "### CLI Commands" not in result
 
     def test_section_ordering_skills_first(self):
-        """Skills section should appear before CLI Tools and Func Tools."""
+        """Skills section should appear before CLI Commands and Functions."""
         mgr = PromptTemplateManager()
         result = mgr.render("default", agent_name="bot", runtime_context="- **OS:** Linux",
-                            skills_section="- [unloaded] s: Skill",
-                            cli_tools_section="- [unloaded] c: CLI",
-                            func_tools_section="- [unloaded] f: Func")
-        skills_pos = result.index("### Skills Summary")
-        cli_pos = result.index("### CLI Tools Summary")
-        func_pos = result.index("### Func Tools Summary")
+                            skills_section="- [inactive] s: Skill",
+                            cli_tools_section="- [inactive] c: CLI",
+                            func_tools_section="- [inactive] f: Func")
+        skills_pos = result.index("### Skills")
+        cli_pos = result.index("### CLI Commands")
+        func_pos = result.index("### Functions")
         assert skills_pos < cli_pos < func_pos
 
-    def test_preloaded_detail_appendix(self):
-        """Preloaded skill/CLI details should render in appendix sections after summaries."""
+    def test_active_detail_appendix(self):
+        """Active skill/CLI details should render in appendix sections after summaries."""
         mgr = PromptTemplateManager()
         result = mgr.render("default", agent_name="bot", runtime_context="- **OS:** Linux",
-                            skills_section="- [preloaded] s: Skill",
+                            skills_section="- [ready] s: Skill",
                             preloaded_skills_detail="# Full SKILL.md\n\nInstructions here")
-        assert "### Preloaded Skill Details" in result
+        assert "### Active Skill Details" in result
         assert "# Full SKILL.md" in result
 
-    def test_preloaded_detail_omitted_when_empty(self):
+    def test_active_detail_omitted_when_empty(self):
         mgr = PromptTemplateManager()
         result = mgr.render("default", agent_name="bot", runtime_context="- **OS:** Linux",
-                            skills_section="- [unloaded] s: Skill")
-        assert "### Preloaded Skill Details" not in result
-        assert "### Preloaded CLI Details" not in result
+                            skills_section="- [inactive] s: Skill")
+        assert "### Active Skill Details" not in result
+        assert "### Active CLI Command Details" not in result
 
     def test_status_tag_legend(self):
         mgr = PromptTemplateManager()
         result = mgr.render("default", agent_name="bot", runtime_context="- **OS:** Linux",
-                            func_tools_section="- [unloaded] test: Test")
-        assert "[preloaded]" in result  # legend explains all three tags
-        assert "[loaded]" in result
-        assert "[unloaded]" in result
+                            func_tools_section="- [inactive] test: Test")
+        assert "[ready]" in result  # legend explains both tags
+        assert "[inactive]" in result
 
     def test_render_custom_template(self, tmp_path):
         templates_dir = tmp_path / "templates"

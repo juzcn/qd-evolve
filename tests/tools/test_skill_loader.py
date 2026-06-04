@@ -1,4 +1,4 @@
-"""Tests for qd_evolve.tools.skill_loader — load_skill handler."""
+"""Tests for qd_evolve.tools.skill_loader — open_skill handler."""
 
 from unittest.mock import MagicMock, patch
 
