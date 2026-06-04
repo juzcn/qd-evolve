@@ -112,9 +112,9 @@ def _create_sub_agent(name: str, description: str = "") -> str:
         preload_skills=inherited_preload_skills,
         preload_cli=inherited_preload_cli,
     )
-    agent.name = name
-    agent._provider_name = parent_agent._provider_name
-    agent._model = parent_agent._model
+    object.__setattr__(agent, "name", name)
+    object.__setattr__(agent, "_provider_name", parent_agent._provider_name)
+    object.__setattr__(agent, "_model", parent_agent._model)
 
     # Register context so sub-agent doesn't crash if its LLM calls config_manager tools
     _agent_contexts[name] = (agent, settings)

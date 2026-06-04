@@ -48,7 +48,7 @@ def toolbox(
         _toolbox_interactive(agent)
 
 
-def _toolbox_interactive(agent_name: str | None = None) -> None:
+def _toolbox_interactive(agent_name: str = "") -> None:
     """Interactive toolbox shell."""
     from qd_evolve.core.toolbox import (
         set_state, toggle as tb_toggle,
@@ -137,13 +137,15 @@ def _toolbox_help() -> None:
 """)
 
 
-def _toolbox_list(args: list[str], agent_name: str | None = None) -> None:
+def _toolbox_list(args: list[str], agent_name: str = "") -> None:
     from qd_evolve.core.toolbox import get_state, get_disabled_bridges
     from qd_evolve.core.registry import get_registry
     from qd_evolve.skills import SkillRegistry
     from qd_evolve.cli_tools import CLIRegistry
-    from qd_evolve.core.config import SKILLS_DIR, CLI_TOOLS_DIR
+    from qd_evolve.core.config import SKILLS_DIR, CLI_TOOLS_DIR, load_settings
     from tools.bridge import BridgeManager
+
+    settings = load_settings()
 
     import os
     PAGE_SIZE = max(os.get_terminal_size().lines - 5, 10)
@@ -252,7 +254,7 @@ from textual.screen import ModalScreen
 from textual.widgets import DataTable, Footer, Header, Input, Static
 
 
-def _build_data(connect_bridges: bool = True, agent_name: str | None = None) -> tuple[dict, list, list]:
+def _build_data(connect_bridges: bool = True, agent_name: str = "") -> tuple[dict, list, list]:
     """Build category → [(name, desc, state), ...] and return (data, bridges, entries)."""
     from qd_evolve.tools import get_registry
     from qd_evolve.skills import SkillRegistry
@@ -509,13 +511,13 @@ class ToolboxApp(App):
 
     def action_cursor_up(self) -> None:
         focused = self.focused
-        if focused and hasattr(focused, "cursor_up"):
-            focused.action_cursor_up()
+        if focused and hasattr(focused, "action_cursor_up"):
+            focused.action_cursor_up()  # type: ignore[attr-defined]
 
     def action_cursor_down(self) -> None:
         focused = self.focused
-        if focused and hasattr(focused, "cursor_down"):
-            focused.action_cursor_down()
+        if focused and hasattr(focused, "action_cursor_down"):
+            focused.action_cursor_down()  # type: ignore[attr-defined]
 
     def action_switch_panel(self) -> None:
         cat = self.query_one("#categories", DataTable)
@@ -555,9 +557,9 @@ class ToolboxApp(App):
     def action_toggle_enabled(self) -> None:
         """Toggle enabled → disabled. On bridge row, propagates to all subtools."""
         name, section = self._selected_item()
-        if not name:
+        if not name or not section:
             return
-        an = self.agent_name
+        an = self.agent_name or ""
         if "(bridge)" in name:
             bridge_key = self._bridge_name(name)
             current = get_state("bridge", bridge_key, agent_name=an)
@@ -582,9 +584,9 @@ class ToolboxApp(App):
     def action_toggle_preload(self) -> None:
         """Toggle preload on/off. Disabled items become enabled+preloaded."""
         name, section = self._selected_item()
-        if not name:
+        if not name or not section:
             return
-        an = self.agent_name
+        an = self.agent_name or ""
         if "(bridge)" in name:
             self.notify("bridges don't support preload", severity="warning")
             return
@@ -599,10 +601,11 @@ class ToolboxApp(App):
         self.notify(f"{name} → {get_state(section, name, agent_name=an)}")
 
     def action_filter(self) -> None:
-        def on_input(result: str) -> None:
-            self._filter = result
-            self._load_tools()
-        self.push_screen(_FilterScreen(), on_input)
+        def on_input(result: object) -> None:
+            if isinstance(result, str):
+                self._filter = result
+                self._load_tools()
+        self.push_screen(_FilterScreen(), on_input)  # type: ignore[arg-type]
 
     def action_help(self) -> None:
         self.push_screen(HelpScreen())
@@ -668,7 +671,7 @@ class ToolboxApp(App):
                     section = "skills"
                 elif "(bridge)" in name:
                     section = "bridge"
-                items[i] = (name, desc, get_state(section, name, agent_name=self.agent_name))
+                items[i] = (name, desc, get_state(section, name, agent_name=self.agent_name or ""))
         self._load_categories()
         self._load_tools()
 

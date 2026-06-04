@@ -250,7 +250,7 @@ class TestDelegateToHumanRejection:
                 id="remote-task",
                 status=TaskStatus(state=TaskState.input_required),
             )
-        mock_router.send_task = mock_send
+        mock_router.send_task = mock_send  # type: ignore
 
         set_transport(mock_router)
 

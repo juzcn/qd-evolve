@@ -131,31 +131,31 @@ class TestRunAndPublish:
         gca._loop = None
         gca._run_and_publish("hello")
         # Agent run was called but no publish (silent)
-        a2a.run.assert_called_once_with("hello")
+        a2a.run.assert_called_once_with("hello")  # type: ignore
 
     def test_silent_empty_response(self):
         gca, mqtt_agent, a2a, _, mock_transport, _ = _make_group_chat_agent(run_return="")
         gca._loop = None
         gca._run_and_publish("hello")
-        a2a.run.assert_called_once_with("hello")
+        a2a.run.assert_called_once_with("hello")  # type: ignore
 
     def test_silent_whitespace_response(self):
         gca, mqtt_agent, a2a, _, mock_transport, _ = _make_group_chat_agent(run_return="   ")
         gca._loop = None
         gca._run_and_publish("hello")
-        a2a.run.assert_called_once_with("hello")
+        a2a.run.assert_called_once_with("hello")  # type: ignore
 
     def test_normal_response_published(self):
         gca, mqtt_agent, a2a, _, mock_transport, _ = _make_group_chat_agent(run_return="I'm here!")
         gca._loop = None  # will use asyncio.run
         with patch("asyncio.run", return_value="msg-id-123") as mock_arun:
             gca._run_and_publish("hello")
-            a2a.run.assert_called_once_with("hello")
+            a2a.run.assert_called_once_with("hello")  # type: ignore
             mock_arun.assert_called_once()
 
     def test_run_failure_handled(self):
         gca, mqtt_agent, a2a, _, mock_transport, _ = _make_group_chat_agent()
-        a2a.run.side_effect = Exception("LLM down")
+        a2a.run.side_effect = Exception("LLM down")  # type: ignore
         gca._loop = None
         gca._run_and_publish("hello")
         # Should not crash, just log and return
@@ -172,7 +172,7 @@ class TestGroupChatAgentReplyDelay:
         with patch("qd_evolve.agent.group_chat_agent.time.sleep") as mock_sleep:
             gca._run_and_publish("hello")
             mock_sleep.assert_not_called()
-        a2a.run.assert_called_once_with("hello")
+        a2a.run.assert_called_once_with("hello")  # type: ignore
 
     def test_delay_applied_when_configured(self):
         gca, mqtt_agent, a2a, mock_inner, _, _ = _make_group_chat_agent()
@@ -183,7 +183,7 @@ class TestGroupChatAgentReplyDelay:
             mock_sleep.assert_called_once()
             delay = mock_sleep.call_args[0][0]
             assert 2.0 <= delay <= 5.0
-        a2a.run.assert_called_once_with("hello")
+        a2a.run.assert_called_once_with("hello")  # type: ignore
 
     def test_delay_before_run(self):
         """Delay happens before agent.run(), not after."""
@@ -232,11 +232,11 @@ class TestGroupChatAgentHeartbeat:
         result = gca.heartbeat_check(60)
         assert result is None
         # _push_event goes through mqtt_agent -> a2a._push_event
-        a2a._push_event.assert_called_with({"type": "heartbeat_silent"})
+        a2a._push_event.assert_called_with({"type": "heartbeat_silent"})  # type: ignore
 
     def test_llm_failure_returns_none(self):
         gca, mqtt_agent, a2a, mock_inner, _, _ = _make_group_chat_agent()
-        a2a.run.side_effect = Exception("timeout")
+        a2a.run.side_effect = Exception("timeout")  # type: ignore
         mock_inner._running = False
         result = gca.heartbeat_check(60)
         assert result is None
@@ -270,7 +270,7 @@ class TestGroupChatAgentHeartbeatLoop:
         # stop_heartbeat_loop calls cancel() on the task and delegates to agent
         # The task may be in "cancelling" state (not yet fully cancelled)
         # until the event loop runs. Just verify it was requested to stop.
-        a2a.stop_heartbeat_loop.assert_called_once()
+        a2a.stop_heartbeat_loop.assert_called_once()  # type: ignore
 
 
 # ── Event queue ─────────────────────────────────────────────────────

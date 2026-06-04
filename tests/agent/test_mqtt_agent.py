@@ -91,7 +91,7 @@ class TestMqttAgentDelegation:
     def test_run_delegates(self):
         mqtt, a2a, _ = _make_mqtt_agent()
         result = mqtt.run("hello")
-        a2a.run.assert_called_once_with("hello")
+        a2a.run.assert_called_once_with("hello")  # type: ignore
         assert result == "response"
 
     def test_subscribe_events_delegates(self):
@@ -107,7 +107,7 @@ class TestMqttAgentDelegation:
     def test_push_event_delegates(self):
         mqtt, a2a, _ = _make_mqtt_agent()
         mqtt._push_event({"type": "test"})
-        a2a._push_event.assert_called_once_with({"type": "test"})
+        a2a._push_event.assert_called_once_with({"type": "test"})  # type: ignore
 
     def test_settings_delegates(self):
         mqtt, a2a, _ = _make_mqtt_agent()
@@ -164,18 +164,18 @@ class TestMqttAgentHeartbeatCheck:
         result = mqtt.heartbeat_check(60)
         assert result == "."
         # _push_event delegates to a2a._push_event
-        a2a._push_event.assert_called_with({"type": "heartbeat_silent"})
+        a2a._push_event.assert_called_with({"type": "heartbeat_silent"})  # type: ignore
 
     def test_normal_heartbeat(self):
         mqtt, a2a, mock_inner = _make_mqtt_agent(run_return="I'm alive")
         mock_inner._running = False
         result = mqtt.heartbeat_check(60)
         assert result == "I'm alive"
-        a2a._push_event.assert_called_with({"type": "heartbeat", "content": "I'm alive"})
+        a2a._push_event.assert_called_with({"type": "heartbeat", "content": "I'm alive"})  # type: ignore
 
     def test_llm_failure_returns_none(self):
         mqtt, a2a, mock_inner = _make_mqtt_agent()
-        a2a.run.side_effect = Exception("connection lost")
+        a2a.run.side_effect = Exception("connection lost")  # type: ignore
         mock_inner._running = False
         result = mqtt.heartbeat_check(60)
         assert result is None
@@ -202,7 +202,7 @@ class TestMqttAgentHeartbeatLoop:
     def test_stop_delegates(self):
         mqtt, a2a, _ = _make_mqtt_agent()
         mqtt.stop_heartbeat_loop()
-        a2a.stop_heartbeat_loop.assert_called_once()
+        a2a.stop_heartbeat_loop.assert_called_once()  # type: ignore
 
 
 # ── Agent attribute pass-through ────────────────────────────────────

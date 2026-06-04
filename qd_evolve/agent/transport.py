@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import AsyncIterator, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, AsyncIterator, Protocol, runtime_checkable
 
 from qd_evolve.agent.a2a import (
     AgentCard,
@@ -13,10 +13,14 @@ from qd_evolve.agent.a2a import (
     Task,
     TaskState,
     TaskStatus,
+    TaskStatusUpdateEvent,
     make_text_message,
     make_task_with_text,
 )
 from qd_evolve.core.logger import logger
+
+if TYPE_CHECKING:
+    from qd_evolve.agent.mqtt_transport import MqttTransport
 
 
 @runtime_checkable
@@ -144,7 +148,6 @@ class InprocTransport:
                 try:
                     event = await asyncio.wait_for(event_queue.get(), timeout=30)
                     event_count += 1
-                    from qd_evolve.agent.a2a import TaskStatusUpdateEvent
                     yield StreamResponse(statusUpdate=TaskStatusUpdateEvent(
                         task_id=task.id,
                         context_id=task.session_id,
@@ -174,7 +177,6 @@ class InprocTransport:
 
         logger.info("InprocTransport: send_stream to '%s' done — %s chars, events=%d, state=%s",
                      target, len(result), event_count, final_state.value)
-        from qd_evolve.agent.a2a import TaskStatusUpdateEvent
         yield StreamResponse(statusUpdate=TaskStatusUpdateEvent(
             task_id=task.id,
             context_id=task.session_id,
@@ -205,6 +207,10 @@ class InprocTransport:
             return self._error_task(target, f"Task '{task_id}' not found")
         task.status.state = TaskState.canceled
         return task
+
+    async def is_online(self, target: str) -> bool:
+        """Always returns True for in-process agents."""
+        return True
 
     async def get_agent_card(self, target: str) -> AgentCard:
         registry = self._get_registry()
@@ -240,7 +246,6 @@ class InprocTransport:
             while True:
                 try:
                     event = await asyncio.wait_for(queue.get(), timeout=30)
-                    from qd_evolve.agent.a2a import TaskStatusUpdateEvent
                     yield StreamResponse(statusUpdate=TaskStatusUpdateEvent(
                         task_id=task_id,
                         status=TaskStatus(state=TaskState.working),

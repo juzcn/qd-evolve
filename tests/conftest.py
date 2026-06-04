@@ -3,7 +3,7 @@
 import json
 from pathlib import Path
 from unittest.mock import MagicMock
-from typing import Any
+from typing import Any, Iterator
 
 import pytest
 
@@ -48,7 +48,7 @@ def minimal_settings() -> Settings:
 @pytest.fixture
 def multi_agent_settings(minimal_settings: Settings) -> Settings:
     """Settings with 2 agents for A2A testing."""
-    minimal_settings.agents_config = AgentEntry(
+    minimal_settings.agents_config = AgentEntry(  # type: ignore
         name="default",
         description="Default agent",
         provider="test",
@@ -68,7 +68,7 @@ def multi_agent_settings(minimal_settings: Settings) -> Settings:
         ],
         default_provider="test",
         default_model="test-model",
-        agents_config={
+        agents_config={  # type: ignore
             "chat_agent": "default",
             "agents": [
                 AgentEntry(name="default", description="Default agent", provider="test", model="test-model"),
@@ -123,7 +123,7 @@ def memory_backend() -> EmbeddingsBackend:
 
 
 @pytest.fixture
-def memory_store(tmp_path: Path, mock_embedder: MagicMock) -> MemoryStore:
+def memory_store(tmp_path: Path, mock_embedder: MagicMock) -> Iterator[MemoryStore]:
     """Temporary SQLite + mock embedder — full save/recall/delete lifecycle."""
     from unittest.mock import patch
     db_path = str(tmp_path / "test_memory.db")

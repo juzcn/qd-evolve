@@ -15,7 +15,7 @@ from qd_evolve.core.logger import logger
 from qd_evolve.tools import ToolRegistry, get_registry
 from qd_evolve.utils.adk_output import make_handler
 from qd_evolve.utils.adk_schema import google_adk_to_openai_schema
-from tools.bridge import BRIDGE_DIR, BridgeManager
+from tools.bridge import BRIDGE_DIR, Bridge, BridgeManager
 
 
 def _oat_config_path() -> Path:
@@ -62,6 +62,7 @@ class OATBridge:
 
     def __init__(self, config: OATBridgeConfig, registry: ToolRegistry | None = None) -> None:
         self.config = config
+        self.bridge_type: str = ""
         self._registry = registry or get_registry()
         self.tool_names: list[str] = []
         self._pkg: Any = None
@@ -160,8 +161,8 @@ class OATBridge:
 
 # ====== Bridge protocol functions ======
 
-def _connect_oat_bridges(configs: list[OATBridgeConfig]) -> list[OATBridge]:
-    bridges: list[OATBridge] = []
+def _connect_oat_bridges(configs: list[OATBridgeConfig]) -> list[Bridge]:
+    bridges: list[Bridge] = []
     for config in configs:
         try:
             bridge = OATBridge(config)
@@ -172,7 +173,7 @@ def _connect_oat_bridges(configs: list[OATBridgeConfig]) -> list[OATBridge]:
     return bridges
 
 
-def _disconnect_oat_bridges(bridges: list[OATBridge]) -> None:
+def _disconnect_oat_bridges(bridges: list[Bridge]) -> None:
     for bridge in bridges:
         try:
             bridge.disconnect()

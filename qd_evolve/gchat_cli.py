@@ -5,9 +5,12 @@ group-message loop; human agents get an interactive terminal that shows
 incoming group messages and publishes keyboard input to the group.
 """
 
+from __future__ import annotations
+
 import asyncio
+import os
 import sys
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 # Windows: aiomqtt requires SelectorEventLoop
 if sys.platform == "win32":
@@ -17,6 +20,7 @@ import typer
 from pydantic import ValidationError
 from rich.console import Console
 from rich.panel import Panel
+from rich.table import Table
 
 from qd_evolve import __version__
 from qd_evolve.cli_utils import AGENT_COLORS
@@ -48,9 +52,9 @@ def _make_prompt_session(agent_name: str) -> Any:
     try:
         return PromptSession(prompt_msg, completer=completer)
     except Exception:
-        if sys.platform == "win32" and sys.environ.get("TERM"):
-            from prompt_toolkit.output.vt100 import Vt100_Output
-            from prompt_toolkit.input.vt100 import Vt100Input
+        if sys.platform == "win32" and os.environ.get("TERM"):
+            from prompt_toolkit.output.vt100 import Vt100_Output  # type: ignore[import-untyped]
+            from prompt_toolkit.input.vt100 import Vt100Input  # type: ignore[import-untyped]
             output = Vt100_Output.from_pty(sys.stdout)
             input_stream = Vt100Input(sys.stdin)
             return PromptSession(prompt_msg, completer=completer, output=output, input=input_stream)
@@ -70,7 +74,6 @@ async def _handle_slash_command(cmd: str, transport: Any, settings: Settings) ->
     if name == "/quit":
         return None
     if name == "/help":
-        from rich.table import Table
         table = Table(title="Commands", show_header=False)
         table.add_column("Command", style="bold cyan")
         table.add_column("Description")
@@ -386,6 +389,7 @@ def gchat(
     # 9. Run
     async def _run() -> None:
         if is_wechat:
+            assert wechat_client is not None
             if await wechat_client.try_restore_session(entry.wechat_session):
                 console.print("[green]WeChat session restored.[/green]")
             else:
@@ -405,6 +409,7 @@ def gchat(
         except Exception as e:
             console.print(f"[red]Error:[/red] Failed to connect to MQTT broker at {broker_info} — {e}")
             if is_wechat:
+                assert wechat_client is not None
                 await wechat_client.stop()
             return
 
@@ -414,6 +419,7 @@ def gchat(
             console.print(f"[red]Error:[/red] Failed to start agent — {e}")
             await group_transport.disconnect()
             if is_wechat:
+                assert wechat_client is not None
                 await wechat_client.stop()
             return
 
@@ -423,7 +429,8 @@ def gchat(
             else:
                 await _human_group_terminal_loop(gchat_agent, group_transport, settings, agent_name=agent)
         else:
-            gchat_agent.start_heartbeat_loop()
+            if hasattr(gchat_agent, 'start_heartbeat_loop'):
+                gchat_agent.start_heartbeat_loop()  # type: ignore[union-attr]
             await _ai_group_display_loop(gchat_agent, settings)
     #endregion _run
 

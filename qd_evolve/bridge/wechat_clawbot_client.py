@@ -78,7 +78,11 @@ def _render_terminal_image_from_url(url: str) -> bool:
         image = image.resize((width, height))
         print()
         for y in range(height):
-            print("".join("██" if image.getpixel((x, y)) < 128 else "  " for x in range(width)))
+            row_chars: list[str] = []
+            for x in range(width):
+                pixel = image.getpixel((x, y))
+                row_chars.append("██" if isinstance(pixel, int) and pixel < 128 else "  ")
+            print("".join(row_chars))
         print()
         return True
     except Exception as e:

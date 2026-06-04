@@ -18,7 +18,7 @@ import re
 from qd_evolve.core.config import MCP_DIR, MCPServerConfig
 from qd_evolve.core.logger import logger
 from qd_evolve.tools import ToolRegistry, get_registry
-from tools.bridge import BridgeManager
+from tools.bridge import Bridge, BridgeManager
 
 
 def _mcp_dir() -> Path:
@@ -30,7 +30,8 @@ def _expand_env(value: str) -> str:
 
     def _replace(match: re.Match) -> str:
         var = match.group(1) or match.group(2)
-        return _os.environ.get(var, match.group(0))
+        val = _os.environ.get(var)
+        return val if val is not None else match.group(0)
 
     return re.sub(r"\$\{(\w+)\}|\$(\w+)", _replace, value)
 
@@ -90,6 +91,7 @@ class MCPToolBridge:
 
     def __init__(self, config: MCPServerConfig, registry: ToolRegistry | None = None) -> None:
         self.config = config
+        self.bridge_type: str = ""
         self._registry = registry or get_registry()
         self._session: Any = None
         self._transport_ctx: Any = None
@@ -101,19 +103,20 @@ class MCPToolBridge:
     def connect(self) -> None:
         """Start the subprocess, initialize MCP session, register tools."""
         self._loop = asyncio.new_event_loop()
+        loop = self._loop
         connected = threading.Event()
         error_ref: list[BaseException] = []
 
         def _run():
-            asyncio.set_event_loop(self._loop)
+            asyncio.set_event_loop(loop)
             try:
-                self._loop.run_until_complete(self._async_connect())
+                loop.run_until_complete(self._async_connect())
             except BaseException as e:
                 error_ref.append(e)
             finally:
                 connected.set()
             if not error_ref:
-                self._loop.run_forever()
+                loop.run_forever()
 
         self._thread = threading.Thread(target=_run, daemon=True)
         self._thread.start()
@@ -305,7 +308,7 @@ def _check_missing_env_vars(config: MCPServerConfig) -> list[str]:
     return missing
 
 
-def _connect_mcp_servers(configs: list[MCPServerConfig]) -> list[MCPToolBridge]:
+def _connect_mcp_servers(configs: list[MCPServerConfig]) -> list[Bridge]:
     # Filter out configs with missing env vars
     valid: list[MCPServerConfig] = []
     for config in configs:
@@ -320,9 +323,9 @@ def _connect_mcp_servers(configs: list[MCPServerConfig]) -> list[MCPToolBridge]:
 
     # Connect all MCP servers in parallel — npx/uvx cold starts dominate
     # startup time, so overlapping them cuts wall-clock time significantly.
-    bridges: list[MCPToolBridge] = []
+    bridges: list[Bridge] = []
 
-    def _connect_one(config: MCPServerConfig) -> MCPToolBridge:
+    def _connect_one(config: MCPServerConfig) -> Bridge:
         bridge = MCPToolBridge(config)
         bridge.connect()
         return bridge
@@ -340,7 +343,7 @@ def _connect_mcp_servers(configs: list[MCPServerConfig]) -> list[MCPToolBridge]:
     return bridges
 
 
-def _disconnect_mcp_servers(bridges: list[MCPToolBridge]) -> None:
+def _disconnect_mcp_servers(bridges: list[Bridge]) -> None:
     for bridge in bridges:
         try:
             bridge.disconnect()

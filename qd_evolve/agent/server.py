@@ -151,11 +151,13 @@ class A2AServer:
         logger.info("A2A server: stopped")
 
     async def _handle_agent_card(self, request: web.Request) -> web.Response:
+        if self.card is None:
+            return web.json_response({"error": "Agent card not available"}, status=503)
         card = self.card.model_dump()
         card["capabilities"]["extended_agent_card"] = True
         return web.json_response(card)
 
-    async def _handle_rpc(self, request: web.Request) -> web.Response:
+    async def _handle_rpc(self, request: web.Request) -> web.Response | web.StreamResponse:
         try:
             body = await request.json()
         except json.JSONDecodeError:
@@ -474,6 +476,8 @@ class A2AServer:
     def _get_extended_agent_card(self) -> AgentCard:
         """Return extended AgentCard with runtime status in extensions."""
         a = self.agent_core
+        if self.card is None:
+            return AgentCard(name="unknown", description="Agent card not available")
         if a is None:
             return self.card.model_copy(update={
                 "capabilities": AgentCapabilities(

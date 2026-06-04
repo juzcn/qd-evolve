@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import threading
 from datetime import datetime
 from typing import Any, Callable
 
@@ -49,6 +50,7 @@ class Agent:
         self._preload_skills: set[str] = preload_skills or set()
         self._preload_cli: set[str] = preload_cli or set()
         self._hb_task: asyncio.Task | None = None
+        self.name: str = ""
         self._running: bool = False
         self._run_lock: "threading.Lock" = __import__("threading").Lock()
 
@@ -100,7 +102,7 @@ class Agent:
     def total_tokens(self) -> int:
         return self.total_input_tokens + self.total_output_tokens
 
-    def heartbeat_check(self, idle_seconds: int) -> str:
+    def heartbeat_check(self, idle_seconds: int) -> str | None:
         """Send a heartbeat message to the LLM after idle period.
 
         Returns the LLM's response. Caller decides whether to display it
@@ -303,6 +305,8 @@ class Agent:
         return f"API error ({name}): {e}"
 
     def _compress_messages(self) -> None:
+        if not self._model:
+            return
         prov = self.providers.get(self._provider_name)
         context_window = prov.get_context_window(self._model)
         if context_window <= 0:
@@ -469,6 +473,7 @@ class Agent:
     def _run_openai_completion(self, client: Any, system_prompt: str, max_tokens: int, _iter: int = 0) -> str:
         if _iter > 0:
             logger.debug("Agent: === LLM Request #%s (tool) ===", self.iteration)
+        assert self._model is not None, "model must be set before calling _run_openai_completion"
         openai_messages: list[dict[str, Any]] = [{"role": "system", "content": system_prompt}]
         openai_messages.extend(self.messages)
 
@@ -588,6 +593,7 @@ class Agent:
         reasoning_parts: list[str] = []
         tool_call_chunks: dict[int, dict[str, Any]] = {}
         usage: Any = None
+        chunk: Any = None
 
         try:
             for chunk in response:

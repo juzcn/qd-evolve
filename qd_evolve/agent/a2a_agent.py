@@ -30,6 +30,8 @@ class A2AAgent:
         self.card = card
         self.task_store = task_store or TaskStore()
         self._heartbeat_template = heartbeat_template
+        self._hb_idle_seconds: int = 0
+        self._hb_event: asyncio.Event | None = None
         self._event_subscribers: list[asyncio.Queue] = []
 
         # Hook our _push_event into the agent's event callback
@@ -44,7 +46,7 @@ class A2AAgent:
     def run(self, *args: Any, **kwargs: Any) -> str:
         return self.agent.run(*args, **kwargs)
 
-    def heartbeat_check(self, idle_seconds: int) -> str:
+    def heartbeat_check(self, idle_seconds: int) -> str | None:
         """A2A heartbeat: check pending async task results, then idle prompt."""
         if self.agent._running:
             logger.debug("A2A Heartbeat: skipped, agent is busy")

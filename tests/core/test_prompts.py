@@ -10,7 +10,7 @@ class TestCombinedLoader:
         template = tmp_path / "test.j2"
         template.write_text("Hello {{ name }}!", encoding="utf-8")
         loader = _CombinedLoader(tmp_path)
-        source, filename, uptodate = loader.get_source(None, "test.j2")
+        source, filename, uptodate = loader.get_source(None, "test.j2")  # type: ignore
         assert "Hello {{ name }}!" in source
 
     def test_load_from_fallback(self, tmp_path):
@@ -20,7 +20,7 @@ class TestCombinedLoader:
         fallback.mkdir()
         (fallback / "test.j2").write_text("Fallback {{ name }}!", encoding="utf-8")
         loader = _CombinedLoader(primary, fallback)
-        source, filename, uptodate = loader.get_source(None, "test.j2")
+        source, filename, uptodate = loader.get_source(None, "test.j2")  # type: ignore
         assert "Fallback" in source
 
     def test_primary_overrides_fallback(self, tmp_path):
@@ -31,7 +31,7 @@ class TestCombinedLoader:
         (primary / "test.j2").write_text("Primary!", encoding="utf-8")
         (fallback / "test.j2").write_text("Fallback!", encoding="utf-8")
         loader = _CombinedLoader(primary, fallback)
-        source, _, _ = loader.get_source(None, "test.j2")
+        source, _, _ = loader.get_source(None, "test.j2")  # type: ignore
         assert "Primary!" in source
 
     def test_not_found_raises(self, tmp_path):
@@ -40,15 +40,15 @@ class TestCombinedLoader:
         loader = _CombinedLoader(empty)
         from jinja2 import TemplateNotFound
         with pytest.raises(TemplateNotFound):
-            loader.get_source(None, "nonexistent.j2")
+            loader.get_source(None, "nonexistent.j2")  # type: ignore
 
     def test_fallback_none_skipped(self, tmp_path):
         primary = tmp_path / "primary"
         primary.mkdir()
         (primary / "test.j2").write_text("Primary content", encoding="utf-8")
         # Pass None primary to exercise the "d is None" continue path
-        loader = _CombinedLoader(None, primary)
-        source, _, _ = loader.get_source(None, "test.j2")
+        loader = _CombinedLoader(None, primary)  # type: ignore
+        source, _, _ = loader.get_source(None, "test.j2")  # type: ignore
         assert "Primary content" in source
 
 

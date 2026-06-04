@@ -86,6 +86,7 @@ class TestMqttHumanReceiveTask:
         mqtt_human, human = _make_mqtt_human()
         mqtt_human.receive_task("task-2", "question?", from_agent="helper")
         task = human.task_store.get("task-2")
+        assert task is not None
         assert task.status.state == TaskState.input_required
 
     def test_receive_task_without_from_agent(self):
@@ -107,6 +108,7 @@ class TestMqttHumanCompleteTask:
         # Direct sync call to HumanAgent.complete_task
         human.complete_task("task-4", "world")
         task = human.task_store.get("task-4")
+        assert task is not None
         assert task.status.state == TaskState.completed
 
     @pytest.mark.asyncio
@@ -116,6 +118,7 @@ class TestMqttHumanCompleteTask:
         await mqtt_human.complete_task("task-5", "world")
 
         task = human.task_store.get("task-5")
+        assert task is not None
         assert task.status.state == TaskState.completed
         mqtt_human._client.publish.assert_called_once()
 
@@ -126,6 +129,7 @@ class TestMqttHumanCompleteTask:
         await mqtt_human.complete_task("task-6", "world")
 
         task = human.task_store.get("task-6")
+        assert task is not None
         assert task.status.state == TaskState.completed
         mqtt_human._client.publish.assert_not_called()
 

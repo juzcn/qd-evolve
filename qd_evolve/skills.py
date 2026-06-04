@@ -18,7 +18,8 @@ def _parse_frontmatter(content: str) -> dict[str, str]:
     if end < 0:
         return {}
     try:
-        return yaml.safe_load(rest[:end]) or {}
+        result = yaml.safe_load(rest[:end])
+        return result if isinstance(result, dict) else {}
     except yaml.YAMLError:
         return {}
 

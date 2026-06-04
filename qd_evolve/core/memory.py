@@ -169,6 +169,8 @@ class MemoryStore:
             (key, self._session_id, user_msg, assistant_msg, content),
         )
         memory_id = cursor.lastrowid
+        if memory_id is None:
+            raise RuntimeError("Failed to retrieve lastrowid after memory insert")
 
         embedding = self._encode(content)
         self._db.execute(

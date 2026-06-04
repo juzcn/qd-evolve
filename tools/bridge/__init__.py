@@ -11,9 +11,9 @@ BridgeManager — adding a new bridge never touches cli.py or toolbox.py.
 
 
 import importlib
-import json
 from dataclasses import dataclass, field
 from pathlib import Path
+from collections.abc import Sequence
 from typing import Any, Callable, Protocol
 
 from qd_evolve.core.logger import logger
@@ -27,16 +27,17 @@ class Bridge(Protocol):
     """Each bridge instance holds its config and tracks registered tool names."""
 
     config: Any
+    bridge_type: str
     tool_names: list[str]
 
     def connect(self) -> None: ...
-    def disconnect(self) -> None: ...
+    def disconnect(self, shutdown: bool = False) -> None: ...
 
 
 # ====== BridgeManager ======
 
 DiscoverFn = Callable[[Any], list[Any]]
-ConnectFn = Callable[[list[Any]], list[Bridge]]
+ConnectFn = Callable[[list[Any]], Sequence[Bridge]]
 DisconnectFn = Callable[[list[Bridge]], None]
 
 

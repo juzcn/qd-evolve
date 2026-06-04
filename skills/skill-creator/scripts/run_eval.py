@@ -98,6 +98,7 @@ def run_single_query(
         accumulated_json = ""
 
         try:
+            assert process.stdout is not None
             while time.time() - start_time < timeout:
                 if process.poll() is not None:
                     remaining = process.stdout.read()

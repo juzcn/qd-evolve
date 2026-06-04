@@ -1,7 +1,7 @@
 ﻿
 from datetime import date
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from jinja2 import BaseLoader, Environment, TemplateNotFound
 from qd_evolve.core.logger import logger
@@ -16,7 +16,7 @@ class _CombinedLoader(BaseLoader):
         self._primary = primary
         self._fallback = fallback
 
-    def get_source(self, environment: Environment, template: str) -> tuple[str, str, callable]:
+    def get_source(self, environment: Environment, template: str) -> tuple[str, str, Callable[[], bool]]:
         for d in [self._primary, self._fallback] if self._fallback else [self._primary]:
             if d is None:
                 continue

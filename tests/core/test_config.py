@@ -51,7 +51,7 @@ class TestModelConfig:
 
     def test_missing_max_tokens_raises(self):
         with pytest.raises(Exception):
-            ModelConfig()
+            ModelConfig()  # type: ignore
 
 
 class TestProviderConfig:

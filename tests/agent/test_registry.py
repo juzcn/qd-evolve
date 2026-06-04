@@ -108,7 +108,9 @@ class TestAgentRegistry:
         reg = AgentRegistry()
         agent = self._make_mock_agent("test")
         reg.register(agent)
-        card = reg.get("test").card
+        got = reg.get("test")
+        assert got is not None
+        card = got.card
         assert card is not None
         assert card.name == "test"
 

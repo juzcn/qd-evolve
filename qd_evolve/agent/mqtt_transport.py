@@ -522,6 +522,8 @@ class MqttTransport:
                             result_task = t.result()
                         except (asyncio.CancelledError, Exception):
                             continue
+                        if not isinstance(result_task, Task):
+                            continue
                         result_text = self._extract_task_text(result_task)
                         yield StreamResponse(statusUpdate=TaskStatusUpdateEvent(
                             task_id=task.id,

@@ -5,11 +5,13 @@ Use `qd-evolve a2a-mqtt serve --agent <name>` to start an agent server.
 Use `qd-evolve a2a-mqtt` to connect as a client.
 """
 
+from __future__ import annotations
+
 import asyncio
 from asyncio import CancelledError
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 # Windows: paho-mqtt requires add_reader/add_writer which ProactorEventLoop doesn't support.
 # Must use SelectorEventLoop on Windows for aiomqtt to work.
@@ -28,9 +30,13 @@ from rich.table import Table
 from rich.text import Text
 
 from qd_evolve.cli_utils import AGENT_COLORS, ReplayInput, TeeWriter
-from qd_evolve.core.config import CONFIG_PATH, Settings, load_settings, save_json
+from qd_evolve.core.config import CONFIG_PATH, MqttConfig, Settings, load_settings, save_json
 
 from qd_evolve import __version__
+
+if TYPE_CHECKING:
+    from prompt_toolkit import PromptSession
+    from prompt_toolkit.formatted_text import FormattedText
 
 mqtt_app = typer.Typer(help="A2A over MQTT v5 — remote agent client/server")
 console = Console()
@@ -70,8 +76,8 @@ def _make_prompt_session() -> "PromptSession":
         return PromptSession(prompt_msg, completer=completer)
     except Exception:
         if os.name == "nt" and os.environ.get("TERM"):
-            from prompt_toolkit.output.vt100 import Vt100_Output
-            from prompt_toolkit.input.vt100 import Vt100Input
+            from prompt_toolkit.output.vt100 import Vt100_Output  # type: ignore[import-untyped]
+            from prompt_toolkit.input.vt100 import Vt100Input  # type: ignore[import-untyped]
             output = Vt100_Output.from_pty(sys.stdout)
             input_stream = Vt100Input(sys.stdin)
             return PromptSession(prompt_msg, completer=completer, output=output, input=input_stream)
@@ -582,7 +588,7 @@ async def _async_chat_loop(
             spinner = Spinner("dots", text=Text("Thinking...", style="bold green"))
 
             def _refresh() -> None:
-                items = [Text(line, style="bold green") for line in iteration_lines]
+                items: list[Text | Spinner] = [Text(line, style="bold green") for line in iteration_lines]
                 items.append(spinner)
                 for line in output_lines:
                     items.append(Text.from_markup(line, style="dim cyan"))
@@ -945,7 +951,7 @@ def chat(
             output_file = open(output, "w", encoding="utf-8")
             tee = TeeWriter(sys.stdout, output_file)
             import qd_evolve.mqtt_cli as _cli_mod
-            _cli_mod.console = Console(file=tee, force_terminal=True)
+            _cli_mod.console = Console(file=tee, force_terminal=True)  # type: ignore[arg-type]
         logger.info("CLI: replay mode: %s inputs from %s", len(inputs), replay)
     else:
         input_session = _make_prompt_session()
@@ -970,9 +976,8 @@ def chat(
         console.print("\n[dim]Disconnected.[/dim]")
 
 
-def _get_mqtt_config(settings: object, agent_name: str) -> object:
+def _get_mqtt_config(settings: Settings, agent_name: str) -> MqttConfig:
     """Get MQTT config for an agent, falling back to defaults."""
-    from qd_evolve.core.config import MqttConfig
     for a in settings.agents_config.agents:
         if a.name == agent_name:
             return a.mqtt

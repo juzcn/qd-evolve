@@ -20,8 +20,9 @@ class TestTaskStore:
         store = TaskStore()
         task = make_task_with_text("hello")
         store.put(task)
-        assert store.get(task.id) is not None
-        assert store.get(task.id).id == task.id
+        got = store.get(task.id)
+        assert got is not None
+        assert got.id == task.id
 
     def test_get_not_found(self):
         store = TaskStore()
@@ -46,7 +47,9 @@ class TestTaskStore:
         store.put(task)
         task.status = TaskStatus(state=TaskState.working)
         store.put(task)
-        assert store.get(task.id).status.state == TaskState.working
+        got = store.get(task.id)
+        assert got is not None
+        assert got.status.state == TaskState.working
 
 
 class TestA2AServer:
@@ -56,6 +59,7 @@ class TestA2AServer:
             "task_store": TaskStore(),
         })()
         server = A2AServer(mock_agent)
+        assert server.card is not None
         assert server.card.name == "test"
 
     def test_extract_text(self):

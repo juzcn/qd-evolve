@@ -87,13 +87,14 @@ if __name__ == "__main__":
     pattern = r'\d{4}-\d{2}-\d{2}to\d{4}-\d{2}-\d{2}'
     if "freshness" in parse_data:
         if parse_data["freshness"] in ["pd", "pw", "pm", "py"]:
+            start_date: str
             if parse_data["freshness"] == "pd":
                 start_date = (current_time - timedelta(days=1)).strftime("%Y-%m-%d")
-            if parse_data["freshness"] == "pw":
+            elif parse_data["freshness"] == "pw":
                 start_date = (current_time - timedelta(days=6)).strftime("%Y-%m-%d")
-            if parse_data["freshness"] == "pm":
+            elif parse_data["freshness"] == "pm":
                 start_date = (current_time - timedelta(days=30)).strftime("%Y-%m-%d")
-            if parse_data["freshness"] == "py":
+            else:  # py
                 start_date = (current_time - timedelta(days=364)).strftime("%Y-%m-%d")
             search_filter = {"range": {"page_time": {"gte": start_date, "lt": end_date}}}
         elif re.match(pattern, parse_data["freshness"]):

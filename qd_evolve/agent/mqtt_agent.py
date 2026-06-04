@@ -85,7 +85,7 @@ class MqttAgent:
 
     # ── Delegate key A2AAgent methods/attributes ────────────────────
 
-    def heartbeat_check(self, idle_seconds: int) -> str:
+    def heartbeat_check(self, idle_seconds: int) -> str | None:
         if self.agent._running:
             logger.debug("MQTT Heartbeat: skipped, agent is busy")
             return None
@@ -126,12 +126,15 @@ class MqttAgent:
         self.agent._hb_event = asyncio.Event()
 
         async def _loop() -> None:
+            hb_event = self.agent._hb_event
+            if hb_event is None:
+                return
             while True:
                 try:
-                    await asyncio.wait_for(self.agent._hb_event.wait(), timeout=self.agent._hb_idle_seconds)
-                    self.agent._hb_event.clear()
+                    await asyncio.wait_for(hb_event.wait(), timeout=self.agent._hb_idle_seconds)
+                    hb_event.clear()
                 except asyncio.TimeoutError:
-                    self.agent._hb_event.clear()
+                    hb_event.clear()
                     try:
                         await asyncio.to_thread(self.heartbeat_check, self.agent._hb_idle_seconds)
                     except Exception as e:
@@ -541,7 +544,7 @@ class MqttAgent:
         base_agent = self.agent.agent
         original_on_event = base_agent._on_event
         def _filter_completed(event: dict) -> None:
-            if event.get("type") != "completed":
+            if event.get("type") != "completed" and original_on_event is not None:
                 original_on_event(event)
         base_agent._on_event = _filter_completed
         try:
@@ -579,7 +582,7 @@ class MqttAgent:
         base_agent = self.agent.agent
         original_on_event = base_agent._on_event
         def _filter_completed(event: dict) -> None:
-            if event.get("type") != "completed":
+            if event.get("type") != "completed" and original_on_event is not None:
                 original_on_event(event)
         base_agent._on_event = _filter_completed
         try:

@@ -1,10 +1,12 @@
 """Chat CLI — single in-process agent, no A2A."""
 
+from __future__ import annotations
+
 import asyncio
 import sys
 from asyncio import CancelledError
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import typer
 from rich.console import Console, Group
@@ -13,6 +15,10 @@ from rich.panel import Panel
 from rich.spinner import Spinner
 from rich.table import Table
 from rich.text import Text
+
+if TYPE_CHECKING:
+    from prompt_toolkit import PromptSession
+    from prompt_toolkit.formatted_text import FormattedText
 
 from qd_evolve import __version__
 from qd_evolve.cli_utils import ReplayInput, TeeWriter
@@ -59,8 +65,8 @@ def _make_prompt_session() -> "PromptSession":
         return PromptSession(prompt_msg, completer=completer)
     except Exception:
         if os.name == "nt" and os.environ.get("TERM"):
-            from prompt_toolkit.output.vt100 import Vt100_Output
-            from prompt_toolkit.input.vt100 import Vt100Input
+            from prompt_toolkit.output.vt100 import Vt100_Output  # type: ignore
+            from prompt_toolkit.input.vt100 import Vt100Input  # type: ignore
             output = Vt100_Output.from_pty(sys.stdout)
             input_stream = Vt100Input(sys.stdin)
             return PromptSession(prompt_msg, completer=completer, output=output, input=input_stream)
@@ -288,7 +294,7 @@ async def _async_chat_loop(
     def _refresh() -> None:
         if spinner is None or live is None:
             return
-        items = [Text(line, style="bold green") for line in iteration_lines]
+        items: list[Text | Spinner] = [Text(line, style="bold green") for line in iteration_lines]
         items.append(spinner)
         for line in output_lines:
             items.append(Text.from_markup(line, style="dim cyan"))
@@ -542,7 +548,7 @@ def chat(
             output_file = open(output, "w", encoding="utf-8")
             tee = TeeWriter(sys.stdout, output_file)
             import qd_evolve.chat_cli as _cli_mod
-            _cli_mod.console = Console(file=tee, force_terminal=True)
+            _cli_mod.console = Console(file=tee, force_terminal=True)  # type: ignore[arg-type]
         logger.info("CLI: replay mode: %s inputs from %s", len(inputs), replay)
     else:
         input_session = _make_prompt_session()

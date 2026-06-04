@@ -13,9 +13,9 @@ from qd_evolve.core.providers import Provider, ProviderRegistry
 # @patch("openai.OpenAI") resolve without triggering slow real imports.
 # anthropic: ~0.7s, openai: ~0.6s — shaves ~1.3s off the slowest tests.
 if "anthropic" not in sys.modules:
-    sys.modules["anthropic"] = SimpleNamespace(Anthropic=None)
+    sys.modules["anthropic"] = SimpleNamespace(Anthropic=None)  # type: ignore
 if "openai" not in sys.modules:
-    sys.modules["openai"] = SimpleNamespace(OpenAI=None)
+    sys.modules["openai"] = SimpleNamespace(OpenAI=None)  # type: ignore
 
 
 class TestProvider:

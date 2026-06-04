@@ -145,10 +145,12 @@ class TestPart:
 
     def test_file_part(self):
         part = Part(type="file", file=FileContent(name="doc.pdf", mime_type="application/pdf"))
+        assert part.file is not None
         assert part.file.name == "doc.pdf"
 
     def test_data_part(self):
         part = Part(type="data", data={"key": "value"})
+        assert part.data is not None
         assert part.data["key"] == "value"
 
     def test_default_type(self):
@@ -182,6 +184,7 @@ class TestTaskStatus:
     def test_with_message(self):
         ts = TaskStatus(state=TaskState.completed, message=make_text_message("agent", "done"))
         assert ts.state == TaskState.completed
+        assert ts.message is not None
         assert ts.message.parts[0].text == "done"
 
 
