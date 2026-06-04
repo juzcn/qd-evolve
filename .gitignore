@@ -16,6 +16,10 @@ wheels/
 # Claude Code
 .claude/
 
+# Pyright artifacts
+pyright_err.txt
+pyright_full.json
+
 # Config and data (contain secrets)
 config.json
 *.db
