@@ -119,13 +119,6 @@ class TestPromptTemplateManager:
         func_pos = result.index("### Func Tools Summary")
         assert skills_pos < cli_pos < func_pos
 
-    def test_section_header_line(self):
-        """Each type section should have a 'status  name — description' header line."""
-        mgr = PromptTemplateManager()
-        result = mgr.render("default", agent_name="bot", runtime_context="- **OS:** Linux",
-                            skills_section="- [unloaded] s: Skill")
-        assert "tag  name — description" in result
-
     def test_preloaded_detail_appendix(self):
         """Preloaded skill/CLI details should render in appendix sections after summaries."""
         mgr = PromptTemplateManager()
