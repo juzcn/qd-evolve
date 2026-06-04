@@ -68,7 +68,7 @@ def _create_sub_agent(name: str, description: str = "") -> str:
         skill_registry = get_skill_registry()
         cli_registry = get_cli_registry()
     except Exception:
-        pass
+        return "Error: failed to import toolbox builder — sub-agent cannot be created"
 
     toolbox_ctx = build_toolbox_context(
         registry, skill_registry, cli_registry,
