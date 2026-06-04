@@ -24,6 +24,16 @@ class ToolDef(BaseModel):
     enabled: bool = True
 
 
+# source_name → bridge_type ("oat" | "mcp"). Bridges populate this when
+# they register tools so format_tools_summary() can group them correctly.
+_source_bridge_types: dict[str, str] = {}
+
+
+def set_source_bridge_type(source_name: str, bridge_type: str) -> None:
+    """Called by bridges to declare which type a tool source belongs to."""
+    _source_bridge_types[source_name] = bridge_type
+
+
 class ToolRegistry:
     """Registry of callable tools for the agent loop."""
 
@@ -154,16 +164,65 @@ class ToolRegistry:
         return result
 
     def format_tools_summary(self, loaded: set[str] | None = None) -> str:
-        """Format unloaded tools as a summary list for the system prompt."""
+        """Format unloaded tools grouped by source for LLM-friendly scanning.
+
+        Builtins (no tag) first, then MCP services, then local tool
+        packages.  Sources within each group are alphabetical.
+        """
+        import re
+
         loaded = loaded or set()
-        lines = []
+        _src_pat = re.compile(r"^\[([^\]]+)\]\s*")
+
+        builtins: list[tuple[str, str]] = []
+        # source_name → list of (name, desc)
+        oat_sources: dict[str, list[tuple[str, str]]] = {}
+        mcp_sources: dict[str, list[tuple[str, str]]] = {}
+
         for td in self._tools.values():
             if not td.enabled:
                 continue
             if td.name in loaded:
                 continue
-            lines.append(f"- {td.name}: {td.description}")
-        return "\n".join(lines)
+            m = _src_pat.match(td.description)
+            if m:
+                src = m.group(1)
+                desc = td.description[m.end():].strip()
+                bridge_type = _source_bridge_types.get(src, "mcp")
+                if bridge_type == "oat":
+                    oat_sources.setdefault(src, []).append((td.name, desc))
+                else:
+                    mcp_sources.setdefault(src, []).append((td.name, desc))
+            else:
+                builtins.append((td.name, td.description))
+
+        sections: list[str] = []
+
+        if builtins:
+            sections.append(f"### Builtins ({len(builtins)} tools)")
+            for name, desc in builtins:
+                sections.append(f"- {name}: {desc}")
+
+        if mcp_sources:
+            if sections:
+                sections.append("")
+            sections.append(f"### MCP Services ({sum(len(t) for t in mcp_sources.values())} tools)")
+            for src in sorted(mcp_sources):
+                tools = mcp_sources[src]
+                sections.append("")
+                sections.append(f"#### {src} ({len(tools)} tools)")
+                for name, desc in tools:
+                    sections.append(f"- {name}: {desc}")
+
+        for src in sorted(oat_sources):
+            tools = oat_sources[src]
+            if sections:
+                sections.append("")
+            sections.append(f"### {src} ({len(tools)} tools)")
+            for name, desc in tools:
+                sections.append(f"- {name}: {desc}")
+
+        return "\n".join(sections)
 
     def discover_tools(self) -> None:
         """Auto-discover tools from qd_evolve/tools/ (system) and tools/func/ (user)."""

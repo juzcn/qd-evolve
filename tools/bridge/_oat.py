@@ -82,6 +82,9 @@ class OATBridge:
                          self.config.loadout, self.config.package)
             return
 
+        from qd_evolve.core.registry import set_source_bridge_type
+        set_source_bridge_type(self.config.name, "oat")
+
         tools = loader()
         logger.info("OAT: [%s] %s:%s -> %d tools", self.config.name,
                     self.config.package, self.config.loadout, len(tools))

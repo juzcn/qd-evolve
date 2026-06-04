@@ -3,7 +3,6 @@
 ## Relevant Past Conversations
 {{ memory_section }}
 {% endif %}
-
 ## Toolbox
 You have three types of tools:
 - **Func tools** — Callable functions via the API function-calling interface.
@@ -13,29 +12,32 @@ You have three types of tools:
 **Use `load_func("name")` before calling any unloaded tool — otherwise parameters will be wrong.**
 
 {% if unpreloaded_skills %}
-
 ### Unloaded Skills Summary (use load_skill to get full instructions)
+
 {{ unpreloaded_skills }}
 {% endif %}
-{% if unpreloaded_cli %}
 
+{% if unpreloaded_cli %}
 ### Unloaded CLI Tools Summary (use load_cli to get usage info and examples)
+
 {{ unpreloaded_cli }}
 {% endif %}
-{% if unloaded_tools %}
 
+{% if unloaded_tools %}
 ### Unloaded Func Tools Summary (use load_func to get full schema)
+
 {{ unloaded_tools }}
 {% endif %}
-{% if preloaded_skills %}
 
+{% if preloaded_skills %}
 ### Preloaded Skills SKILL.md
+
 {{ preloaded_skills }}
 {% endif %}
-{% if preloaded_cli %}
 
+{% if preloaded_cli %}
 ### Preloaded CLI Tools Usage
+
 {{ preloaded_cli }}
 {% endif %}
-
 ### Preloaded and loaded func Tools: Schemas are provided via the API function-calling interface in each request.

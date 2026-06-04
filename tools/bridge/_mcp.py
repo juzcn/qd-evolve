@@ -125,6 +125,9 @@ class MCPToolBridge:
         if error_ref:
             raise error_ref[0]
 
+        from qd_evolve.core.registry import set_source_bridge_type
+        set_source_bridge_type(self.config.name, "mcp")
+
     async def _async_connect(self) -> None:
         from mcp import ClientSession
 
