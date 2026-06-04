@@ -61,36 +61,19 @@ def _create_sub_agent(name: str, description: str = "") -> str:
     ctx = parent_agent._template_context or {}
     registry = get_tool_registry()
 
-    # Build type-grouped toolbox sections for sub-agent system prompt
+    # Build type-grouped toolbox sections via shared builder
     skill_registry = cli_registry = None
     try:
-        from qd_evolve.agent.loader import get_skill_registry, get_cli_registry
+        from qd_evolve.agent.loader import build_toolbox_context, get_skill_registry, get_cli_registry
         skill_registry = get_skill_registry()
         cli_registry = get_cli_registry()
     except Exception:
         pass
 
-    func_tools_section = registry.format_tools_summary(preloaded=inherited_preload_tools, loaded=set())
-    skills_section = skill_registry.format_for_prompt(preloaded=inherited_preload_skills, loaded=set()) if skill_registry else ""
-    cli_tools_section = cli_registry.format_for_prompt(preloaded=inherited_preload_cli, loaded=set()) if cli_registry else ""
-
-    # Build preloaded detail appendix for sub-agent
-    preloaded_skills_detail = ""
-    if skill_registry:
-        parts = [s.content for s in skill_registry.get_all_skills()
-                 if s.name in inherited_preload_skills and s.content]
-        preloaded_skills_detail = "\n\n".join(parts)
-
-    preloaded_cli_detail = ""
-    if cli_registry:
-        import json
-        parts = []
-        for t in cli_registry.list_tools():
-            if t.name in inherited_preload_cli:
-                detail = cli_registry.get_detail(t.name)
-                if detail:
-                    parts.append(json.dumps(detail, ensure_ascii=False))
-        preloaded_cli_detail = "\n\n".join(parts)
+    toolbox_ctx = build_toolbox_context(
+        registry, skill_registry, cli_registry,
+        inherited_preload_tools, inherited_preload_skills, inherited_preload_cli,
+    )
 
     template_mgr = PromptTemplateManager()
     system_prompt = template_mgr.render(
@@ -98,11 +81,7 @@ def _create_sub_agent(name: str, description: str = "") -> str:
         name=name,
         description=description,
         runtime_context=ctx.get("runtime_context", ""),
-        func_tools_section=func_tools_section,
-        skills_section=skills_section,
-        cli_tools_section=cli_tools_section,
-        preloaded_skills_detail=preloaded_skills_detail,
-        preloaded_cli_detail=preloaded_cli_detail,
+        **toolbox_ctx,
         shell_tool=ctx.get("shell_tool", "run_shell"),
     )
 

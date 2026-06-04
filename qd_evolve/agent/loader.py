@@ -107,6 +107,54 @@ def _a2a_enabled(settings: Settings) -> bool:
     return len(settings.agents_config.agents) > 1
 
 
+# ── Toolbox context builder ──────────────────────────────────────────
+
+def build_toolbox_context(
+    registry: Any,
+    skill_registry: Any,
+    cli_registry: Any,
+    preload_tools: set[str],
+    preload_skills: set[str],
+    preload_cli: set[str],
+) -> dict[str, str]:
+    """Build the 5 template context variables for the toolbox sections.
+
+    Returns a dict with keys: func_tools_section, skills_section,
+    cli_tools_section, preloaded_skills_detail, preloaded_cli_detail.
+    """
+    import json as _json
+
+    func_tools_section = registry.format_tools_summary(preloaded=preload_tools, loaded=set())
+    skills_section = skill_registry.format_for_prompt(preloaded=preload_skills, loaded=set()) if skill_registry else ""
+    cli_tools_section = cli_registry.format_for_prompt(preloaded=preload_cli, loaded=set()) if cli_registry else ""
+
+    # Preloaded skill details appendix
+    preloaded_skills_detail = ""
+    if skill_registry:
+        parts = [s.content for s in skill_registry.get_all_skills()
+                 if s.name in preload_skills and s.content]
+        preloaded_skills_detail = "\n\n".join(parts)
+
+    # Preloaded CLI details appendix
+    preloaded_cli_detail = ""
+    if cli_registry:
+        parts = []
+        for t in cli_registry.list_tools():
+            if t.name in preload_cli:
+                detail = cli_registry.get_detail(t.name)
+                if detail:
+                    parts.append(_json.dumps(detail, ensure_ascii=False))
+        preloaded_cli_detail = "\n\n".join(parts)
+
+    return {
+        "func_tools_section": func_tools_section,
+        "skills_section": skills_section,
+        "cli_tools_section": cli_tools_section,
+        "preloaded_skills_detail": preloaded_skills_detail,
+        "preloaded_cli_detail": preloaded_cli_detail,
+    }
+
+
 # ── Runtime environment collection ───────────────────────────────────
 
 def _collect_runtime_context(env_vars: dict[str, str] | None = None) -> tuple[str, str]:
@@ -267,31 +315,15 @@ def create_agent(name: str, settings: Settings, *, need_a2a: bool | None = None,
     set_preload_tools(loaded_tool_names)
 
     # ── Build type-grouped toolbox sections with status tags ───
-    # loaded set is empty at init — runtime tag changes handled by agent._update_status_tags
     skill_registry._preload_skills |= loaded_skill_names
     for s in skill_registry.get_all_skills():
         if s.name in loaded_skill_names:
             s.active = True
 
-    func_tools_section = registry.format_tools_summary(preloaded=loaded_tool_names, loaded=set())
-    skills_section = skill_registry.format_for_prompt(preloaded=loaded_skill_names, loaded=set())
-    cli_tools_section = cli_registry.format_for_prompt(preloaded=loaded_cli_names, loaded=set())
-
-    # Build preloaded detail appendix (full SKILL.md / JSON), rendered after summaries
-    preloaded_skills_detail_parts = []
-    for s in skill_registry.get_all_skills():
-        if s.name in loaded_skill_names and s.content:
-            preloaded_skills_detail_parts.append(s.content)
-    preloaded_skills_detail = "\n\n".join(preloaded_skills_detail_parts)
-
-    preloaded_cli_detail_parts = []
-    import json as _json
-    for t in cli_registry.list_tools():
-        if t.name in loaded_cli_names:
-            detail = cli_registry.get_detail(t.name)
-            if detail:
-                preloaded_cli_detail_parts.append(_json.dumps(detail, ensure_ascii=False))
-    preloaded_cli_detail = "\n\n".join(preloaded_cli_detail_parts)
+    toolbox_ctx = build_toolbox_context(
+        registry, skill_registry, cli_registry,
+        loaded_tool_names, loaded_skill_names, loaded_cli_names,
+    )
 
     total_tools = len(registry.list_tools())
     logger.debug(
@@ -329,11 +361,7 @@ def create_agent(name: str, settings: Settings, *, need_a2a: bool | None = None,
         template_name = "default"
 
     template_context = {
-        "func_tools_section": func_tools_section,
-        "skills_section": skills_section,
-        "cli_tools_section": cli_tools_section,
-        "preloaded_skills_detail": preloaded_skills_detail,
-        "preloaded_cli_detail": preloaded_cli_detail,
+        **toolbox_ctx,
         "runtime_context": runtime_context,
         "shell_tool": shell_tool,
         "agent_name": entry.name,
