@@ -1,326 +1,425 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html xmlns="http://www.w3.org/1999/xhtml" lang xml:lang>
 <head>
-<meta charset="UTF-8">
-<title>QD-Evolve - README</title>
-<style>
-    @page {
-        margin: 2cm 2.5cm;
-    }
-    * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
-    }
-    body {
-        font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
-        font-size: 11pt;
-        line-height: 1.7;
-        color: #1a1a2e;
-        padding: 20px 0;
-    }
-    .container {
-        max-width: 1000px;
-        margin: 0 auto;
-        padding: 0 20px;
-    }
-    h1 {
-        font-size: 28pt;
-        color: #0a1628;
-        border-bottom: 3px solid #2563eb;
-        padding-bottom: 12px;
-        margin-top: 10px;
-        margin-bottom: 20px;
-    }
-    h2 {
-        font-size: 18pt;
-        color: #1e3a5f;
-        border-bottom: 2px solid #e2e8f0;
-        padding-bottom: 8px;
-        margin-top: 30px;
-        margin-bottom: 15px;
-    }
-    h3 {
-        font-size: 14pt;
-        color: #2563eb;
-        margin-top: 20px;
-        margin-bottom: 10px;
-    }
-    h4 {
-        font-size: 12pt;
-        color: #334155;
-        margin-top: 15px;
-        margin-bottom: 8px;
-    }
-    p {
-        margin-bottom: 10px;
-        text-align: justify;
-    }
-    a {
-        color: #2563eb;
-        text-decoration: none;
-    }
-    code {
-        font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
-        font-size: 9.5pt;
-        background: #f1f5f9;
-        padding: 2px 6px;
-        border-radius: 3px;
-        color: #0f172a;
-    }
-    pre {
-        background: #0f172a;
-        color: #e2e8f0;
-        padding: 14px 18px;
-        border-radius: 6px;
-        overflow-x: auto;
-        margin: 12px 0;
-        font-size: 9.5pt;
-        line-height: 1.5;
-    }
-    pre code {
-        background: transparent;
-        padding: 0;
-        color: inherit;
-        font-size: inherit;
-    }
-    blockquote {
-        border-left: 4px solid #2563eb;
-        background: #f8fafc;
-        padding: 10px 16px;
-        margin: 12px 0;
-        color: #475569;
-    }
-    table {
-        width: 100%;
-        border-collapse: collapse;
-        margin: 12px 0;
-        font-size: 10pt;
-    }
-    th {
-        background: #1e3a5f;
-        color: white;
-        padding: 8px 12px;
-        text-align: left;
-        font-weight: 600;
-    }
-    td {
-        padding: 8px 12px;
-        border: 1px solid #e2e8f0;
-    }
-    tr:nth-child(even) {
-        background: #f8fafc;
-    }
-    ul, ol {
-        margin: 8px 0 8px 20px;
-    }
-    li {
-        margin-bottom: 4px;
-    }
-    hr {
-        border: none;
-        border-top: 2px solid #e2e8f0;
-        margin: 24px 0;
-    }
-    img {
-        max-width: 100%;
-        border-radius: 4px;
-    }
-    .footer {
-        margin-top: 40px;
-        padding-top: 16px;
-        border-top: 1px solid #e2e8f0;
-        font-size: 9pt;
-        color: #94a3b8;
-        text-align: center;
-    }
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>QD-Evolve</title>
+  <style>
+
+html {
+color: #1a1a1a;
+background-color: #fdfdfd;
+}
+body {
+margin: 0 auto;
+max-width: 36em;
+padding-left: 50px;
+padding-right: 50px;
+padding-top: 50px;
+padding-bottom: 50px;
+hyphens: auto;
+overflow-wrap: break-word;
+text-rendering: optimizeLegibility;
+font-kerning: normal;
+}
+@media (max-width: 600px) {
+body {
+font-size: 0.9em;
+padding: 12px;
+}
+h1 {
+font-size: 1.8em;
+}
+}
+@media print {
+html {
+background-color: white;
+}
+body {
+background-color: transparent;
+color: black;
+font-size: 12pt;
+}
+p, h2, h3 {
+orphans: 3;
+widows: 3;
+}
+h2, h3, h4 {
+page-break-after: avoid;
+}
+}
+p {
+margin: 1em 0;
+}
+a {
+color: #1a1a1a;
+}
+a:visited {
+color: #1a1a1a;
+}
+img {
+max-width: 100%;
+}
+svg {
+height: auto;
+max-width: 100%;
+}
+h1, h2, h3, h4, h5, h6 {
+margin-top: 1.4em;
+}
+h5, h6 {
+font-size: 1em;
+font-style: italic;
+}
+h6 {
+font-weight: normal;
+}
+ol, ul {
+padding-left: 1.7em;
+margin-top: 1em;
+}
+li > ol, li > ul {
+margin-top: 0;
+}
+blockquote {
+margin: 1em 0 1em 1.7em;
+padding-left: 1em;
+border-left: 2px solid #e6e6e6;
+color: #606060;
+}
+code {
+font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+font-size: 85%;
+margin: 0;
+hyphens: manual;
+}
+pre {
+margin: 1em 0;
+overflow: auto;
+}
+pre code {
+padding: 0;
+overflow: visible;
+overflow-wrap: normal;
+}
+.sourceCode {
+background-color: transparent;
+overflow: visible;
+}
+hr {
+border: none;
+border-top: 1px solid #1a1a1a;
+height: 1px;
+margin: 1em 0;
+}
+table {
+margin: 1em 0;
+border-collapse: collapse;
+width: 100%;
+overflow-x: auto;
+display: block;
+font-variant-numeric: lining-nums tabular-nums;
+}
+table caption {
+margin-bottom: 0.75em;
+}
+tbody {
+margin-top: 0.5em;
+border-top: 1px solid #1a1a1a;
+border-bottom: 1px solid #1a1a1a;
+}
+th {
+border-top: 1px solid #1a1a1a;
+padding: 0.25em 0.5em 0.25em 0.5em;
+}
+td {
+padding: 0.125em 0.5em 0.25em 0.5em;
+}
+header {
+margin-bottom: 4em;
+text-align: center;
+}
+#TOC li {
+list-style: none;
+}
+#TOC ul {
+padding-left: 1.3em;
+}
+#TOC > ul {
+padding-left: 0;
+}
+#TOC a:not(:hover) {
+text-decoration: none;
+}
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+
+ul.task-list[class]{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+font-size: inherit;
+width: 0.8em;
+margin: 0 0.8em 0.2em -1.6em;
+vertical-align: middle;
+}
+.display.math{display: block; text-align: center; margin: 0.5rem auto;}
+
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+{ counter-reset: source-line 0; }
+pre.numberSource code > span
+{ position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+{ content: counter(source-line);
+position: relative; left: -1em; text-align: right; vertical-align: baseline;
+border: none; display: inline-block;
+-webkit-touch-callout: none; -webkit-user-select: none;
+-khtml-user-select: none; -moz-user-select: none;
+-ms-user-select: none; user-select: none;
+padding: 0 4px; width: 4em;
+color: #aaaaaa;
+}
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa; padding-left: 4px; }
+div.sourceCode
+{ }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ff0000; font-weight: bold; } 
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.at { color: #7d9029; } 
+code span.bn { color: #40a070; } 
+code span.bu { color: #008000; } 
+code span.cf { color: #007020; font-weight: bold; } 
+code span.ch { color: #4070a0; } 
+code span.cn { color: #880000; } 
+code span.co { color: #60a0b0; font-style: italic; } 
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.do { color: #ba2121; font-style: italic; } 
+code span.dt { color: #902000; } 
+code span.dv { color: #40a070; } 
+code span.er { color: #ff0000; font-weight: bold; } 
+code span.ex { } 
+code span.fl { color: #40a070; } 
+code span.fu { color: #06287e; } 
+code span.im { color: #008000; font-weight: bold; } 
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.kw { color: #007020; font-weight: bold; } 
+code span.op { color: #666666; } 
+code span.ot { color: #007020; } 
+code span.pp { color: #bc7a00; } 
+code span.sc { color: #4070a0; } 
+code span.ss { color: #bb6688; } 
+code span.st { color: #4070a0; } 
+code span.va { color: #19177c; } 
+code span.vs { color: #4070a0; } 
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } 
 </style>
 </head>
 <body>
-<div class="container">
-<h1>QD-Evolve</h1>
-<p><a href="https://pypi.org/project/qd-evolve/"><img alt="PyPI version" src="https://img.shields.io/pypi/v/qd-evolve" /></a>
+<header id="title-block-header">
+<h1 class="title">QD-Evolve</h1>
+</header>
+<h1 id="qd-evolve">QD-Evolve</h1>
+<p><a href="https://pypi.org/project/qd-evolve/"><img role="img" aria-label="PyPI version" src="data:image/svg+xml;charset=utf-8;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4NiIgaGVpZ2h0PSIyMCIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsPSJweXBpOiB2MC4xLjEyIj48dGl0bGU+cHlwaTogdjAuMS4xMjwvdGl0bGU+PGZpbHRlciBpZD0iYmx1ciI+PGZlR2F1c3NpYW5CbHVyIGluPSJTb3VyY2VHcmFwaGljIiBzdGREZXZpYXRpb249IjE2Ii8+PC9maWx0ZXI+PGxpbmVhckdyYWRpZW50IGlkPSJzIiB4Mj0iMCIgeTI9IjEwMCUiPjxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI2JiYiIgc3RvcC1vcGFjaXR5PSIuMSIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1vcGFjaXR5PSIuMSIvPjwvbGluZWFyR3JhZGllbnQ+PGNsaXBQYXRoIGlkPSJyIj48cmVjdCB3aWR0aD0iODYiIGhlaWdodD0iMjAiIHJ4PSIzIiBmaWxsPSIjZmZmIi8+PC9jbGlwUGF0aD48ZyBjbGlwLXBhdGg9InVybCgjcikiPjxyZWN0IHdpZHRoPSIzMyIgaGVpZ2h0PSIyMCIgZmlsbD0iIzU1NSIvPjxyZWN0IHg9IjMzIiB3aWR0aD0iNTMiIGhlaWdodD0iMjAiIGZpbGw9IiNlYTcyMzMiLz48cmVjdCB3aWR0aD0iODYiIGhlaWdodD0iMjAiIGZpbGw9InVybCgjcykiLz48L2c+PGcgZmlsbD0iI2ZmZiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC1mYW1pbHk9IlZlcmRhbmEsR2VuZXZhLERlamFWdSBTYW5zLHNhbnMtc2VyaWYiIHRleHQtcmVuZGVyaW5nPSJnZW9tZXRyaWNQcmVjaXNpb24iIGZvbnQtc2l6ZT0iMTEwIj48dGV4dCBhcmlhLWhpZGRlbj0idHJ1ZSIgeD0iMTc1IiB5PSIxNTAiIGZpbGw9IiMwMTAxMDEiIGZpbGwtb3BhY2l0eT0iLjgwIiBmaWx0ZXI9InVybCgjYmx1cikiIHRyYW5zZm9ybT0ic2NhbGUoLjEpIiB0ZXh0TGVuZ3RoPSIyMzAiPnB5cGk8L3RleHQ+PHRleHQgYXJpYS1oaWRkZW49InRydWUiIHg9IjE3NSIgeT0iMTUwIiBmaWxsPSIjMDEwMTAxIiBmaWxsLW9wYWNpdHk9Ii4zIiB0cmFuc2Zvcm09InNjYWxlKC4xKSIgdGV4dExlbmd0aD0iMjMwIj5weXBpPC90ZXh0Pjx0ZXh0IHg9IjE3NSIgeT0iMTQwIiB0cmFuc2Zvcm09InNjYWxlKC4xKSIgZmlsbD0iI2ZmZiIgdGV4dExlbmd0aD0iMjMwIj5weXBpPC90ZXh0Pjx0ZXh0IGFyaWEtaGlkZGVuPSJ0cnVlIiB4PSI1ODUiIHk9IjE1MCIgZmlsbD0iIzAxMDEwMSIgZmlsbC1vcGFjaXR5PSIuODAiIGZpbHRlcj0idXJsKCNibHVyKSIgdHJhbnNmb3JtPSJzY2FsZSguMSkiIHRleHRMZW5ndGg9IjQzMCI+djAuMS4xMjwvdGV4dD48dGV4dCBhcmlhLWhpZGRlbj0idHJ1ZSIgeD0iNTg1IiB5PSIxNTAiIGZpbGw9IiMwMTAxMDEiIGZpbGwtb3BhY2l0eT0iLjMiIHRyYW5zZm9ybT0ic2NhbGUoLjEpIiB0ZXh0TGVuZ3RoPSI0MzAiPnYwLjEuMTI8L3RleHQ+PHRleHQgeD0iNTg1IiB5PSIxNDAiIHRyYW5zZm9ybT0ic2NhbGUoLjEpIiBmaWxsPSIjZmZmIiB0ZXh0TGVuZ3RoPSI0MzAiPnYwLjEuMTI8L3RleHQ+PC9nPjwvc3ZnPg==" alt="PyPI version" /></a>
 <a href="https://github.com/juzcn/qd-evolve/blob/main/README_zh.md">中文版</a></p>
-<p>Multi-agent AI framework with A2A protocol support, group chat, persistent memory, and extensible tool system.</p>
+<p>Multi-agent AI framework with A2A protocol support, group chat,
+persistent memory, and extensible tool system.</p>
 <ul>
-<li><a href="DESIGN.md">DESIGN.md</a> — design philosophy, invariants, architecture, implementation</li>
+<li><a href="DESIGN.md">DESIGN.md</a> — design philosophy, invariants,
+architecture, implementation</li>
 </ul>
-<h2>Installation</h2>
-<h3>Prerequisites</h3>
+<h2 id="installation">Installation</h2>
+<h3 id="prerequisites">Prerequisites</h3>
 <ul>
 <li><strong>Python 3.13+</strong> — <a href="https://www.python.org/downloads/">download</a></li>
 <li><strong>Mosquitto v5 broker</strong> (MQTT/GChat mode only) — <a href="https://mosquitto.org/download/">download</a></li>
 </ul>
 <p>Verify Python is ready:</p>
 <p><strong>Windows</strong></p>
-<div class="codehilite"><pre><span></span><code>python --version
-# Python 3.13.x  ← must be 3.13 or newer
-</code></pre></div>
-
-<p>If the command is not found:
-1. Re-run the Python installer
-2. Check <strong>"Add python.exe to PATH"</strong> at the bottom of the first screen
-3. Or search "Manage app execution aliases" in Windows Settings and turn off the Python alias that opens the Store</p>
+<pre><code>python --version
+# Python 3.13.x  ← must be 3.13 or newer</code></pre>
+<p>If the command is not found: 1. Re-run the Python installer 2. Check
+<strong>“Add python.exe to PATH”</strong> at the bottom of the first
+screen 3. Or search “Manage app execution aliases” in Windows Settings
+and turn off the Python alias that opens the Store</p>
 <p><strong>macOS / Linux</strong></p>
-<div class="codehilite"><pre><span></span><code>python3 --version
-# Python 3.13.x  ← must be 3.13 or newer
-</code></pre></div>
-
-<h3>Step 1 — Create a project folder</h3>
-<div class="codehilite"><pre><span></span><code>mkdir my-agent
-cd my-agent
-</code></pre></div>
-
-<h3>Step 2 — Create and activate a virtual environment</h3>
+<pre><code>python3 --version
+# Python 3.13.x  ← must be 3.13 or newer</code></pre>
+<h3 id="step-1-create-a-project-folder">Step 1 — Create a project
+folder</h3>
+<pre><code>mkdir my-agent
+cd my-agent</code></pre>
+<h3 id="step-2-create-and-activate-a-virtual-environment">Step 2 —
+Create and activate a virtual environment</h3>
 <p><strong>Windows</strong></p>
-<div class="codehilite"><pre><span></span><code><span class="nf">python</span><span class="w"> </span><span class="p">-</span><span class="no">m</span><span class="w"> </span><span class="no">venv</span><span class="w"> </span><span class="no">.venv</span>
-<span class="na">.venv</span><span class="err">\</span><span class="no">Scripts</span><span class="err">\</span><span class="no">activate</span>
-</code></pre></div>
-
+<pre><code>python -m venv .venv
+.venv\Scripts\activate</code></pre>
 <p><strong>macOS / Linux</strong></p>
-<div class="codehilite"><pre><span></span><code>python3 -m venv .venv
-source .venv/bin/activate
-</code></pre></div>
+<pre><code>python3 -m venv .venv
+source .venv/bin/activate</code></pre>
+<h3 id="step-3-install-qd-evolve">Step 3 — Install qd-evolve</h3>
+<pre><code>pip install qd-evolve --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
 
-<h3>Step 3 — Install qd-evolve</h3>
-<div class="codehilite"><pre><span></span><code><span class="n">pip</span><span class="w"> </span><span class="n">install</span><span class="w"> </span><span class="n">qd</span><span class="o">-</span><span class="n">evolve</span><span class="w"> </span><span class="c1">--extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu</span>
-
-<span class="err">#</span><span class="w"> </span><span class="n">Optional</span><span class="w"> </span><span class="n">extras</span>
-<span class="n">pip</span><span class="w"> </span><span class="n">install</span><span class="w"> </span><span class="n">qd</span><span class="o">-</span><span class="n">evolve</span><span class="o">[</span><span class="n">memory</span><span class="o">]</span><span class="w"> </span><span class="c1">--extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu   # Embeddings &amp; conversation memory</span>
-<span class="n">pip</span><span class="w"> </span><span class="n">install</span><span class="w"> </span><span class="n">qd</span><span class="o">-</span><span class="n">evolve</span><span class="o">[</span><span class="n">boat</span><span class="o">]</span><span class="w"> </span><span class="c1">--extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu     # BOAT bridge</span>
-</code></pre></div>
-
+# Optional extras
+pip install qd-evolve[memory] --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu   # Embeddings &amp; conversation memory
+pip install qd-evolve[boat] --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu     # BOAT bridge</code></pre>
 <blockquote>
-<p>If you use <a href="https://docs.astral.sh/uv/">uv</a> instead of pip, the extra index is configured automatically — just run <code>uv add qd-evolve</code>.</p>
+<p>If you use <a href="https://docs.astral.sh/uv/">uv</a> instead of
+pip, the extra index is configured automatically — just run
+<code>uv add qd-evolve</code>.</p>
 </blockquote>
-<h3>Step 4 — Initialize your project</h3>
-<div class="codehilite"><pre><span></span><code>qd-evolve<span class="w"> </span>init
-</code></pre></div>
-
-<p>This copies default tools, skills, and config templates into your project folder:</p>
-<div class="codehilite"><pre><span></span><code><span class="n">my</span><span class="o">-</span><span class="n">agent</span><span class="o">/</span>
-<span class="err">├──</span><span class="w"> </span><span class="o">.</span><span class="n">venv</span><span class="o">/</span><span class="w">                 </span><span class="c1"># Virtual environment</span>
-<span class="err">├──</span><span class="w"> </span><span class="n">tools</span><span class="o">/</span><span class="w">                 </span><span class="c1"># User tools — add/delete freely</span>
-<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">bridge</span><span class="o">/</span><span class="w">            </span><span class="c1">#   Bridge connectors (OAT, MCP)</span>
-<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">cli</span><span class="o">/</span><span class="w">               </span><span class="c1">#   CLI tool wrappers</span>
-<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="k">func</span><span class="o">/</span><span class="w">              </span><span class="c1">#   Python function tools</span>
-<span class="err">│</span><span class="w">   </span><span class="err">└──</span><span class="w"> </span><span class="n">mcp</span><span class="o">/</span><span class="w">               </span><span class="c1">#   MCP server configs</span>
-<span class="err">├──</span><span class="w"> </span><span class="n">skills</span><span class="o">/</span><span class="w">                </span><span class="c1"># Skills — add/delete freely</span>
-<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">baidu</span><span class="o">-</span><span class="n">search</span><span class="o">/</span>
-<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">register</span><span class="o">-</span><span class="n">cli</span><span class="o">/</span>
-<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">search</span><span class="o">-</span><span class="n">tools</span><span class="o">/</span>
-<span class="err">│</span><span class="w">   </span><span class="err">└──</span><span class="w"> </span><span class="o">...</span>
-<span class="err">├──</span><span class="w"> </span><span class="n">config</span><span class="o">.</span><span class="n">minimal</span><span class="o">.</span><span class="n">json</span><span class="w">    </span><span class="c1"># Minimal config — copy to config.json</span>
-<span class="err">└──</span><span class="w"> </span><span class="n">config</span><span class="o">.</span><span class="n">json</span><span class="o">.</span><span class="n">example</span><span class="w">    </span><span class="c1"># Full config reference</span>
-</code></pre></div>
-
-<p>Running <code>init</code> again is safe: existing files are never overwritten. New default files from package updates are added.</p>
-<h3>Step 5 — Configure</h3>
-<div class="codehilite"><pre><span></span><code>copy<span class="w"> </span>config.minimal.json<span class="w"> </span>config.json<span class="w">    </span><span class="c1"># Windows</span>
-<span class="c1"># cp config.minimal.json config.json     # macOS / Linux</span>
-</code></pre></div>
-
-<p>Edit <code>config.json</code> and set your API key. Minimal setup for single-agent chat:</p>
-<div class="codehilite"><pre><span></span><code><span class="p">{</span>
-<span class="w">  </span><span class="nt">&quot;env_vars&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="nt">&quot;PYTHONIOENCODING&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;utf-8&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;PYTHONUTF8&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;1&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;SERPER_API_KEY&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;YOUR_SERPER_API_KEY&quot;</span>
-<span class="w">  </span><span class="p">},</span>
-<span class="w">  </span><span class="nt">&quot;default_provider&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;deepseek&quot;</span><span class="p">,</span>
-<span class="w">  </span><span class="nt">&quot;default_model&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;deepseek-v4-pro&quot;</span><span class="p">,</span>
-<span class="w">  </span><span class="nt">&quot;providers&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
-<span class="w">    </span><span class="p">{</span>
-<span class="w">      </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;deepseek&quot;</span><span class="p">,</span>
-<span class="w">      </span><span class="nt">&quot;api_key&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;YOUR_DEEPSEEK_API_KEY&quot;</span><span class="p">,</span>
-<span class="w">      </span><span class="nt">&quot;base_url&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;https://api.deepseek.com&quot;</span><span class="p">,</span>
-<span class="w">      </span><span class="nt">&quot;api&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;openai-completions&quot;</span><span class="p">,</span>
-<span class="w">      </span><span class="nt">&quot;models&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
-<span class="w">        </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;deepseek-v4-pro&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;reasoning&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;context_window&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1000000</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;max_tokens&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">131072</span><span class="w"> </span><span class="p">}</span>
-<span class="w">      </span><span class="p">]</span>
-<span class="w">    </span><span class="p">}</span>
-<span class="w">  </span><span class="p">],</span>
-<span class="w">  </span><span class="nt">&quot;agents_config&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="nt">&quot;agents&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
-<span class="w">      </span><span class="p">{</span>
-<span class="w">        </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;default&quot;</span><span class="p">,</span>
-<span class="w">        </span><span class="nt">&quot;toolbox&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<span class="w">          </span><span class="nt">&quot;tools&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<span class="w">            </span><span class="nt">&quot;load_func&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;preload&quot;</span><span class="p">,</span>
-<span class="w">            </span><span class="nt">&quot;load_skill&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;preload&quot;</span><span class="p">,</span>
-<span class="w">            </span><span class="nt">&quot;load_cli&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;preload&quot;</span>
-<span class="w">          </span><span class="p">}</span>
-<span class="w">        </span><span class="p">}</span>
-<span class="w">      </span><span class="p">}</span>
-<span class="w">    </span><span class="p">]</span>
-<span class="w">  </span><span class="p">}</span>
-<span class="p">}</span>
-</code></pre></div>
-
+<h3 id="step-4-initialize-your-project">Step 4 — Initialize your
+project</h3>
+<div class="sourceCode" id="cb7"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">qd-evolve</span> init</span></code></pre></div>
+<p>This copies default tools, skills, and config templates into your
+project folder:</p>
+<pre><code>my-agent/
+├── .venv/                 # Virtual environment
+├── tools/                 # User tools — add/delete freely
+│   ├── bridge/            #   Bridge connectors (OAT, MCP)
+│   ├── cli/               #   CLI tool wrappers
+│   ├── func/              #   Python function tools
+│   └── mcp/               #   MCP server configs
+├── skills/                # Skills — add/delete freely
+│   ├── baidu-search/
+│   ├── register-cli/
+│   ├── search-tools/
+│   └── ...
+├── config.minimal.json    # Minimal config — copy to config.json
+└── config.json.example    # Full config reference</code></pre>
+<p>Running <code>init</code> again is safe: existing files are never
+overwritten. New default files from package updates are added.</p>
+<h3 id="step-5-configure">Step 5 — Configure</h3>
+<div class="sourceCode" id="cb9"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ex">copy</span> config.minimal.json config.json    <span class="co"># Windows</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="co"># cp config.minimal.json config.json     # macOS / Linux</span></span></code></pre></div>
+<p>Edit <code>config.json</code> and set your API key. Minimal setup for
+single-agent chat:</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode json"><code class="sourceCode json"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;env_vars&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;PYTHONIOENCODING&quot;</span><span class="fu">:</span> <span class="st">&quot;utf-8&quot;</span><span class="fu">,</span></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;PYTHONUTF8&quot;</span><span class="fu">:</span> <span class="st">&quot;1&quot;</span><span class="fu">,</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;SERPER_API_KEY&quot;</span><span class="fu">:</span> <span class="st">&quot;YOUR_SERPER_API_KEY&quot;</span></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">},</span></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;default_provider&quot;</span><span class="fu">:</span> <span class="st">&quot;deepseek&quot;</span><span class="fu">,</span></span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;default_model&quot;</span><span class="fu">:</span> <span class="st">&quot;deepseek-v4-pro&quot;</span><span class="fu">,</span></span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;providers&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span></span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;name&quot;</span><span class="fu">:</span> <span class="st">&quot;deepseek&quot;</span><span class="fu">,</span></span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;api_key&quot;</span><span class="fu">:</span> <span class="st">&quot;YOUR_DEEPSEEK_API_KEY&quot;</span><span class="fu">,</span></span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;base_url&quot;</span><span class="fu">:</span> <span class="st">&quot;https://api.deepseek.com&quot;</span><span class="fu">,</span></span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;api&quot;</span><span class="fu">:</span> <span class="st">&quot;openai-completions&quot;</span><span class="fu">,</span></span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;models&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a>        <span class="fu">{</span> <span class="dt">&quot;name&quot;</span><span class="fu">:</span> <span class="st">&quot;deepseek-v4-pro&quot;</span><span class="fu">,</span> <span class="dt">&quot;reasoning&quot;</span><span class="fu">:</span> <span class="kw">true</span><span class="fu">,</span> <span class="dt">&quot;context_window&quot;</span><span class="fu">:</span> <span class="dv">1000000</span><span class="fu">,</span> <span class="dt">&quot;max_tokens&quot;</span><span class="fu">:</span> <span class="dv">131072</span> <span class="fu">}</span></span>
+<span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a>      <span class="ot">]</span></span>
+<span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span></span>
+<span id="cb10-19"><a href="#cb10-19" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span><span class="fu">,</span></span>
+<span id="cb10-20"><a href="#cb10-20" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;agents_config&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb10-21"><a href="#cb10-21" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;agents&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb10-22"><a href="#cb10-22" aria-hidden="true" tabindex="-1"></a>      <span class="fu">{</span></span>
+<span id="cb10-23"><a href="#cb10-23" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;name&quot;</span><span class="fu">:</span> <span class="st">&quot;default&quot;</span><span class="fu">,</span></span>
+<span id="cb10-24"><a href="#cb10-24" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;toolbox&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb10-25"><a href="#cb10-25" aria-hidden="true" tabindex="-1"></a>          <span class="dt">&quot;tools&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb10-26"><a href="#cb10-26" aria-hidden="true" tabindex="-1"></a>            <span class="dt">&quot;load_func&quot;</span><span class="fu">:</span> <span class="st">&quot;preload&quot;</span><span class="fu">,</span></span>
+<span id="cb10-27"><a href="#cb10-27" aria-hidden="true" tabindex="-1"></a>            <span class="dt">&quot;load_skill&quot;</span><span class="fu">:</span> <span class="st">&quot;preload&quot;</span><span class="fu">,</span></span>
+<span id="cb10-28"><a href="#cb10-28" aria-hidden="true" tabindex="-1"></a>            <span class="dt">&quot;load_cli&quot;</span><span class="fu">:</span> <span class="st">&quot;preload&quot;</span></span>
+<span id="cb10-29"><a href="#cb10-29" aria-hidden="true" tabindex="-1"></a>          <span class="fu">}</span></span>
+<span id="cb10-30"><a href="#cb10-30" aria-hidden="true" tabindex="-1"></a>        <span class="fu">}</span></span>
+<span id="cb10-31"><a href="#cb10-31" aria-hidden="true" tabindex="-1"></a>      <span class="fu">}</span></span>
+<span id="cb10-32"><a href="#cb10-32" aria-hidden="true" tabindex="-1"></a>    <span class="ot">]</span></span>
+<span id="cb10-33"><a href="#cb10-33" aria-hidden="true" tabindex="-1"></a>  <span class="fu">}</span></span>
+<span id="cb10-34"><a href="#cb10-34" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
 <blockquote>
-<p><strong>API keys you'll need:</strong>
-- <strong>Provider key</strong> (DeepSeek, OpenAI, Anthropic, etc.) — required for chat
-- <strong>Serper key</strong> — optional, for web search. Free tier at <a href="https://serper.dev">serper.dev</a>. Without it the agent may open browser windows to search.</p>
-<p>See <a href="#configuration-1">Configuration</a> below for full multi-agent, MQTT, and toolbox setup.</p>
+<p><strong>API keys you’ll need:</strong> - <strong>Provider
+key</strong> (DeepSeek, OpenAI, Anthropic, etc.) — required for chat -
+<strong>Serper key</strong> — optional, for web search. Free tier at <a href="https://serper.dev">serper.dev</a>. Without it the agent may open
+browser windows to search.</p>
+<p>See <a href="#configuration-1">Configuration</a> below for full
+multi-agent, MQTT, and toolbox setup.</p>
 </blockquote>
-<h3>Verify</h3>
-<div class="codehilite"><pre><span></span><code>qd-evolve<span class="w"> </span>chat<span class="w"> </span>--agent<span class="w"> </span>default
-</code></pre></div>
-
-<h3>Troubleshooting</h3>
-<p><strong><code>pip install</code> fails with CMake / nmake errors</strong></p>
-<p>This means pip is trying to build <code>llama-cpp-python</code> from source. Make sure you included <code>--extra-index-url</code>:</p>
-<div class="codehilite"><pre><span></span><code>pip install qd-evolve --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
-</code></pre></div>
-
-<p><strong>Browser windows open when the agent searches the web</strong></p>
-<p>The agent has a search tool that needs a Serper API key (<code>SERPER_API_KEY</code> in <code>env_vars</code>). Without it, the agent may fall back to the browser MCP tool which opens visible browser windows. Get a free key at <a href="https://serper.dev">serper.dev</a> and add it to <code>config.json</code>.</p>
-<p><strong><code>'python' is not recognized</code> or <code>python: command not found</code></strong></p>
-<p>Python is not installed or not on your PATH. See the verification steps in <a href="#prerequisites">Prerequisites</a> above.</p>
-<h3>Install from source</h3>
-<div class="codehilite"><pre><span></span><code>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/juzcn/qd-evolve
-<span class="nb">cd</span><span class="w"> </span>qd-evolve
-
-<span class="c1"># Install dependencies</span>
-uv<span class="w"> </span>sync
-
-<span class="c1"># Optional: BOAT bridge extras</span>
-uv<span class="w"> </span>sync<span class="w"> </span>--extra<span class="w"> </span>boat
-</code></pre></div>
-
-<p>Source installs have <code>tools/</code> and <code>skills/</code> already in the project root — no <code>init</code> needed.</p>
-<h2>Quick Start</h2>
-<div class="codehilite"><pre><span></span><code><span class="c1"># Single-agent chat</span>
-qd-evolve<span class="w"> </span>chat<span class="w"> </span>--agent<span class="w"> </span>default
-
-<span class="c1"># Multi-agent A2A chat over HTTP</span>
-qd-evolve<span class="w"> </span>a2a-http
-
-<span class="c1"># Run an agent as standalone A2A HTTP server</span>
-qd-evolve<span class="w"> </span>a2a-http<span class="w"> </span>serve<span class="w"> </span>--agent<span class="w"> </span>&lt;name&gt;
-
-<span class="c1"># Multi-agent in-process chat (all agents loaded locally, no network)</span>
-qd-evolve<span class="w"> </span>a2a-inproc
-
-<span class="c1"># Multi-agent MQTT chat (requires Mosquitto v5 broker)</span>
-qd-evolve<span class="w"> </span>a2a-mqtt
-
-<span class="c1"># Run an agent as MQTT-accessible server</span>
-qd-evolve<span class="w"> </span>a2a-mqtt<span class="w"> </span>serve<span class="w"> </span>--agent<span class="w"> </span>&lt;name&gt;
-
-<span class="c1"># Group chat — WeChat-style multi-agent group (requires Mosquitto v5 broker)</span>
-<span class="c1"># Supports: AI agents, terminal human agents, WeChat human agents</span>
-qd-evolve<span class="w"> </span>gchat<span class="w"> </span>--agent<span class="w"> </span>&lt;name&gt;
-
-<span class="c1"># Manage tool enable/disable/preload</span>
-qd-evolve<span class="w"> </span>toolbox<span class="w"> </span>--agent<span class="w"> </span>&lt;name&gt;
-
-<span class="c1"># Browse and search conversation memories</span>
-qd-evolve<span class="w"> </span>memory<span class="w"> </span>--agent<span class="w"> </span>&lt;name&gt;
-</code></pre></div>
-
-<h2>Four Systems</h2>
+<h3 id="verify">Verify</h3>
+<div class="sourceCode" id="cb11"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="ex">qd-evolve</span> chat <span class="at">--agent</span> default</span></code></pre></div>
+<h3 id="troubleshooting">Troubleshooting</h3>
+<p><strong><code>pip install</code> fails with CMake / nmake
+errors</strong></p>
+<p>This means pip is trying to build <code>llama-cpp-python</code> from
+source. Make sure you included <code>--extra-index-url</code>:</p>
+<pre><code>pip install qd-evolve --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu</code></pre>
+<p><strong>Browser windows open when the agent searches the
+web</strong></p>
+<p>The agent has a search tool that needs a Serper API key
+(<code>SERPER_API_KEY</code> in <code>env_vars</code>). Without it, the
+agent may fall back to the browser MCP tool which opens visible browser
+windows. Get a free key at <a href="https://serper.dev">serper.dev</a>
+and add it to <code>config.json</code>.</p>
+<p><strong><code>&#39;python&#39; is not recognized</code> or
+<code>python: command not found</code></strong></p>
+<p>Python is not installed or not on your PATH. See the verification
+steps in <a href="#prerequisites">Prerequisites</a> above.</p>
+<h3 id="install-from-source">Install from source</h3>
+<div class="sourceCode" id="cb13"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> clone https://github.com/juzcn/qd-evolve</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> qd-evolve</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Install dependencies</span></span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> sync</span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Optional: BOAT bridge extras</span></span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> sync <span class="at">--extra</span> boat</span></code></pre></div>
+<p>Source installs have <code>tools/</code> and <code>skills/</code>
+already in the project root — no <code>init</code> needed.</p>
+<h2 id="quick-start">Quick Start</h2>
+<div class="sourceCode" id="cb14"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Single-agent chat</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="ex">qd-evolve</span> chat <span class="at">--agent</span> default</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Multi-agent A2A chat over HTTP</span></span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a><span class="ex">qd-evolve</span> a2a-http</span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Run an agent as standalone A2A HTTP server</span></span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a><span class="ex">qd-evolve</span> a2a-http serve <span class="at">--agent</span> <span class="op">&lt;</span>name<span class="op">&gt;</span></span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Multi-agent in-process chat (all agents loaded locally, no network)</span></span>
+<span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a><span class="ex">qd-evolve</span> a2a-inproc</span>
+<span id="cb14-12"><a href="#cb14-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-13"><a href="#cb14-13" aria-hidden="true" tabindex="-1"></a><span class="co"># Multi-agent MQTT chat (requires Mosquitto v5 broker)</span></span>
+<span id="cb14-14"><a href="#cb14-14" aria-hidden="true" tabindex="-1"></a><span class="ex">qd-evolve</span> a2a-mqtt</span>
+<span id="cb14-15"><a href="#cb14-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-16"><a href="#cb14-16" aria-hidden="true" tabindex="-1"></a><span class="co"># Run an agent as MQTT-accessible server</span></span>
+<span id="cb14-17"><a href="#cb14-17" aria-hidden="true" tabindex="-1"></a><span class="ex">qd-evolve</span> a2a-mqtt serve <span class="at">--agent</span> <span class="op">&lt;</span>name<span class="op">&gt;</span></span>
+<span id="cb14-18"><a href="#cb14-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-19"><a href="#cb14-19" aria-hidden="true" tabindex="-1"></a><span class="co"># Group chat — WeChat-style multi-agent group (requires Mosquitto v5 broker)</span></span>
+<span id="cb14-20"><a href="#cb14-20" aria-hidden="true" tabindex="-1"></a><span class="co"># Supports: AI agents, terminal human agents, WeChat human agents</span></span>
+<span id="cb14-21"><a href="#cb14-21" aria-hidden="true" tabindex="-1"></a><span class="ex">qd-evolve</span> gchat <span class="at">--agent</span> <span class="op">&lt;</span>name<span class="op">&gt;</span></span>
+<span id="cb14-22"><a href="#cb14-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-23"><a href="#cb14-23" aria-hidden="true" tabindex="-1"></a><span class="co"># Manage tool enable/disable/preload</span></span>
+<span id="cb14-24"><a href="#cb14-24" aria-hidden="true" tabindex="-1"></a><span class="ex">qd-evolve</span> toolbox <span class="at">--agent</span> <span class="op">&lt;</span>name<span class="op">&gt;</span></span>
+<span id="cb14-25"><a href="#cb14-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-26"><a href="#cb14-26" aria-hidden="true" tabindex="-1"></a><span class="co"># Browse and search conversation memories</span></span>
+<span id="cb14-27"><a href="#cb14-27" aria-hidden="true" tabindex="-1"></a><span class="ex">qd-evolve</span> memory <span class="at">--agent</span> <span class="op">&lt;</span>name<span class="op">&gt;</span></span></code></pre></div>
+<h2 id="four-systems">Four Systems</h2>
 <table>
+<colgroup>
+<col style="width: 22%" />
+<col style="width: 19%" />
+<col style="width: 30%" />
+<col style="width: 27%" />
+</colgroup>
 <thead>
 <tr>
 <th>System</th>
@@ -362,110 +461,117 @@ qd-evolve<span class="w"> </span>memory<span class="w"> </span>--agent<span clas
 </tr>
 </tbody>
 </table>
-<p>Each system is fully independent — no protocol fallback between them. See <a href="DESIGN.md">DESIGN.md</a> for the full architecture.</p>
-<h2>Configuration</h2>
-<p>All configuration via <code>config.json</code>. No CLI config commands, no <code>.env</code> files.</p>
-<h3>Provider &amp; Model</h3>
-<div class="codehilite"><pre><span></span><code><span class="p">{</span>
-<span class="w">  </span><span class="nt">&quot;default_provider&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;openai&quot;</span><span class="p">,</span>
-<span class="w">  </span><span class="nt">&quot;default_model&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;gpt-4o&quot;</span><span class="p">,</span>
-<span class="w">  </span><span class="nt">&quot;providers&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
-<span class="w">    </span><span class="p">{</span>
-<span class="w">      </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;openai&quot;</span><span class="p">,</span>
-<span class="w">      </span><span class="nt">&quot;api_key&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;sk-...&quot;</span><span class="p">,</span>
-<span class="w">      </span><span class="nt">&quot;base_url&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;https://api.openai.com/v1&quot;</span><span class="p">,</span>
-<span class="w">      </span><span class="nt">&quot;api&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;openai-completions&quot;</span><span class="p">,</span>
-<span class="w">      </span><span class="nt">&quot;models&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
-<span class="w">        </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;gpt-4o&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;context_window&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">128000</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;max_tokens&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">4096</span><span class="w"> </span><span class="p">}</span>
-<span class="w">      </span><span class="p">]</span>
-<span class="w">    </span><span class="p">},</span>
-<span class="w">    </span><span class="p">{</span>
-<span class="w">      </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;anthropic&quot;</span><span class="p">,</span>
-<span class="w">      </span><span class="nt">&quot;api_key&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;sk-ant-...&quot;</span><span class="p">,</span>
-<span class="w">      </span><span class="nt">&quot;api&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;anthropic&quot;</span><span class="p">,</span>
-<span class="w">      </span><span class="nt">&quot;models&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
-<span class="w">        </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;claude-sonnet-4-6&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;context_window&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">200000</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;max_tokens&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">8192</span><span class="w"> </span><span class="p">}</span>
-<span class="w">      </span><span class="p">]</span>
-<span class="w">    </span><span class="p">},</span>
-<span class="w">    </span><span class="p">{</span>
-<span class="w">      </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;deepseek&quot;</span><span class="p">,</span>
-<span class="w">      </span><span class="nt">&quot;api_key&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;...&quot;</span><span class="p">,</span>
-<span class="w">      </span><span class="nt">&quot;base_url&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;https://api.deepseek.com&quot;</span><span class="p">,</span>
-<span class="w">      </span><span class="nt">&quot;api&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;openai-completions&quot;</span><span class="p">,</span>
-<span class="w">      </span><span class="nt">&quot;models&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
-<span class="w">        </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;deepseek-v4-pro&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;reasoning&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;context_window&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1000000</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;max_tokens&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">131072</span><span class="w"> </span><span class="p">}</span>
-<span class="w">      </span><span class="p">]</span>
-<span class="w">    </span><span class="p">}</span>
-<span class="w">  </span><span class="p">]</span>
-<span class="p">}</span>
-</code></pre></div>
-
-<p>Three API types: <code>openai-completions</code>, <code>openai-response</code>, <code>anthropic</code>. Set at provider level via <code>api</code> field. Streaming is global (<code>stream</code> field). Reasoning/thinking is per-model (<code>reasoning: true</code>).</p>
-<h3>Multi-Agent</h3>
-<div class="codehilite"><pre><span></span><code><span class="p">{</span>
-<span class="w">  </span><span class="nt">&quot;agents_config&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="nt">&quot;chat_agent&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;planner&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;agents&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
-<span class="w">      </span><span class="p">{</span>
-<span class="w">        </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;planner&quot;</span><span class="p">,</span>
-<span class="w">        </span><span class="nt">&quot;description&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Plans and delegates tasks&quot;</span><span class="p">,</span>
-<span class="w">        </span><span class="nt">&quot;provider&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;openai&quot;</span><span class="p">,</span>
-<span class="w">        </span><span class="nt">&quot;model&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;gpt-4o&quot;</span><span class="p">,</span>
-<span class="w">        </span><span class="nt">&quot;memory_db&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;planner.db&quot;</span><span class="p">,</span>
-<span class="w">        </span><span class="nt">&quot;server&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;host&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;127.0.0.1&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;port&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">8001</span><span class="w"> </span><span class="p">},</span>
-<span class="w">        </span><span class="nt">&quot;toolbox&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;tools&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{}</span><span class="w"> </span><span class="p">}</span>
-<span class="w">      </span><span class="p">},</span>
-<span class="w">      </span><span class="p">{</span>
-<span class="w">        </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;human&quot;</span><span class="p">,</span>
-<span class="w">        </span><span class="nt">&quot;description&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Human for approvals&quot;</span><span class="p">,</span>
-<span class="w">        </span><span class="nt">&quot;provider&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;human&quot;</span><span class="p">,</span>
-<span class="w">        </span><span class="nt">&quot;server&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;host&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;127.0.0.1&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;port&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">8002</span><span class="w"> </span><span class="p">}</span>
-<span class="w">      </span><span class="p">},</span>
-<span class="w">      </span><span class="p">{</span>
-<span class="w">        </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;wechat_user&quot;</span><span class="p">,</span>
-<span class="w">        </span><span class="nt">&quot;description&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Human via WeChat iLink&quot;</span><span class="p">,</span>
-<span class="w">        </span><span class="nt">&quot;provider&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;wechat-human&quot;</span><span class="p">,</span>
-<span class="w">        </span><span class="nt">&quot;server&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;host&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;127.0.0.1&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;port&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">8003</span><span class="w"> </span><span class="p">}</span>
-<span class="w">      </span><span class="p">}</span>
-<span class="w">    </span><span class="p">]</span>
-<span class="w">  </span><span class="p">}</span>
-<span class="p">}</span>
-</code></pre></div>
-
-<p>Per-agent provider/model with global fallback. <code>provider: "human"</code> for terminal human agents, <code>"wechat-human"</code> for WeChat iLink bridge. Each agent has its own memory DB, server config, and toolbox state. WeChat human agents persist their session token via the <code>wechat_session</code> field.</p>
-<h3>MQTT Broker</h3>
-<div class="codehilite"><pre><span></span><code><span class="p">{</span>
-<span class="w">  </span><span class="nt">&quot;agents_config&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="nt">&quot;mqtt_broker&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<span class="w">      </span><span class="nt">&quot;host&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;127.0.0.1&quot;</span><span class="p">,</span>
-<span class="w">      </span><span class="nt">&quot;port&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1883</span>
-<span class="w">    </span><span class="p">}</span>
-<span class="w">  </span><span class="p">}</span>
-<span class="p">}</span>
-</code></pre></div>
-
+<p>Each system is fully independent — no protocol fallback between them.
+See <a href="DESIGN.md">DESIGN.md</a> for the full architecture.</p>
+<h2 id="configuration">Configuration</h2>
+<p>All configuration via <code>config.json</code>. No CLI config
+commands, no <code>.env</code> files.</p>
+<h3 id="provider-model">Provider &amp; Model</h3>
+<div class="sourceCode" id="cb15"><pre class="sourceCode json"><code class="sourceCode json"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;default_provider&quot;</span><span class="fu">:</span> <span class="st">&quot;openai&quot;</span><span class="fu">,</span></span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;default_model&quot;</span><span class="fu">:</span> <span class="st">&quot;gpt-4o&quot;</span><span class="fu">,</span></span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;providers&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span></span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;name&quot;</span><span class="fu">:</span> <span class="st">&quot;openai&quot;</span><span class="fu">,</span></span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;api_key&quot;</span><span class="fu">:</span> <span class="st">&quot;sk-...&quot;</span><span class="fu">,</span></span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;base_url&quot;</span><span class="fu">:</span> <span class="st">&quot;https://api.openai.com/v1&quot;</span><span class="fu">,</span></span>
+<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;api&quot;</span><span class="fu">:</span> <span class="st">&quot;openai-completions&quot;</span><span class="fu">,</span></span>
+<span id="cb15-10"><a href="#cb15-10" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;models&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb15-11"><a href="#cb15-11" aria-hidden="true" tabindex="-1"></a>        <span class="fu">{</span> <span class="dt">&quot;name&quot;</span><span class="fu">:</span> <span class="st">&quot;gpt-4o&quot;</span><span class="fu">,</span> <span class="dt">&quot;context_window&quot;</span><span class="fu">:</span> <span class="dv">128000</span><span class="fu">,</span> <span class="dt">&quot;max_tokens&quot;</span><span class="fu">:</span> <span class="dv">4096</span> <span class="fu">}</span></span>
+<span id="cb15-12"><a href="#cb15-12" aria-hidden="true" tabindex="-1"></a>      <span class="ot">]</span></span>
+<span id="cb15-13"><a href="#cb15-13" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span><span class="ot">,</span></span>
+<span id="cb15-14"><a href="#cb15-14" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span></span>
+<span id="cb15-15"><a href="#cb15-15" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;name&quot;</span><span class="fu">:</span> <span class="st">&quot;anthropic&quot;</span><span class="fu">,</span></span>
+<span id="cb15-16"><a href="#cb15-16" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;api_key&quot;</span><span class="fu">:</span> <span class="st">&quot;sk-ant-...&quot;</span><span class="fu">,</span></span>
+<span id="cb15-17"><a href="#cb15-17" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;api&quot;</span><span class="fu">:</span> <span class="st">&quot;anthropic&quot;</span><span class="fu">,</span></span>
+<span id="cb15-18"><a href="#cb15-18" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;models&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb15-19"><a href="#cb15-19" aria-hidden="true" tabindex="-1"></a>        <span class="fu">{</span> <span class="dt">&quot;name&quot;</span><span class="fu">:</span> <span class="st">&quot;claude-sonnet-4-6&quot;</span><span class="fu">,</span> <span class="dt">&quot;context_window&quot;</span><span class="fu">:</span> <span class="dv">200000</span><span class="fu">,</span> <span class="dt">&quot;max_tokens&quot;</span><span class="fu">:</span> <span class="dv">8192</span> <span class="fu">}</span></span>
+<span id="cb15-20"><a href="#cb15-20" aria-hidden="true" tabindex="-1"></a>      <span class="ot">]</span></span>
+<span id="cb15-21"><a href="#cb15-21" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span><span class="ot">,</span></span>
+<span id="cb15-22"><a href="#cb15-22" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span></span>
+<span id="cb15-23"><a href="#cb15-23" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;name&quot;</span><span class="fu">:</span> <span class="st">&quot;deepseek&quot;</span><span class="fu">,</span></span>
+<span id="cb15-24"><a href="#cb15-24" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;api_key&quot;</span><span class="fu">:</span> <span class="st">&quot;...&quot;</span><span class="fu">,</span></span>
+<span id="cb15-25"><a href="#cb15-25" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;base_url&quot;</span><span class="fu">:</span> <span class="st">&quot;https://api.deepseek.com&quot;</span><span class="fu">,</span></span>
+<span id="cb15-26"><a href="#cb15-26" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;api&quot;</span><span class="fu">:</span> <span class="st">&quot;openai-completions&quot;</span><span class="fu">,</span></span>
+<span id="cb15-27"><a href="#cb15-27" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;models&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb15-28"><a href="#cb15-28" aria-hidden="true" tabindex="-1"></a>        <span class="fu">{</span> <span class="dt">&quot;name&quot;</span><span class="fu">:</span> <span class="st">&quot;deepseek-v4-pro&quot;</span><span class="fu">,</span> <span class="dt">&quot;reasoning&quot;</span><span class="fu">:</span> <span class="kw">true</span><span class="fu">,</span> <span class="dt">&quot;context_window&quot;</span><span class="fu">:</span> <span class="dv">1000000</span><span class="fu">,</span> <span class="dt">&quot;max_tokens&quot;</span><span class="fu">:</span> <span class="dv">131072</span> <span class="fu">}</span></span>
+<span id="cb15-29"><a href="#cb15-29" aria-hidden="true" tabindex="-1"></a>      <span class="ot">]</span></span>
+<span id="cb15-30"><a href="#cb15-30" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span></span>
+<span id="cb15-31"><a href="#cb15-31" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span></span>
+<span id="cb15-32"><a href="#cb15-32" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p>Three API types: <code>openai-completions</code>,
+<code>openai-response</code>, <code>anthropic</code>. Set at provider
+level via <code>api</code> field. Streaming is global
+(<code>stream</code> field). Reasoning/thinking is per-model
+(<code>reasoning: true</code>).</p>
+<h3 id="multi-agent">Multi-Agent</h3>
+<div class="sourceCode" id="cb16"><pre class="sourceCode json"><code class="sourceCode json"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;agents_config&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;chat_agent&quot;</span><span class="fu">:</span> <span class="st">&quot;planner&quot;</span><span class="fu">,</span></span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;agents&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>      <span class="fu">{</span></span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;name&quot;</span><span class="fu">:</span> <span class="st">&quot;planner&quot;</span><span class="fu">,</span></span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;description&quot;</span><span class="fu">:</span> <span class="st">&quot;Plans and delegates tasks&quot;</span><span class="fu">,</span></span>
+<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;provider&quot;</span><span class="fu">:</span> <span class="st">&quot;openai&quot;</span><span class="fu">,</span></span>
+<span id="cb16-9"><a href="#cb16-9" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;model&quot;</span><span class="fu">:</span> <span class="st">&quot;gpt-4o&quot;</span><span class="fu">,</span></span>
+<span id="cb16-10"><a href="#cb16-10" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;memory_db&quot;</span><span class="fu">:</span> <span class="st">&quot;planner.db&quot;</span><span class="fu">,</span></span>
+<span id="cb16-11"><a href="#cb16-11" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;server&quot;</span><span class="fu">:</span> <span class="fu">{</span> <span class="dt">&quot;host&quot;</span><span class="fu">:</span> <span class="st">&quot;127.0.0.1&quot;</span><span class="fu">,</span> <span class="dt">&quot;port&quot;</span><span class="fu">:</span> <span class="dv">8001</span> <span class="fu">},</span></span>
+<span id="cb16-12"><a href="#cb16-12" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;toolbox&quot;</span><span class="fu">:</span> <span class="fu">{</span> <span class="dt">&quot;tools&quot;</span><span class="fu">:</span> <span class="fu">{}</span> <span class="fu">}</span></span>
+<span id="cb16-13"><a href="#cb16-13" aria-hidden="true" tabindex="-1"></a>      <span class="fu">}</span><span class="ot">,</span></span>
+<span id="cb16-14"><a href="#cb16-14" aria-hidden="true" tabindex="-1"></a>      <span class="fu">{</span></span>
+<span id="cb16-15"><a href="#cb16-15" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;name&quot;</span><span class="fu">:</span> <span class="st">&quot;human&quot;</span><span class="fu">,</span></span>
+<span id="cb16-16"><a href="#cb16-16" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;description&quot;</span><span class="fu">:</span> <span class="st">&quot;Human for approvals&quot;</span><span class="fu">,</span></span>
+<span id="cb16-17"><a href="#cb16-17" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;provider&quot;</span><span class="fu">:</span> <span class="st">&quot;human&quot;</span><span class="fu">,</span></span>
+<span id="cb16-18"><a href="#cb16-18" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;server&quot;</span><span class="fu">:</span> <span class="fu">{</span> <span class="dt">&quot;host&quot;</span><span class="fu">:</span> <span class="st">&quot;127.0.0.1&quot;</span><span class="fu">,</span> <span class="dt">&quot;port&quot;</span><span class="fu">:</span> <span class="dv">8002</span> <span class="fu">}</span></span>
+<span id="cb16-19"><a href="#cb16-19" aria-hidden="true" tabindex="-1"></a>      <span class="fu">}</span><span class="ot">,</span></span>
+<span id="cb16-20"><a href="#cb16-20" aria-hidden="true" tabindex="-1"></a>      <span class="fu">{</span></span>
+<span id="cb16-21"><a href="#cb16-21" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;name&quot;</span><span class="fu">:</span> <span class="st">&quot;wechat_user&quot;</span><span class="fu">,</span></span>
+<span id="cb16-22"><a href="#cb16-22" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;description&quot;</span><span class="fu">:</span> <span class="st">&quot;Human via WeChat iLink&quot;</span><span class="fu">,</span></span>
+<span id="cb16-23"><a href="#cb16-23" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;provider&quot;</span><span class="fu">:</span> <span class="st">&quot;wechat-human&quot;</span><span class="fu">,</span></span>
+<span id="cb16-24"><a href="#cb16-24" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;server&quot;</span><span class="fu">:</span> <span class="fu">{</span> <span class="dt">&quot;host&quot;</span><span class="fu">:</span> <span class="st">&quot;127.0.0.1&quot;</span><span class="fu">,</span> <span class="dt">&quot;port&quot;</span><span class="fu">:</span> <span class="dv">8003</span> <span class="fu">}</span></span>
+<span id="cb16-25"><a href="#cb16-25" aria-hidden="true" tabindex="-1"></a>      <span class="fu">}</span></span>
+<span id="cb16-26"><a href="#cb16-26" aria-hidden="true" tabindex="-1"></a>    <span class="ot">]</span></span>
+<span id="cb16-27"><a href="#cb16-27" aria-hidden="true" tabindex="-1"></a>  <span class="fu">}</span></span>
+<span id="cb16-28"><a href="#cb16-28" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p>Per-agent provider/model with global fallback.
+<code>provider: &quot;human&quot;</code> for terminal human agents,
+<code>&quot;wechat-human&quot;</code> for WeChat iLink bridge. Each agent has its
+own memory DB, server config, and toolbox state. WeChat human agents
+persist their session token via the <code>wechat_session</code>
+field.</p>
+<h3 id="mqtt-broker">MQTT Broker</h3>
+<div class="sourceCode" id="cb17"><pre class="sourceCode json"><code class="sourceCode json"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;agents_config&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;mqtt_broker&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;host&quot;</span><span class="fu">:</span> <span class="st">&quot;127.0.0.1&quot;</span><span class="fu">,</span></span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;port&quot;</span><span class="fu">:</span> <span class="dv">1883</span></span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span></span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">}</span></span>
+<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
 <p>Requires external Mosquitto v5 broker.</p>
-<h3>Toolbox</h3>
-<p>Tool enable/disable/preload per agent, managed via <code>qd-evolve toolbox --agent &lt;name&gt;</code> (Textual TUI) or by editing <code>config.json</code> directly.</p>
-<div class="codehilite"><pre><span></span><code><span class="p">{</span>
-<span class="w">  </span><span class="nt">&quot;agents_config&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="nt">&quot;agents&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[{</span>
-<span class="w">      </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;planner&quot;</span><span class="p">,</span>
-<span class="w">      </span><span class="nt">&quot;toolbox&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="nt">&quot;tools&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;run_shell&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;preload&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;web_search&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;enabled&quot;</span><span class="w"> </span><span class="p">},</span>
-<span class="w">        </span><span class="nt">&quot;mcp_servers&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;filesystem&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;disabled&quot;</span><span class="w"> </span><span class="p">},</span>
-<span class="w">        </span><span class="nt">&quot;bridge&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;oat:boat&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;enabled&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;oat:coat&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;disabled&quot;</span><span class="w"> </span><span class="p">},</span>
-<span class="w">        </span><span class="nt">&quot;cli&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;git&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;preload&quot;</span><span class="w"> </span><span class="p">},</span>
-<span class="w">        </span><span class="nt">&quot;skills&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;code-review&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;preload&quot;</span><span class="w"> </span><span class="p">}</span>
-<span class="w">      </span><span class="p">}</span>
-<span class="w">    </span><span class="p">}]</span>
-<span class="w">  </span><span class="p">}</span>
-<span class="p">}</span>
-</code></pre></div>
-
-<p>Three states: <code>enabled</code> (on-demand schema), <code>preload</code> (schema at startup), <code>disabled</code> (invisible to agent).</p>
-<h2>Runtime Features</h2>
-<h3>Slash Commands</h3>
+<h3 id="toolbox">Toolbox</h3>
+<p>Tool enable/disable/preload per agent, managed via
+<code>qd-evolve toolbox --agent &lt;name&gt;</code> (Textual TUI) or by
+editing <code>config.json</code> directly.</p>
+<div class="sourceCode" id="cb18"><pre class="sourceCode json"><code class="sourceCode json"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;agents_config&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;agents&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="fu">{</span></span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;name&quot;</span><span class="fu">:</span> <span class="st">&quot;planner&quot;</span><span class="fu">,</span></span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;toolbox&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;tools&quot;</span><span class="fu">:</span> <span class="fu">{</span> <span class="dt">&quot;run_shell&quot;</span><span class="fu">:</span> <span class="st">&quot;preload&quot;</span><span class="fu">,</span> <span class="dt">&quot;web_search&quot;</span><span class="fu">:</span> <span class="st">&quot;enabled&quot;</span> <span class="fu">},</span></span>
+<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;mcp_servers&quot;</span><span class="fu">:</span> <span class="fu">{</span> <span class="dt">&quot;filesystem&quot;</span><span class="fu">:</span> <span class="st">&quot;disabled&quot;</span> <span class="fu">},</span></span>
+<span id="cb18-8"><a href="#cb18-8" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;bridge&quot;</span><span class="fu">:</span> <span class="fu">{</span> <span class="dt">&quot;oat:boat&quot;</span><span class="fu">:</span> <span class="st">&quot;enabled&quot;</span><span class="fu">,</span> <span class="dt">&quot;oat:coat&quot;</span><span class="fu">:</span> <span class="st">&quot;disabled&quot;</span> <span class="fu">},</span></span>
+<span id="cb18-9"><a href="#cb18-9" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;cli&quot;</span><span class="fu">:</span> <span class="fu">{</span> <span class="dt">&quot;git&quot;</span><span class="fu">:</span> <span class="st">&quot;preload&quot;</span> <span class="fu">},</span></span>
+<span id="cb18-10"><a href="#cb18-10" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;skills&quot;</span><span class="fu">:</span> <span class="fu">{</span> <span class="dt">&quot;code-review&quot;</span><span class="fu">:</span> <span class="st">&quot;preload&quot;</span> <span class="fu">}</span></span>
+<span id="cb18-11"><a href="#cb18-11" aria-hidden="true" tabindex="-1"></a>      <span class="fu">}</span></span>
+<span id="cb18-12"><a href="#cb18-12" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span><span class="ot">]</span></span>
+<span id="cb18-13"><a href="#cb18-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">}</span></span>
+<span id="cb18-14"><a href="#cb18-14" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p>Three states: <code>enabled</code> (on-demand schema),
+<code>preload</code> (schema at startup), <code>disabled</code>
+(invisible to agent).</p>
+<h2 id="runtime-features">Runtime Features</h2>
+<h3 id="slash-commands">Slash Commands</h3>
 <table>
 <thead>
 <tr>
@@ -512,53 +618,74 @@ qd-evolve<span class="w"> </span>memory<span class="w"> </span>--agent<span clas
 </tr>
 </tbody>
 </table>
-<h3>Heartbeat</h3>
-<p>Agent-managed idle detection. When no activity for <code>heartbeat_idle_seconds</code>, sends a heartbeat prompt to the LLM. If LLM responds with <code>"."</code>, stays silent. Set <code>0</code> to disable. Mode-specific templates selected automatically.</p>
-<h3>Replay Mode</h3>
-<p><code>--replay &lt;file&gt;</code> feeds pre-recorded inputs for automated testing. <code>--output &lt;file&gt;</code> captures output.</p>
-<h3>Token Stats</h3>
-<p>Per-turn and cumulative input/output tokens with context window usage percentage.</p>
-<h2>A2A Protocol</h2>
-<p>Full <a href="https://google.github.io/A2A/">A2A v1.0</a> implementation:</p>
+<h3 id="heartbeat">Heartbeat</h3>
+<p>Agent-managed idle detection. When no activity for
+<code>heartbeat_idle_seconds</code>, sends a heartbeat prompt to the
+LLM. If LLM responds with <code>&quot;.&quot;</code>, stays silent. Set
+<code>0</code> to disable. Mode-specific templates selected
+automatically.</p>
+<h3 id="replay-mode">Replay Mode</h3>
+<p><code>--replay &lt;file&gt;</code> feeds pre-recorded inputs for
+automated testing. <code>--output &lt;file&gt;</code> captures
+output.</p>
+<h3 id="token-stats">Token Stats</h3>
+<p>Per-turn and cumulative input/output tokens with context window usage
+percentage.</p>
+<h2 id="a2a-protocol">A2A Protocol</h2>
+<p>Full <a href="https://google.github.io/A2A/">A2A v1.0</a>
+implementation:</p>
 <ul>
-<li><strong>Agent discovery</strong>: <code>/.well-known/agent.json</code></li>
-<li><strong>Methods</strong>: <code>message/send</code>, <code>message/stream</code>, <code>tasks/get</code>, <code>tasks/cancel</code>, <code>tasks/resubscribe</code>, <code>tasks/pushNotification</code>, <code>agent/getExtendedAgentCard</code></li>
-<li><strong>Task lifecycle</strong>: submitted → working → completed / failed / canceled / input_required</li>
-<li><strong>SSE streaming</strong>: <code>message/stream</code> returns <code>StreamResponse</code> events</li>
-<li><strong>Push notifications</strong>: webhook callbacks on task completion</li>
+<li><strong>Agent discovery</strong>:
+<code>/.well-known/agent.json</code></li>
+<li><strong>Methods</strong>: <code>message/send</code>,
+<code>message/stream</code>, <code>tasks/get</code>,
+<code>tasks/cancel</code>, <code>tasks/resubscribe</code>,
+<code>tasks/pushNotification</code>,
+<code>agent/getExtendedAgentCard</code></li>
+<li><strong>Task lifecycle</strong>: submitted → working → completed /
+failed / canceled / input_required</li>
+<li><strong>SSE streaming</strong>: <code>message/stream</code> returns
+<code>StreamResponse</code> events</li>
+<li><strong>Push notifications</strong>: webhook callbacks on task
+completion</li>
 </ul>
-<h2>Group Chat</h2>
-<p>WeChat-style multi-agent group via MQTT. All configured agents form a single group.</p>
+<h2 id="group-chat">Group Chat</h2>
+<p>WeChat-style multi-agent group via MQTT. All configured agents form a
+single group.</p>
 <ul>
-<li><strong>AI agents</strong>: Background loop processes <code>@mentions</code>, runs agent in parallel, publishes responses</li>
-<li><strong>Terminal human agents</strong> (<code>provider: "human"</code>): Interactive prompt — type messages, see group activity</li>
-<li><strong>WeChat human agents</strong> (<code>provider: "wechat-human"</code>): Bidirectional WeChat iLink bridge — long-poll for incoming WeChat messages, forward group responses back to WeChat. QR login on startup, session persisted to <code>config.json</code></li>
-<li><code>@all</code> mentions everyone; specific <code>@agent_name</code> directs to one agent</li>
+<li><strong>AI agents</strong>: Background loop processes
+<code>@mentions</code>, runs agent in parallel, publishes responses</li>
+<li><strong>Terminal human agents</strong>
+(<code>provider: &quot;human&quot;</code>): Interactive prompt — type messages,
+see group activity</li>
+<li><strong>WeChat human agents</strong>
+(<code>provider: &quot;wechat-human&quot;</code>): Bidirectional WeChat iLink
+bridge — long-poll for incoming WeChat messages, forward group responses
+back to WeChat. QR login on startup, session persisted to
+<code>config.json</code></li>
+<li><code>@all</code> mentions everyone; specific
+<code>@agent_name</code> directs to one agent</li>
 </ul>
-<h2>Project Layout</h2>
-<div class="codehilite"><pre><span></span><code><span class="n">qd</span><span class="o">-</span><span class="n">evolve</span><span class="o">/</span>
-<span class="err">├──</span><span class="w"> </span><span class="n">qd_evolve</span><span class="o">/</span><span class="w">       </span><span class="c1"># Main package (agent, core, tools, utils, _templates)</span>
-<span class="err">├──</span><span class="w"> </span><span class="n">tools</span><span class="o">/</span><span class="w">           </span><span class="c1"># User tools (func, cli, mcp, bridge)</span>
-<span class="err">├──</span><span class="w"> </span><span class="n">skills</span><span class="o">/</span><span class="w">          </span><span class="c1"># Skills (SKILL.md files)</span>
-<span class="err">├──</span><span class="w"> </span><span class="n">templates</span><span class="o">/</span><span class="w">       </span><span class="c1"># User Jinja2 template overrides</span>
-<span class="err">├──</span><span class="w"> </span><span class="n">tests</span><span class="o">/</span><span class="w">           </span><span class="c1"># pytest suite</span>
-<span class="err">├──</span><span class="w"> </span><span class="n">config</span><span class="o">.</span><span class="n">json</span><span class="w">      </span><span class="c1"># All configuration</span>
-<span class="err">├──</span><span class="w"> </span><span class="n">memory</span><span class="o">.</span><span class="n">db</span><span class="w">        </span><span class="c1"># Conversation memory (SQLite + sqlite-vec)</span>
-<span class="err">└──</span><span class="w"> </span><span class="n">pyproject</span><span class="o">.</span><span class="n">toml</span><span class="w">   </span><span class="c1"># Dependencies and build config</span>
-</code></pre></div>
-
-<p>See <a href="DESIGN.md">DESIGN.md</a> for architecture and full module map.</p>
-<h2>Requirements</h2>
+<h2 id="project-layout">Project Layout</h2>
+<pre><code>qd-evolve/
+├── qd_evolve/       # Main package (agent, core, tools, utils, _templates)
+├── tools/           # User tools (func, cli, mcp, bridge)
+├── skills/          # Skills (SKILL.md files)
+├── templates/       # User Jinja2 template overrides
+├── tests/           # pytest suite
+├── config.json      # All configuration
+├── memory.db        # Conversation memory (SQLite + sqlite-vec)
+└── pyproject.toml   # Dependencies and build config</code></pre>
+<p>See <a href="DESIGN.md">DESIGN.md</a> for architecture and full
+module map.</p>
+<h2 id="requirements">Requirements</h2>
 <ul>
 <li>Python 3.13+</li>
 <li>External Mosquitto v5 broker (MQTT/GChat mode only)</li>
-<li>API keys for configured providers (DeepSeek, OpenAI, Anthropic, etc.)</li>
+<li>API keys for configured providers (DeepSeek, OpenAI, Anthropic,
+etc.)</li>
 </ul>
-<h2>License</h2>
+<h2 id="license">License</h2>
 <p>MIT</p>
-<div class="footer">
-    Generated from README.md · QD-Evolve
-</div>
-</div>
 </body>
 </html>

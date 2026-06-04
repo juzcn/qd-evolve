@@ -217,6 +217,17 @@ class ToolRegistry:
 
         sections: list[str] = []
 
+        # Quick-reference service summary at the top
+        summary_parts: list[str] = []
+        if mcp_sources:
+            mcp_list = ", ".join(f"{s} ({len(t)})" for s, t in sorted(mcp_sources.items()))
+            summary_parts.append(f"MCP: {mcp_list}")
+        if oat_sources:
+            oat_list = ", ".join(f"{s} ({len(t)})" for s, t in sorted(oat_sources.items()))
+            summary_parts.append(f"OAT: {oat_list}")
+        if summary_parts:
+            sections.append("  ".join(summary_parts))
+
         if builtins:
             builtins.sort(key=_status_sort_key)
             sections.append(f"### Builtins ({len(builtins)} tools)")
