@@ -49,6 +49,7 @@ class Agent:
         self._loaded_cli_names: set[str] = set()
         self._preload_skills: set[str] = preload_skills or set()
         self._preload_cli: set[str] = preload_cli or set()
+        self._cancel_token: Any = None  # CancellationToken, set by run()
         self._hb_task: asyncio.Task | None = None
         self.name: str = ""
         self._running: bool = False
@@ -186,10 +187,12 @@ class Agent:
         system: str | None = None,
         provider: str | None = None,
         model: str | None = None,
+        cancel_token: Any = None,
     ) -> str:
         from qd_evolve.tools.config_manager import _current_agent_var
         agent_name = getattr(self, "name", "")
         tok = _current_agent_var.set(agent_name) if agent_name else None
+        self._cancel_token = cancel_token
         try:
             with self._run_lock:
                 self._running = True
@@ -198,6 +201,7 @@ class Agent:
                 finally:
                     self._running = False
         finally:
+            self._cancel_token = None
             if tok is not None:
                 _current_agent_var.reset(tok)
 
@@ -444,6 +448,8 @@ class Agent:
         return self._template_mgr.render(self._template_name, memory_section=memory_text, **self._template_context)
 
     def _run_anthropic(self, client: Any, system_prompt: str, max_tokens: int, _iter: int = 0) -> str:
+        if self._cancel_token is not None:
+            self._cancel_token.check()
         if _iter > 0:
             logger.debug("Agent: === LLM Request #%s (tool) ===", self.iteration)
         response = client.messages.create(
@@ -471,6 +477,8 @@ class Agent:
         return self._run_anthropic(client, system_prompt, max_tokens, _iter + 1)
 
     def _run_openai_completion(self, client: Any, system_prompt: str, max_tokens: int, _iter: int = 0) -> str:
+        if self._cancel_token is not None:
+            self._cancel_token.check()
         if _iter > 0:
             logger.debug("Agent: === LLM Request #%s (tool) ===", self.iteration)
         assert self._model is not None, "model must be set before calling _run_openai_completion"
@@ -708,6 +716,8 @@ class Agent:
         return content or ""
 
     def _run_openai_response(self, client: Any, system_prompt: str, max_tokens: int, _iter: int = 0) -> str:
+        if self._cancel_token is not None:
+            self._cancel_token.check()
         if _iter > 0:
             logger.debug("Agent: === LLM Request #%s (tool) ===", self.iteration)
         response = client.responses.create(

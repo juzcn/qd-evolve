@@ -14,6 +14,7 @@ from qd_evolve.agent.a2a import (
 )
 from qd_evolve.core.logger import logger
 from qd_evolve.core.registry import get_registry
+from qd_evolve.utils.cancellation import CancellationToken, CancelledError
 
 
 # ── Module-level state ──────────────────────────────────────────
@@ -201,14 +202,26 @@ def _send_task(agent_name: str, task: str) -> str:
                 # AI agent: fire-and-forget in background thread
                 _task_store[task_id]["state"] = "working"
                 _task_store[task_id]["result"] = None
+                token = CancellationToken()
+                _task_store[task_id]["_cancel_token"] = token
                 async def _run_bg() -> None:
                     try:
-                        result = await asyncio.to_thread(agent_node.run, task)
-                        _task_store[task_id]["state"] = "completed"
-                        _task_store[task_id]["result"] = result
+                        result = await asyncio.to_thread(agent_node.run, task, cancel_token=token)
+                    except CancelledError:
+                        _task_store[task_id]["state"] = "canceled"
+                        _task_store[task_id]["result"] = "Task canceled."
                     except Exception as e:
                         _task_store[task_id]["state"] = "failed"
                         _task_store[task_id]["result"] = f"{type(e).__name__}: {e}"
+                    else:
+                        if token.is_cancelled:
+                            _task_store[task_id]["state"] = "canceled"
+                            _task_store[task_id]["result"] = "Task canceled."
+                        else:
+                            _task_store[task_id]["state"] = "completed"
+                            _task_store[task_id]["result"] = result
+                    finally:
+                        _task_store[task_id].pop("_cancel_token", None)
                     # Push completion event so the calling agent's heartbeat picks it up
                     agent_node._push_event({
                         "type": "task_completed",
@@ -270,13 +283,64 @@ def _get_task(task_id: str) -> str:
 
 
 def _cancel_task(task_id: str) -> str:
-    """Cancel a pending task."""
+    """Cancel a pending task and signal the running agent to stop."""
     entry = _task_store.get(task_id)
     if entry is None:
         return json.dumps({"error": f"Task '{task_id}' not found"})
-    entry["state"] = "canceled"
-    logger.info("cancel_task: canceled task %s", task_id)
-    return json.dumps({"task_id": task_id, "state": "canceled"})
+
+    current_state = entry.get("state", "unknown")
+
+    # Already final — nothing to cancel
+    if current_state in ("completed", "failed", "canceled"):
+        return json.dumps({
+            "task_id": task_id,
+            "state": current_state,
+            "message": f"Task already {current_state}, nothing to cancel.",
+        })
+
+    # ── Inproc: use CancellationToken for real interruption ──
+    token = entry.get("_cancel_token")
+    if token is not None:
+        token.cancel()
+        logger.info("cancel_task: cancellation requested for task %s (was %s)", task_id, current_state)
+        return json.dumps({
+            "task_id": task_id,
+            "state": "cancelling",
+            "message": f"Cancellation requested — task was {current_state}. The task will stop at the next checkpoint and push a 'canceled' result.",
+        })
+
+    # ── Submitted but not yet running — just mark canceled ──
+    if current_state == "submitted":
+        entry["state"] = "canceled"
+        entry["result"] = "Task canceled before start."
+        logger.info("cancel_task: canceled task %s before start", task_id)
+        return json.dumps({
+            "task_id": task_id,
+            "state": "canceled",
+            "message": "Task canceled before execution started.",
+        })
+
+    # ── HTTP/MQTT: notify remote agent via transport ──
+    agent_name = entry.get("target", "")
+    if agent_name:
+        transport = _get_transport()
+        import threading
+
+        def _bg_cancel() -> None:
+            try:
+                asyncio.run(transport.cancel_task(agent_name, task_id))
+            except Exception as e:
+                logger.warning("cancel_task: transport.cancel_task failed for %s: %s", task_id, e)
+
+        threading.Thread(target=_bg_cancel, daemon=True).start()
+
+    entry["state"] = "cancelling"
+    logger.info("cancel_task: cancellation sent to remote for task %s (was %s)", task_id, current_state)
+    return json.dumps({
+        "task_id": task_id,
+        "state": "cancelling",
+        "message": f"Cancellation request sent to remote agent '{agent_name}'. Task was {current_state}.",
+    })
 
 
 def _extract_result_text(task: Task) -> str:

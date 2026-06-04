@@ -17,6 +17,7 @@ from qd_evolve.tools.config_manager import (
     _current_agent_var,
     _require_context,
 )
+from qd_evolve.utils.cancellation import CancellationToken, CancelledError
 
 # ── Sub-agent storage — in-memory only ────────────────────────────
 
@@ -156,33 +157,32 @@ def _run_sub_agent(name: str, task: str, reset: bool = False) -> str:
         logger.info("sub_agent_manager: sub-agent '%s' context reset", name)
 
     task_id = uuid4().hex[:12]
-    _sub_tasks[task_id] = {"name": name, "state": "running", "result": None, "consumed": False}
+    token = CancellationToken()
+    _sub_tasks[task_id] = {
+        "name": name, "state": "running", "result": None, "consumed": False,
+        "_cancel_token": token,
+    }
 
     def _bg_run() -> None:
-        sub_name = getattr(sub, "name", "")
-        tok = _current_agent_var.set(sub_name) if sub_name else None
         try:
-            with sub._run_lock:
-                sub._running = True
-                try:
-                    result = sub._run_inner(task)
-                finally:
-                    sub._running = False
-            _sub_tasks[task_id]["state"] = "done"
-            _sub_tasks[task_id]["result"] = result
+            result = sub.run(task, cancel_token=token)
+        except CancelledError:
+            _sub_tasks[task_id]["state"] = "cancelled"
+            _sub_tasks[task_id]["result"] = "Task cancelled."
         except Exception as e:
             _sub_tasks[task_id]["state"] = "error"
             _sub_tasks[task_id]["result"] = f"{type(e).__name__}: {e}"
+        else:
+            if token.is_cancelled:
+                _sub_tasks[task_id]["state"] = "cancelled"
+                _sub_tasks[task_id]["result"] = "Task cancelled."
+            else:
+                _sub_tasks[task_id]["state"] = "done"
+                _sub_tasks[task_id]["result"] = result
         finally:
-            if tok is not None:
-                _current_agent_var.reset(tok)
             _sub_complete_event.set()
-
-        # Push result to parent agent asynchronously (non-blocking).
-        # If parent is idle, feed the result through parent._run_inner and
-        # fire _on_event so the chat loop displays it. If parent is busy,
-        # the result stays in _sub_tasks — _run_inner injection picks it up.
-        _try_push_to_parent(parent_agent, parent_name)
+            # Push result to parent agent asynchronously (non-blocking).
+            _try_push_to_parent(parent_agent, parent_name)
 
     thread = threading.Thread(target=_bg_run, daemon=True)
     thread.start()
@@ -237,6 +237,8 @@ def _get_sub_result(task_id: str) -> str:
         return f"task_id: {task_id}\n  agent: {entry['name']}\n  state: running"
     elif state == "done":
         return f"task_id: {task_id}\n  agent: {entry['name']}\n  state: done\n  result:\n{entry['result']}"
+    elif state == "cancelled":
+        return f"task_id: {task_id}\n  agent: {entry['name']}\n  state: cancelled\n  result:\n{entry['result']}"
     else:
         return f"task_id: {task_id}\n  agent: {entry['name']}\n  state: error\n  error:\n{entry['result']}"
 
@@ -265,6 +267,30 @@ def collect_sub_results() -> str:
 def has_running_sub_agents() -> bool:
     """Return True if any sub-agent task is still running."""
     return any(e.get("state") == "running" for e in _sub_tasks.values())
+
+
+def _cancel_sub_task(task_id: str) -> str:
+    """Cancel a running sub-agent task."""
+    entry = _sub_tasks.get(task_id)
+    if entry is None:
+        return f"Error: task '{task_id}' not found"
+
+    current_state = entry["state"]
+    if current_state == "cancelled":
+        return f"Task '{task_id}' was already cancelled."
+    if current_state in ("done", "error"):
+        return f"Task '{task_id}' already finished ({current_state})."
+
+    # Signal the running agent to stop at the next checkpoint
+    token = entry.get("_cancel_token")
+    if token is not None:
+        token.cancel()
+        return f"Cancellation requested for task '{task_id}' (was {current_state}). The task will stop at the next checkpoint."
+    else:
+        # No token — task hasn't started yet, just mark it
+        entry["state"] = "cancelled"
+        entry["result"] = "Task cancelled before start."
+        return f"Task '{task_id}' cancelled before start."
 
 
 # ── Register tools ────────────────────────────────────────────────
@@ -320,8 +346,24 @@ _registry.register(
 
 _registry.register(
     name="get_sub_result",
-    description="Query the result of a sub-agent task by task_id. Returns running/done/error state.",
+    description="Query the result of a sub-agent task by task_id. Returns running/done/error/cancelled state.",
     handler=_get_sub_result,
+    input_schema={
+        "type": "object",
+        "properties": {
+            "task_id": {
+                "type": "string",
+                "description": "The task_id returned by run_sub_agent.",
+            },
+        },
+        "required": ["task_id"],
+    },
+)
+
+_registry.register(
+    name="cancel_sub_task",
+    description="Cancel a running sub-agent task. The task will stop at the next safe checkpoint and push a 'cancelled' result back.",
+    handler=_cancel_sub_task,
     input_schema={
         "type": "object",
         "properties": {

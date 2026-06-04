@@ -42,6 +42,7 @@ class InprocTransport:
     def __init__(self) -> None:
         # Lazy reference to AgentRegistry to avoid circular imports
         self._registry: Any = None
+        self._cancel_tokens: dict[str, Any] = {}  # task_id → CancellationToken
 
     def _get_registry(self) -> Any:
         if self._registry is None:
@@ -82,12 +83,16 @@ class InprocTransport:
         task = make_task_with_text(task_text)
         task.status.state = TaskState.working
 
+        from qd_evolve.utils.cancellation import CancellationToken, CancelledError
+        token = CancellationToken()
+        self._cancel_tokens[task.id] = token
         try:
-            result = await asyncio.to_thread(agent_node.run, task_text)
-            logger.info("InprocTransport: send_task to '%s' done — %s chars", target, len(result))
+            result = await asyncio.to_thread(agent_node.run, task_text, cancel_token=token)
+        except CancelledError:
+            logger.info("InprocTransport: send_task to '%s' cancelled — task=%s", target, task.id[:8])
             task.status = TaskStatus(
-                state=TaskState.completed,
-                message=make_text_message("agent", result),
+                state=TaskState.canceled,
+                message=make_text_message("agent", "Task cancelled."),
             )
         except Exception as e:
             logger.error("InprocTransport: send_task to '%s' failed: %s", target, e)
@@ -95,6 +100,21 @@ class InprocTransport:
                 state=TaskState.failed,
                 message=make_text_message("agent", f"{type(e).__name__}: {e}"),
             )
+        else:
+            if token.is_cancelled:
+                logger.info("InprocTransport: send_task to '%s' cancelled after completion — task=%s", target, task.id[:8])
+                task.status = TaskStatus(
+                    state=TaskState.canceled,
+                    message=make_text_message("agent", "Task cancelled."),
+                )
+            else:
+                logger.info("InprocTransport: send_task to '%s' done — %s chars", target, len(result))
+                task.status = TaskStatus(
+                    state=TaskState.completed,
+                    message=make_text_message("agent", result),
+                )
+        finally:
+            self._cancel_tokens.pop(task.id, None)
         return task
 
     async def send_stream(self, target: str, message: Message) -> AsyncIterator[StreamResponse]:
@@ -195,13 +215,21 @@ class InprocTransport:
         return agent_node.task_store.get(task_id, self._error_task(target, f"Task '{task_id}' not found"))
 
     async def cancel_task(self, target: str, task_id: str) -> Task:
-        """Cancel a task — marks it as canceled in the task store."""
+        """Cancel a task — signals the running agent via CancellationToken."""
         registry = self._get_registry()
         agent_node = registry.get(target)
         if agent_node is None:
             agent_node = self._lazy_load(target, registry)
             if agent_node is None:
                 return self._error_task(target, f"Agent '{target}' not found")
+
+        # Interrupt the running agent thread via cancellation token
+        token = self._cancel_tokens.get(task_id)
+        if token is not None:
+            token.cancel()
+            logger.info("InprocTransport: cancel_task on '%s' — cancellation requested for task=%s", target, task_id[:8])
+
+        # Also mark in the task store (fallback for non-token paths)
         task = agent_node.task_store.get(task_id)
         if task is None:
             return self._error_task(target, f"Task '{task_id}' not found")
