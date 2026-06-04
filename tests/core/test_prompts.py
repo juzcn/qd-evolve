@@ -88,10 +88,10 @@ class TestPromptTemplateManager:
     def test_render_with_skills_section(self):
         mgr = PromptTemplateManager()
         result = mgr.render("default", agent_name="bot", runtime_context="- **OS:** Linux",
-                            skills_section="- [preloaded] search: Search tools\n  # Skill content...")
-        assert "Skills" in result
-        assert "- [preloaded] search" in result
-        assert "Preloaded Skills SKILL.md" not in result  # old header gone
+                            skills_section="- [preloaded] search: Search tools\n- [unloaded] other: Other skill")
+        assert "Skills Summary" in result
+        assert "- [preloaded] search: Search tools" in result
+        assert "- [unloaded] other: Other skill" in result
 
     def test_render_with_cli_tools_section(self):
         mgr = PromptTemplateManager()
@@ -125,6 +125,22 @@ class TestPromptTemplateManager:
         result = mgr.render("default", agent_name="bot", runtime_context="- **OS:** Linux",
                             skills_section="- [unloaded] s: Skill")
         assert "tag  name — description" in result
+
+    def test_preloaded_detail_appendix(self):
+        """Preloaded skill/CLI details should render in appendix sections after summaries."""
+        mgr = PromptTemplateManager()
+        result = mgr.render("default", agent_name="bot", runtime_context="- **OS:** Linux",
+                            skills_section="- [preloaded] s: Skill",
+                            preloaded_skills_detail="# Full SKILL.md\n\nInstructions here")
+        assert "### Preloaded Skill Details" in result
+        assert "# Full SKILL.md" in result
+
+    def test_preloaded_detail_omitted_when_empty(self):
+        mgr = PromptTemplateManager()
+        result = mgr.render("default", agent_name="bot", runtime_context="- **OS:** Linux",
+                            skills_section="- [unloaded] s: Skill")
+        assert "### Preloaded Skill Details" not in result
+        assert "### Preloaded CLI Details" not in result
 
     def test_status_tag_legend(self):
         mgr = PromptTemplateManager()

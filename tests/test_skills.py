@@ -178,10 +178,10 @@ class TestSkillRegistry:
         )
         reg = SkillRegistry()
         reg.discover_skills(str(skills_dir))
-        # preloaded includes full SKILL.md indented below tag line
+        # preloaded shows one-liner summary only (detail in appendix)
         prompt = reg.format_for_prompt(preloaded={"test-skill"})
         assert "- [preloaded] test-skill: Test skill" in prompt
-        assert "Content" in prompt
+        assert "Content" not in prompt  # content moved to appendix
         # loaded only shows summary line
         prompt2 = reg.format_for_prompt(loaded={"test-skill"})
         assert "- [loaded] test-skill: Test skill" in prompt2

@@ -136,10 +136,10 @@ class TestCLIRegistry:
 
         reg = CLIRegistry()
         reg.discover(cli_dir)
-        # preloaded includes full JSON detail indented below tag line
+        # preloaded shows one-liner summary only (JSON detail in appendix)
         result = reg.format_for_prompt(preloaded={"pandoc"})
         assert "- [preloaded] pandoc: Universal converter" in result
-        assert '"name": "pandoc"' in result  # JSON detail included
+        assert '"name"' not in result  # JSON detail moved to appendix
         # loaded only shows summary line
         result2 = reg.format_for_prompt(loaded={"pandoc"})
         assert "- [loaded] pandoc: Universal converter" in result2

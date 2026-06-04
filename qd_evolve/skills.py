@@ -130,7 +130,8 @@ class SkillRegistry:
         """Format all skills with status tags for the system prompt.
 
         Tags: [preloaded] (startup), [loaded] (runtime), [unloaded].
-        Preloaded skills include full SKILL.md content indented below the tag line.
+        All items are one-liner summaries — preloaded full content is rendered
+        separately in the Preloaded Skill Details appendix.
         Items are sorted by status (preloaded → loaded → unloaded), then alphabetically.
         """
         if not self._skills:
@@ -151,9 +152,6 @@ class SkillRegistry:
                 continue
             if s.name in preloaded:
                 lines.append(f"- [preloaded] {s.name}: {s.summary or s.content.split(chr(10))[0][:120]}")
-                if s.content:
-                    for cline in s.content.splitlines():
-                        lines.append(f"  {cline}")
             elif s.name in loaded:
                 lines.append(f"- [loaded] {s.name}: {s.summary or s.content.split(chr(10))[0][:120]}")
             else:

@@ -67,7 +67,8 @@ class CLIRegistry:
         """Format all CLI tools with status tags for the system prompt.
 
         Tags: [preloaded] (startup), [loaded] (runtime), [unloaded].
-        Preloaded CLI tools include full JSON detail indented below the tag line.
+        All items are one-liner summaries — preloaded full detail is rendered
+        separately in the Preloaded CLI Details appendix.
         Items are sorted by status (preloaded → loaded → unloaded), then alphabetically.
         """
         if not self._tools:
@@ -88,11 +89,6 @@ class CLIRegistry:
                 continue
             if tool.name in preloaded:
                 lines.append(f"- [preloaded] {tool.name}: {tool.description or tool.command}")
-                detail = self.get_detail(tool.name)
-                if detail:
-                    json_str = json.dumps(detail, ensure_ascii=False)
-                    for jline in json_str.splitlines():
-                        lines.append(f"  {jline}")
             elif tool.name in loaded:
                 line = f"- [loaded] {tool.name}: {tool.description or tool.command}"
                 if tool.examples:
