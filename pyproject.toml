@@ -91,6 +91,37 @@ packages = ["qd_evolve"]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+# ── Pyright ───────────────────────────────────────────────────────
+# https://microsoft.github.io/pyright/#/configuration
+
+[tool.pyright]
+include = ["qd_evolve", "tests"]
+exclude = [".venv", "**/__pycache__", "**/node_modules", ".git", "*.pyc", "**/.*"]
+pythonVersion = "3.13"
+pythonPlatform = "All"
+venvPath = "."
+venv = ".venv"
+
+# typeCheckingMode: "basic" | "standard" | "strict"
+# standard = basic + extra ~50% rules (unused vars, type-is, etc.)
+typeCheckingMode = "standard"
+
+reportMissingTypeStubs = "none"
+reportPrivateUsage = "none"
+
+# Uncomment to temporarily suppress noisy categories during cleanup:
+# reportUnknownMemberType = "none"
+# reportUnknownVariableType = "none"
+# reportUnknownArgumentType = "none"
+# reportMissingParameterType = "none"
+# reportUnknownParameterType = "none"
+
+[[tool.pyright.executionEnvironments]]
+root = "tests"
+reportUnknownMemberType = "none"
+reportMissingParameterType = "none"
+reportUnknownArgumentType = "none"
+
 [dependency-groups]
 test = [
     "aioresponses>=0.7.8",

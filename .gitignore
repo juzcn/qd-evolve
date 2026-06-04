@@ -17,6 +17,7 @@ wheels/
 .claude/
 
 # Pyright artifacts
+pyrightconfig.json
 pyright_err.txt
 pyright_full.json
 
