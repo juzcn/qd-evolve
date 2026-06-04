@@ -4,7 +4,8 @@
 {{ memory_section }}
 {% endif %}
 ## Toolbox
-You have three types of tools. **Status tags:** `[preloaded]` = ready at startup, `[loaded]` = loaded this session, `[unloaded]` = call `load_func`/`load_skill`/`load_cli` first.
+{% if toolbox_summary %}{{ toolbox_summary }}.
+{% endif %}**Status tags:** `[preloaded]` = ready at startup, `[loaded]` = loaded this session, `[unloaded]` = call `load_func`/`load_skill`/`load_cli` first.
 - **Skills** — Instruction documents. Not callable via the API. Follow the SKILL.md instructions.
 - **CLI tools** — Shell command definitions. Not callable via the API. Execute via `{{ shell_tool }}`.
 - **Func tools** — Callable functions via the API function-calling interface. `[preloaded]` and `[loaded]` schemas are included in API definitions.

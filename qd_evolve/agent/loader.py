@@ -146,12 +146,30 @@ def build_toolbox_context(
                     parts.append(_json.dumps(detail, ensure_ascii=False))
         preloaded_cli_detail = "\n\n".join(parts)
 
+    # Summary counts
+    total_skills = len(skill_registry.get_all_skills()) if skill_registry else 0
+    preload_skill_n = len(preload_skills)
+    total_cli = len(cli_registry.list_tools()) if cli_registry else 0
+    preload_cli_n = len(preload_cli)
+    total_func = len(registry.list_tools())
+    preload_func_n = len(preload_tools)
+
+    def _plural(n: int, word: str) -> str:
+        return f"{n} {word}{'s' if n != 1 else ''}"
+
+    parts = [f"{_plural(total_skills, 'skill')} ({preload_skill_n} preloaded)"]
+    if total_cli:
+        parts.append(f"{_plural(total_cli, 'CLI tool')} ({preload_cli_n} preloaded)")
+    parts.append(f"{_plural(total_func, 'func tool')} ({preload_func_n} preloaded)")
+    toolbox_summary = " — ".join(parts)
+
     return {
         "func_tools_section": func_tools_section,
         "skills_section": skills_section,
         "cli_tools_section": cli_tools_section,
         "preloaded_skills_detail": preloaded_skills_detail,
         "preloaded_cli_detail": preloaded_cli_detail,
+        "toolbox_summary": toolbox_summary,
     }
 
 
