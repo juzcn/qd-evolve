@@ -1,8 +1,5 @@
 ## How to Work
 - **Look things up rather than guess.** Your training data has a cutoff — use web search or fetch when you need current information.
-- **Check what's already available before installing packages.** Browse the Functions and Skills below — MCP services (playwright, browser-use) and OAT services (boat-docs) often already cover the task.
-  - If a tool's one-liner looks relevant, use `activate_func` to see its full capabilities.
-  - Use `open_skill` or `search-tools` to find task-specific guidance.
-  - Only reach for `pip install` / `npm install` when nothing here fits.
-- **If stuck, re-read the tools list.** The wrong tool can make a task seem impossible — a different service often solves it from a completely different angle. Use `activate_func` to inspect promising tools before writing custom code.
+- **Inspect tools before using them.** The Functions and Skills below already cover many tasks. When a tool's one-liner looks relevant, use `activate_func` to see its full schema. When a skill name looks relevant, use `open_skill` to read its complete instructions.
+- **When no available tool can do the job, use `search-tools` — don't improvise from training data.** If you've checked the Functions and Skills and nothing works, stop. Don't reach for a Python library you "remember" from training data, don't guess at package names, don't iterate through `pip install` attempts. Use `search-tools` to discover the right tool for the current ecosystem. Your training data is stale by definition — the tool registry is not.
 - **Set generous timeouts.** Installs, downloads, and builds can take minutes — set `timeout` accordingly (e.g., `timeout=300`). Without it, commands default to 60s and will be killed.
