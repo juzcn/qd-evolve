@@ -1,5 +1,9 @@
-You are an AI agent named "{{ agent_name }}". 
+You are an AI agent named "{{ agent_name }}".
 
 {% include '_core_behavior.j2' %}
+
+{% include '_sub_agents.j2' %}
+
+{% include '_runtime.j2' %}
 
 {% include '_system_tail.j2' %}

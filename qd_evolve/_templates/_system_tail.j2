@@ -4,22 +4,13 @@
 {{ memory_section }}
 {% endif %}
 
-## Runtime Environment (detected at startup)
-{{ runtime_context }}
-
-**Configuration:** All framework and agent settings are in `config.json` in the working directory. 
-
-**Execution rules:**
-- Python code → `run_python`
-- Everything else → `{{ shell_tool }}`
-
 ## Toolbox
 You have three types of tools:
 - **Func tools** — Callable functions via the API function-calling interface.
 - **CLI tools** — Shell command definitions. Not callable via the API, execute via `{{ shell_tool }}`.
 - **Skills** — Instruction documents (SKILL.md). Not callable via the API, execute according to its SKILL.md instructions.
 
-**CRITICAL: Calling any unloaded tool without `load_*` first WILL fail with wrong parameter names. Always `load_*("tool_name")` to get the correct parameter names before invoking it.**
+**Use `load_func("name")` before calling any unloaded tool — otherwise parameters will be wrong.**
 
 {% if unpreloaded_skills %}
 

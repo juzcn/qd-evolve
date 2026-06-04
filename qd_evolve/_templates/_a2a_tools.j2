@@ -1,0 +1,10 @@
+A2A tools (use `load_func` to load as needed):
+- `delegate_to` — call an AI agent and wait for its response (blocking).
+- `send_task` — submit async task to any agent, returns task_id.
+{% if has_human_agent %}- **For human agents ({{ human_agent_names }}): must use `send_task`, never `delegate_to`.**{% endif %}
+- `get_task` — poll status/result of a task submitted via `send_task`.
+- `cancel_task` — cancel a pending task.
+{% if has_human_agent %}
+Human agents respond asynchronously via push notification — results arrive automatically after `send_task`.
+Use `get_task` to check the response at any time.
+{% endif %}
