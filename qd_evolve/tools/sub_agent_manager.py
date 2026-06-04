@@ -255,11 +255,16 @@ def collect_sub_results() -> str:
         if entry.get("consumed", False):
             continue
         state = entry.get("state", "")
-        if state in ("done", "error"):
+        if state in ("done", "error", "cancelled"):
             entry["consumed"] = True
             name = entry.get("name", "unknown")
             result = entry.get("result", "")
-            label = "completed" if state == "done" else "failed"
+            if state == "done":
+                label = "completed"
+            elif state == "cancelled":
+                label = "cancelled"
+            else:
+                label = "failed"
             parts.append(f"[Sub-agent '{name}' {label} task {task_id}]\n{result}")
     return "\n\n".join(parts)
 
