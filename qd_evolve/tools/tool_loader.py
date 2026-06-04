@@ -1,7 +1,5 @@
-"""Dynamic tool detail loader — loads full tool schema on demand."""
+"""Dynamic tool detail loader — activates tools on demand."""
 
-
-import json
 
 from qd_evolve.tools import get_registry
 
@@ -20,14 +18,15 @@ def _load_tool_detail(name: str) -> str:
         available = ", ".join(t.name for t in registry.list_tools())
         return f"Error: tool '{name}' not found. Available: {available}"
     if name in _preload_tools:
-        return f"(already preloaded — schema is already available in API tool definitions)\n\n{json.dumps(detail, ensure_ascii=False)}"
-    return json.dumps(detail, ensure_ascii=False)
+        return f"Tool '{name}' is already preloaded — schema is available in API tool definitions."
+    desc = detail.get("description", "") if isinstance(detail, dict) else ""
+    return f"Tool '{name}' loaded. {desc} (full schema available in next request's API tool definitions.)"
 
 
 registry = get_registry()
 registry.register(
     name="load_func",
-    description="Load the full schema for a func tool by name. Returns name, description, and input_schema.",
+    description="Activate a func tool by name. The schema will be included in API tool definitions on the next request.",
     handler=_load_tool_detail,
     input_schema={
         "type": "object",

@@ -367,62 +367,27 @@ class Agent:
             return text[:self._log_limit] + "..."
         return text
 
-    def _inject_loaded_content(self, system_prompt: str) -> str:
-        """Remove loaded items from unloaded sections in the system prompt."""
+    def _update_status_tags(self, system_prompt: str) -> str:
+        """Update status tags from [unloaded] to [loaded] for tools loaded at runtime.
 
-        if self._loaded_skill_names:
-            system_prompt = self._remove_from_unloaded(
-                system_prompt,
-                "### Unloaded Skills Summary",
-                self._loaded_skill_names,
-            )
+        Uses regex to match ``- [unloaded] <name>:`` or ``- [unloaded] <name>``
+        lines and replaces the tag.  Exact name matching (via re.escape) avoids
+        substring collisions.
+        """
+        import re
 
-        if self._loaded_cli_names:
-            system_prompt = self._remove_from_unloaded(
-                system_prompt,
-                "### Unloaded CLI Tools Summary",
-                self._loaded_cli_names,
-            )
-
-        if self._active_tools:
-            system_prompt = self._remove_from_unloaded(
-                system_prompt,
-                "### Unloaded Func Tools Summary",
-                self._active_tools,
-            )
-            logger.debug("Agent: removed %d active tools from unloaded section", len(self._active_tools))
+        for _, names in (
+            ("skills", self._loaded_skill_names),
+            ("CLI tools", self._loaded_cli_names),
+            ("func tools", self._active_tools),
+        ):
+            for name in names:
+                pattern = re.compile(
+                    rf'^(- )\[unloaded\] ({re.escape(name)})(:.*|\s*)$', re.MULTILINE
+                )
+                system_prompt = pattern.sub(r'\1[loaded] \2\3', system_prompt)
 
         return system_prompt
-
-    @staticmethod
-    def _remove_from_unloaded(text: str, section_header: str, loaded_names: Any) -> str:
-        """Remove lines matching loaded_names from an unloaded section."""
-        idx = text.find(section_header)
-        if idx < 0:
-            return text
-        # Find end of section (next ## or end of text)
-        end = text.find("\n## ", idx + len(section_header))
-        if end < 0:
-            end = len(text)
-        section = text[idx:end]
-        lines = section.split("\n")
-        # Keep header line, filter out lines starting with "- name:"
-        kept = [lines[0]]  # header
-        for line in lines[1:]:
-            stripped = line.strip()
-            if stripped.startswith("- "):
-                name = stripped[2:].split(":")[0].strip()
-                if name in loaded_names:
-                    continue
-            kept.append(line)
-        # If only header remains, remove entire section
-        if len(kept) <= 1:
-            # Remove the section + trailing newlines
-            before = text[:idx].rstrip("\n") + "\n"
-            after = text[end:]
-            return before + after.lstrip("\n")
-        new_section = "\n".join(kept)
-        return text[:idx] + new_section + text[end:]
 
     def _auto_recall(self, user_input: str, system_prompt: str) -> str:
         if not self.memory or not self.settings.memory_search.auto_recall:
@@ -473,7 +438,7 @@ class Agent:
         if _iter >= self.settings.max_iterations:
             return "Max tool iterations reached. Please simplify your request."
         self.iteration += 1
-        system_prompt = self._inject_loaded_content(system_prompt)
+        system_prompt = self._update_status_tags(system_prompt)
         return self._run_anthropic(client, system_prompt, max_tokens, _iter + 1)
 
     def _run_openai_completion(self, client: Any, system_prompt: str, max_tokens: int, _iter: int = 0) -> str:
@@ -584,7 +549,7 @@ class Agent:
             if _iter >= self.settings.max_iterations:
                 return "Max tool iterations reached. Please simplify your request."
             self.iteration += 1
-            system_prompt = self._inject_loaded_content(system_prompt)
+            system_prompt = self._update_status_tags(system_prompt)
             return self._run_openai_completion(client, system_prompt, max_tokens, _iter + 1)
 
         final_msg: dict[str, Any] = {"role": "assistant", "content": msg.content or ""}
@@ -705,7 +670,7 @@ class Agent:
             if _iter >= self.settings.max_iterations:
                 return "Max tool iterations reached. Please simplify your request."
             self.iteration += 1
-            system_prompt = self._inject_loaded_content(system_prompt)
+            system_prompt = self._update_status_tags(system_prompt)
             return self._run_openai_completion(client, system_prompt, max_tokens, _iter + 1)
 
         final_msg: dict[str, Any] = {"role": "assistant", "content": content or ""}
@@ -774,7 +739,7 @@ class Agent:
                     "output": result,
                 })
                 self.iteration += 1
-                system_prompt = self._inject_loaded_content(system_prompt)
+                system_prompt = self._update_status_tags(system_prompt)
                 return self._run_openai_response(client, system_prompt, max_tokens)
 
         text_parts = [item.content[0].text for item in response.output if item.type == "message"]

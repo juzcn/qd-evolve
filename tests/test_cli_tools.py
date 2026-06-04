@@ -105,8 +105,7 @@ class TestCLIRegistry:
         reg = CLIRegistry()
         reg.discover(cli_dir)
         result = reg.format_for_prompt()
-        assert "pandoc" in result
-        assert "Universal converter" in result
+        assert "- [unloaded] pandoc: Universal converter" in result
 
     def test_format_for_prompt_empty(self):
         reg = CLIRegistry()
@@ -127,7 +126,7 @@ class TestCLIRegistry:
         result = reg.format_for_prompt()
         assert "pandoc" not in result
 
-    def test_format_for_prompt_excludes_loaded(self, tmp_path):
+    def test_format_for_prompt_with_status_tags(self, tmp_path):
         cli_dir = tmp_path / "cli"
         cli_dir.mkdir()
         (cli_dir / "pandoc.yaml").write_text(
@@ -137,8 +136,13 @@ class TestCLIRegistry:
 
         reg = CLIRegistry()
         reg.discover(cli_dir)
-        result = reg.format_for_prompt(loaded={"pandoc"})
-        assert "pandoc" not in result
+        # preloaded includes full JSON detail indented below tag line
+        result = reg.format_for_prompt(preloaded={"pandoc"})
+        assert "- [preloaded] pandoc: Universal converter" in result
+        assert '"name": "pandoc"' in result  # JSON detail included
+        # loaded only shows summary line
+        result2 = reg.format_for_prompt(loaded={"pandoc"})
+        assert "- [loaded] pandoc: Universal converter" in result2
 
     def test_list_tools_excludes_disabled(self, tmp_path):
         cli_dir = tmp_path / "cli"

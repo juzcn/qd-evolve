@@ -126,14 +126,28 @@ class SkillRegistry:
         self._skills[skill.name] = skill
         logger.info("Skills: hot-loaded skill: %s", skill.name)
 
-    def format_for_prompt(self, loaded: set[str] | None = None) -> str:
-        """Format unloaded skills as a summary list for the system prompt."""
+    def format_for_prompt(self, preloaded: set[str] | None = None, loaded: set[str] | None = None) -> str:
+        """Format all skills with status tags for the system prompt.
+
+        Tags: [preloaded] (startup), [loaded] (runtime), [unloaded].
+        Preloaded skills include full SKILL.md content indented below the tag line.
+        """
         if not self._skills:
             return ""
+        preloaded = preloaded or set()
         loaded = loaded or set()
         lines = []
         for s in self._skills.values():
-            if s.name not in loaded and s.name not in self._disabled:
-                lines.append(s.format_for_prompt())
+            if s.name in self._disabled:
+                continue
+            if s.name in preloaded:
+                lines.append(f"- [preloaded] {s.name}: {s.summary or s.content.split(chr(10))[0][:120]}")
+                if s.content:
+                    for cline in s.content.splitlines():
+                        lines.append(f"  {cline}")
+            elif s.name in loaded:
+                lines.append(f"- [loaded] {s.name}: {s.summary or s.content.split(chr(10))[0][:120]}")
+            else:
+                lines.append(f"- [unloaded] {s.name}: {s.summary or s.content.split(chr(10))[0][:120]}")
         return "\n".join(lines)
 

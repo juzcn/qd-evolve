@@ -4,40 +4,28 @@
 {{ memory_section }}
 {% endif %}
 ## Toolbox
-You have three types of tools:
-- **Func tools** — Callable functions via the API function-calling interface.
-- **CLI tools** — Shell command definitions. Not callable via the API, execute via `{{ shell_tool }}`.
-- **Skills** — Instruction documents (SKILL.md). Not callable via the API, execute according to its SKILL.md instructions.
+You have three types of tools. **Status tags:** `[preloaded]` = ready at startup, `[loaded]` = loaded this session, `[unloaded]` = call `load_func`/`load_skill`/`load_cli` first.
+- **Skills** — Instruction documents. Not callable via the API. Follow the SKILL.md instructions.
+- **CLI tools** — Shell command definitions. Not callable via the API. Execute via `{{ shell_tool }}`.
+- **Func tools** — Callable functions via the API function-calling interface. `[preloaded]` and `[loaded]` schemas are included in API definitions.
 
-**Use `load_func("name")` before calling any unloaded tool — otherwise parameters will be wrong.**
+{% if skills_section %}
+### Skills Summary
+status  name — description
 
-{% if unpreloaded_skills %}
-### Unloaded Skills Summary (use load_skill to get full instructions)
-
-{{ unpreloaded_skills }}
+{{ skills_section }}
 {% endif %}
 
-{% if unpreloaded_cli %}
-### Unloaded CLI Tools Summary (use load_cli to get usage info and examples)
+{% if cli_tools_section %}
+### CLI Tools Summary
+status  name — description
 
-{{ unpreloaded_cli }}
+{{ cli_tools_section }}
 {% endif %}
 
-{% if unloaded_tools %}
-### Unloaded Func Tools Summary (use load_func to get full schema)
+{% if func_tools_section %}
+### Func Tools Summary
+status  name — description
 
-{{ unloaded_tools }}
+{{ func_tools_section }}
 {% endif %}
-
-{% if preloaded_skills %}
-### Preloaded Skills SKILL.md
-
-{{ preloaded_skills }}
-{% endif %}
-
-{% if preloaded_cli %}
-### Preloaded CLI Tools Usage
-
-{{ preloaded_cli }}
-{% endif %}
-### Preloaded and loaded func Tools: Schemas are provided via the API function-calling interface in each request.

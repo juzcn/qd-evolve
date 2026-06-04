@@ -106,57 +106,65 @@ class TestActivateTool:
         assert "git" in agent_core._loaded_cli_names
 
 
-class TestRemoveFromUnloaded:
-    def test_removes_matching_line(self):
-        text = "### Unloaded Skills Summary\n- search-tools: Search tools\n- other: Other\n## Next Section"
-        result = Agent._remove_from_unloaded(text, "### Unloaded Skills Summary", {"search-tools"})
-        assert "- search-tools" not in result
-        assert "- other: Other" in result
-
-    def test_removes_empty_section(self):
-        text = "### Unloaded Skills Summary\n- search-tools: Search tools\n## Next Section"
-        result = Agent._remove_from_unloaded(text, "### Unloaded Skills Summary", {"search-tools"})
-        assert "### Unloaded Skills Summary" not in result
-
-    def test_no_matching_header(self):
-        text = "Some text without the header"
-        result = Agent._remove_from_unloaded(text, "### Unloaded Skills Summary", {"search-tools"})
-        assert result == text
-
-    def test_multiple_names(self):
-        text = "### Unloaded Func Tools Summary\n- echo: Echo\n- fetch: Fetch\n- run_shell: Shell\n## Next"
-        result = Agent._remove_from_unloaded(text, "### Unloaded Func Tools Summary", {"echo", "fetch"})
-        assert "- echo" not in result
-        assert "- fetch" not in result
-        assert "- run_shell: Shell" in result
-
-
-class TestInjectLoadedContent:
-    def test_removes_loaded_skills(self, agent_core):
+class TestUpdateStatusTags:
+    def test_updates_unloaded_to_loaded_skill(self, agent_core):
         agent_core._loaded_skill_names = {"search-tools"}
-        prompt = "### Unloaded Skills Summary\n- search-tools: Search tools\n- other: Other\n## Next Section"
-        result = agent_core._inject_loaded_content(prompt)
-        assert "- search-tools" not in result
-        assert "- other: Other" in result
+        prompt = "### Skills\n- [unloaded] search-tools: Search tools\n- [unloaded] other: Other\n## Next Section"
+        result = agent_core._update_status_tags(prompt)
+        assert "- [loaded] search-tools: Search tools" in result
+        assert "- [unloaded] other: Other" in result
+        assert "[unloaded] search-tools" not in result
 
-    def test_removes_loaded_cli(self, agent_core):
+    def test_updates_unloaded_to_loaded_cli(self, agent_core):
         agent_core._loaded_cli_names = {"git"}
-        prompt = "### Unloaded CLI Tools Summary\n- git: Git CLI\n- npm: NPM CLI\n## Next Section"
-        result = agent_core._inject_loaded_content(prompt)
-        assert "- git" not in result
-        assert "- npm: NPM CLI" in result
+        prompt = "### CLI Tools\n- [unloaded] git: Git CLI\n- [unloaded] npm: NPM CLI\n## Next"
+        result = agent_core._update_status_tags(prompt)
+        assert "- [loaded] git: Git CLI" in result
+        assert "- [unloaded] npm: NPM CLI" in result
 
-    def test_removes_active_tools(self, agent_core):
+    def test_updates_unloaded_to_loaded_func(self, agent_core):
         agent_core._active_tools = {"echo"}
-        prompt = "### Unloaded Func Tools Summary\n- echo: Echo\n- fetch: Fetch\n## Next Section"
-        result = agent_core._inject_loaded_content(prompt)
-        assert "- echo" not in result
-        assert "- fetch: Fetch" in result
+        prompt = "### Func Tools\n### Builtins (1 tools)\n- [unloaded] echo: Echo\n## Next"
+        result = agent_core._update_status_tags(prompt)
+        assert "- [loaded] echo: Echo" in result
 
     def test_no_changes_when_nothing_loaded(self, agent_core):
-        prompt = "### Unloaded Skills Summary\n- search-tools: Search tools\n## Next Section"
-        result = agent_core._inject_loaded_content(prompt)
+        prompt = "### Skills\n- [unloaded] search-tools: Search tools\n## Next Section"
+        result = agent_core._update_status_tags(prompt)
         assert result == prompt
+
+    def test_no_changes_when_nothing_loaded_cli(self, agent_core):
+        prompt = "### CLI Tools\n- [unloaded] git: Git CLI\n## Next Section"
+        result = agent_core._update_status_tags(prompt)
+        assert result == prompt
+
+    def test_no_changes_when_nothing_loaded_func(self, agent_core):
+        prompt = "### Func Tools\n- [unloaded] echo: Echo\n## Next Section"
+        result = agent_core._update_status_tags(prompt)
+        assert result == prompt
+
+    def test_preloaded_tags_untouched(self, agent_core):
+        agent_core._loaded_skill_names = {"search-tools"}
+        prompt = "- [preloaded] other-skill: Other\n- [unloaded] search-tools: Search"
+        result = agent_core._update_status_tags(prompt)
+        assert "- [preloaded] other-skill: Other" in result  # unchanged
+        assert "- [loaded] search-tools: Search" in result
+
+    def test_exact_name_match_avoid_substring(self, agent_core):
+        """Verify that updating 'git' does not affect 'github-tool'."""
+        agent_core._loaded_cli_names = {"git"}
+        prompt = "- [unloaded] git: Git\n- [unloaded] github-tool: GH"
+        result = agent_core._update_status_tags(prompt)
+        assert "- [loaded] git: Git" in result
+        assert "- [unloaded] github-tool: GH" in result  # not affected
+
+    def test_old_methods_removed(self, agent_core):
+        assert not hasattr(agent_core, "_inject_loaded_content")
+        assert not hasattr(agent_core, "_remove_from_unloaded")
+
+    def test_new_method_exists(self, agent_core):
+        assert hasattr(agent_core, "_update_status_tags")
+        assert callable(agent_core._update_status_tags)
 
 
 class TestCompressMessages:

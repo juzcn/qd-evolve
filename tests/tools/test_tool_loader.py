@@ -1,6 +1,5 @@
 """Tests for qd_evolve.tools.tool_loader — load_func handler."""
 
-import json
 from unittest.mock import patch
 
 
@@ -12,8 +11,8 @@ class TestLoadFunc:
         with patch("qd_evolve.tools.tool_loader.get_registry", return_value=registry_with_echo):
             from qd_evolve.tools.tool_loader import _load_tool_detail
             result = _load_tool_detail("fetch")
-            data = json.loads(result)
-            assert data["name"] == "fetch"
+            assert "loaded" in result
+            assert "fetch" in result
 
     def test_load_nonexistent_tool(self, registry_with_echo):
         with patch("qd_evolve.tools.tool_loader.get_registry", return_value=registry_with_echo):
@@ -49,17 +48,15 @@ class TestLoadFunc:
         finally:
             mod._preload_tools = old
 
-    def test_load_tool_returns_valid_json(self, registry_with_echo):
+    def test_load_tool_returns_confirmation_message(self, registry_with_echo):
         registry_with_echo.register("fetch", "Fetch URL", lambda u: u,
                                     {"type": "object", "properties": {"url": {"type": "string"}}})
         with patch("qd_evolve.tools.tool_loader.get_registry", return_value=registry_with_echo):
             from qd_evolve.tools.tool_loader import _load_tool_detail
             result = _load_tool_detail("fetch")
-            import json
-            data = json.loads(result)
-            assert "name" in data
-            assert "description" in data
-            assert "input_schema" in data
+            assert "Tool 'fetch' loaded" in result
+            assert "Fetch URL" in result
+            assert "schema available" in result
 
     def test_load_tool_with_nested_schema(self, registry_with_echo):
         complex_schema = {
@@ -78,7 +75,5 @@ class TestLoadFunc:
         with patch("qd_evolve.tools.tool_loader.get_registry", return_value=registry_with_echo):
             from qd_evolve.tools.tool_loader import _load_tool_detail
             result = _load_tool_detail("complex")
-            import json
-            data = json.loads(result)
-            assert data["name"] == "complex"
-            assert "nested" in str(data["input_schema"])
+            assert "Tool 'complex' loaded" in result
+            assert "Complex tool" in result

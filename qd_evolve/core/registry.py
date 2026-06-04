@@ -163,45 +163,53 @@ class ToolRegistry:
                 result.append({"type": "function", "function": func})
         return result
 
-    def format_tools_summary(self, loaded: set[str] | None = None) -> str:
-        """Format unloaded tools grouped by source for LLM-friendly scanning.
+    def format_tools_summary(self, preloaded: set[str] | None = None, loaded: set[str] | None = None) -> str:
+        """Format all func tools grouped by source with status tags.
 
-        Builtins (no tag) first, then MCP services, then local tool
-        packages.  Sources within each group are alphabetical.
+        Builtins (no source tag) first, then MCP services, then OAT sources.
+        Each line is tagged [preloaded], [loaded], or [unloaded].
         """
         import re
 
+        preloaded = preloaded or set()
         loaded = loaded or set()
+
+        def _tag(name: str) -> str:
+            if name in preloaded:
+                return "[preloaded]"
+            if name in loaded:
+                return "[loaded]"
+            return "[unloaded]"
+
         _src_pat = re.compile(r"^\[([^\]]+)\]\s*")
 
-        builtins: list[tuple[str, str]] = []
-        # source_name → list of (name, desc)
-        oat_sources: dict[str, list[tuple[str, str]]] = {}
-        mcp_sources: dict[str, list[tuple[str, str]]] = {}
+        builtins: list[tuple[str, str, str]] = []
+        # source_name → list of (name, desc, tag)
+        oat_sources: dict[str, list[tuple[str, str, str]]] = {}
+        mcp_sources: dict[str, list[tuple[str, str, str]]] = {}
 
         for td in self._tools.values():
             if not td.enabled:
                 continue
-            if td.name in loaded:
-                continue
+            tag = _tag(td.name)
             m = _src_pat.match(td.description)
             if m:
                 src = m.group(1)
                 desc = td.description[m.end():].strip()
                 bridge_type = _source_bridge_types.get(src, "mcp")
                 if bridge_type == "oat":
-                    oat_sources.setdefault(src, []).append((td.name, desc))
+                    oat_sources.setdefault(src, []).append((td.name, desc, tag))
                 else:
-                    mcp_sources.setdefault(src, []).append((td.name, desc))
+                    mcp_sources.setdefault(src, []).append((td.name, desc, tag))
             else:
-                builtins.append((td.name, td.description))
+                builtins.append((td.name, td.description, tag))
 
         sections: list[str] = []
 
         if builtins:
             sections.append(f"### Builtins ({len(builtins)} tools)")
-            for name, desc in builtins:
-                sections.append(f"- {name}: {desc}")
+            for name, desc, tag in builtins:
+                sections.append(f"- {tag} {name}: {desc}")
 
         if mcp_sources:
             if sections:
@@ -211,16 +219,16 @@ class ToolRegistry:
                 tools = mcp_sources[src]
                 sections.append("")
                 sections.append(f"#### {src} ({len(tools)} tools)")
-                for name, desc in tools:
-                    sections.append(f"- {name}: {desc}")
+                for name, desc, tag in tools:
+                    sections.append(f"- {tag} {name}: {desc}")
 
         for src in sorted(oat_sources):
             tools = oat_sources[src]
             if sections:
                 sections.append("")
             sections.append(f"### {src} ({len(tools)} tools)")
-            for name, desc in tools:
-                sections.append(f"- {name}: {desc}")
+            for name, desc, tag in tools:
+                sections.append(f"- {tag} {name}: {desc}")
 
         return "\n".join(sections)
 

@@ -137,19 +137,33 @@ class TestDefinitions:
 
 
 class TestFormatToolsSummary:
-    def test_format_unloaded(self, registry):
+    def test_format_all_with_status_tags(self, registry):
         registry.register("echo", "Echo tool", lambda s: s)
         registry.register("fetch", "Fetch tool", lambda u: u)
         summary = registry.format_tools_summary()
-        assert "- echo: Echo tool" in summary
-        assert "- fetch: Fetch tool" in summary
+        assert "- [unloaded] echo: Echo tool" in summary
+        assert "- [unloaded] fetch: Fetch tool" in summary
 
-    def test_format_excludes_loaded(self, registry):
+    def test_format_preloaded_tagged(self, registry):
+        registry.register("echo", "Echo tool", lambda s: s)
+        registry.register("fetch", "Fetch tool", lambda u: u)
+        summary = registry.format_tools_summary(preloaded={"echo"})
+        assert "- [preloaded] echo: Echo tool" in summary
+        assert "- [unloaded] fetch: Fetch tool" in summary
+
+    def test_format_loaded_tagged(self, registry):
         registry.register("echo", "Echo tool", lambda s: s)
         registry.register("fetch", "Fetch tool", lambda u: u)
         summary = registry.format_tools_summary(loaded={"echo"})
-        assert "- echo" not in summary
-        assert "- fetch: Fetch tool" in summary
+        assert "- [loaded] echo: Echo tool" in summary
+        assert "- [unloaded] fetch: Fetch tool" in summary
+
+    def test_format_preloaded_overrides_loaded(self, registry):
+        """preloaded takes priority over loaded if both are set."""
+        registry.register("echo", "Echo tool", lambda s: s)
+        summary = registry.format_tools_summary(preloaded={"echo"}, loaded={"echo"})
+        assert "- [preloaded] echo" in summary
+        assert "- [loaded] echo" not in summary
 
     def test_format_excludes_disabled(self, registry):
         registry.register("echo", "Echo tool", lambda s: s)

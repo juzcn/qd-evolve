@@ -77,18 +77,62 @@ class TestPromptTemplateManager:
         result = mgr.render("default", agent_name="bot", runtime_context="- **OS:** Linux")
         assert "Inter-Agent Communication" not in result
 
-    def test_render_with_unloaded_tools(self):
+    def test_render_with_func_tools_section(self):
         mgr = PromptTemplateManager()
         result = mgr.render("default", agent_name="bot", runtime_context="- **OS:** Linux",
-                            unloaded_tools="- echo: Echo tool\n- fetch: Fetch tool")
-        assert "Unloaded Func Tools Summary" in result
-        assert "- echo: Echo tool" in result
+                            func_tools_section="- [unloaded] echo: Echo tool\n- [unloaded] fetch: Fetch tool")
+        assert "Func Tools" in result
+        assert "- [unloaded] echo: Echo tool" in result
+        assert "Unloaded Func Tools Summary" not in result  # old header gone
 
-    def test_render_with_preloaded_skills(self):
+    def test_render_with_skills_section(self):
         mgr = PromptTemplateManager()
         result = mgr.render("default", agent_name="bot", runtime_context="- **OS:** Linux",
-                            preloaded_skills="Skill content here")
-        assert "Preloaded Skills SKILL.md" in result
+                            skills_section="- [preloaded] search: Search tools\n  # Skill content...")
+        assert "Skills" in result
+        assert "- [preloaded] search" in result
+        assert "Preloaded Skills SKILL.md" not in result  # old header gone
+
+    def test_render_with_cli_tools_section(self):
+        mgr = PromptTemplateManager()
+        result = mgr.render("default", agent_name="bot", runtime_context="- **OS:** Linux",
+                            cli_tools_section="- [preloaded] git: Git CLI\n  {\"name\": \"git\"}")
+        assert "CLI Tools" in result
+        assert "- [preloaded] git" in result
+
+    def test_render_empty_sections_omitted(self):
+        mgr = PromptTemplateManager()
+        result = mgr.render("default", agent_name="bot", runtime_context="- **OS:** Linux",
+                            func_tools_section="- [preloaded] echo: Echo")
+        assert "### Skills Summary" not in result
+        assert "### CLI Tools" not in result
+
+    def test_section_ordering_skills_first(self):
+        """Skills section should appear before CLI Tools and Func Tools."""
+        mgr = PromptTemplateManager()
+        result = mgr.render("default", agent_name="bot", runtime_context="- **OS:** Linux",
+                            skills_section="- [unloaded] s: Skill",
+                            cli_tools_section="- [unloaded] c: CLI",
+                            func_tools_section="- [unloaded] f: Func")
+        skills_pos = result.index("### Skills Summary")
+        cli_pos = result.index("### CLI Tools Summary")
+        func_pos = result.index("### Func Tools Summary")
+        assert skills_pos < cli_pos < func_pos
+
+    def test_section_header_line(self):
+        """Each type section should have a 'status  name — description' header line."""
+        mgr = PromptTemplateManager()
+        result = mgr.render("default", agent_name="bot", runtime_context="- **OS:** Linux",
+                            skills_section="- [unloaded] s: Skill")
+        assert "status  name — description" in result
+
+    def test_status_tag_legend(self):
+        mgr = PromptTemplateManager()
+        result = mgr.render("default", agent_name="bot", runtime_context="- **OS:** Linux",
+                            func_tools_section="- [unloaded] test: Test")
+        assert "[preloaded]" in result  # legend explains all three tags
+        assert "[loaded]" in result
+        assert "[unloaded]" in result
 
     def test_render_custom_template(self, tmp_path):
         templates_dir = tmp_path / "templates"

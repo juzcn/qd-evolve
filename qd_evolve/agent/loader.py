@@ -7,7 +7,6 @@ get_agent_entry(settings, name): lookup AgentEntry from config.
 
 from __future__ import annotations
 
-import json
 import os
 import platform
 import shutil
@@ -267,38 +266,23 @@ def create_agent(name: str, settings: Settings, *, need_a2a: bool | None = None,
     from qd_evolve.tools.tool_loader import set_preload_tools
     set_preload_tools(loaded_tool_names)
 
-    # ── Build preload content for system prompt ───────────────
+    # ── Build type-grouped toolbox sections with status tags ───
+    # loaded set is empty at init — runtime tag changes handled by agent._update_status_tags
     skill_registry._preload_skills |= loaded_skill_names
     for s in skill_registry.get_all_skills():
         if s.name in loaded_skill_names:
             s.active = True
 
-    active_skills_parts = []
-    for s in skill_registry.get_all_skills():
-        if s.active and s.content:
-            active_skills_parts.append(s.content)
-            loaded_skill_names.add(s.name)
-    active_skills_content = "\n".join(active_skills_parts)
-
-    active_cli_parts = []
-    for t in cli_registry.list_tools():
-        if t.name in loaded_cli_names:
-            detail = cli_registry.get_detail(t.name)
-            if detail:
-                active_cli_parts.append(json.dumps(detail, ensure_ascii=False))
-                loaded_cli_names.add(t.name)
-    active_cli_content = "\n".join(active_cli_parts)
-
-    unloaded_skills = skill_registry.format_for_prompt(loaded=loaded_skill_names)
-    unloaded_cli = cli_registry.format_for_prompt(loaded=loaded_cli_names)
-    unloaded_tools = registry.format_tools_summary(loaded=loaded_tool_names)
+    func_tools_section = registry.format_tools_summary(preloaded=loaded_tool_names, loaded=set())
+    skills_section = skill_registry.format_for_prompt(preloaded=loaded_skill_names, loaded=set())
+    cli_tools_section = cli_registry.format_for_prompt(preloaded=loaded_cli_names, loaded=set())
 
     total_tools = len(registry.list_tools())
     logger.debug(
-        "Agent [%s]: prompt %d tools (%d preload), %d unloaded skills, %d unloaded cli",
+        "Agent [%s]: prompt %d func tools (%d preload), %d skills (%d preload), %d cli tools (%d preload)",
         name, total_tools, len(loaded_tool_names),
-        sum(1 for l in (unloaded_skills or "").splitlines() if l.startswith("- ")),
-        sum(1 for l in (unloaded_cli or "").splitlines() if l.startswith("- ")),
+        len(skill_registry.get_all_skills()), len(loaded_skill_names),
+        len(cli_registry.list_tools()), len(loaded_cli_names),
     )
 
     # ── Runtime environment detection ──────────────────────────
@@ -329,11 +313,9 @@ def create_agent(name: str, settings: Settings, *, need_a2a: bool | None = None,
         template_name = "default"
 
     template_context = {
-        "unpreloaded_skills": unloaded_skills,
-        "unpreloaded_cli": unloaded_cli,
-        "unloaded_tools": unloaded_tools,
-        "preloaded_skills": active_skills_content,
-        "preloaded_cli": active_cli_content,
+        "func_tools_section": func_tools_section,
+        "skills_section": skills_section,
+        "cli_tools_section": cli_tools_section,
         "runtime_context": runtime_context,
         "shell_tool": shell_tool,
         "agent_name": entry.name,

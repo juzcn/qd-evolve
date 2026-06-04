@@ -1,6 +1,7 @@
 ﻿"""CLI tool registry —discovers and manages CLI tool definitions from yaml files."""
 
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -62,17 +63,35 @@ class CLIRegistry:
     def list_tools(self) -> list[CLIToolDef]:
         return [t for t in self._tools.values() if t.name not in self._disabled]
 
-    def format_for_prompt(self, loaded: set[str] | None = None) -> str:
-        """Format unloaded CLI tools as summary list for the system prompt."""
+    def format_for_prompt(self, preloaded: set[str] | None = None, loaded: set[str] | None = None) -> str:
+        """Format all CLI tools with status tags for the system prompt.
+
+        Tags: [preloaded] (startup), [loaded] (runtime), [unloaded].
+        Preloaded CLI tools include full JSON detail indented below the tag line.
+        """
         if not self._tools:
             return ""
+        preloaded = preloaded or set()
         loaded = loaded or set()
         lines = []
         for tool in self._tools.values():
-            if tool.name in loaded or tool.name in self._disabled:
+            if tool.name in self._disabled:
                 continue
-            line = f"- {tool.name}: {tool.description or tool.command}"
-            if tool.examples:
-                line += f" (e.g. {tool.examples[0]})"
-            lines.append(line)
+            if tool.name in preloaded:
+                lines.append(f"- [preloaded] {tool.name}: {tool.description or tool.command}")
+                detail = self.get_detail(tool.name)
+                if detail:
+                    json_str = json.dumps(detail, ensure_ascii=False)
+                    for jline in json_str.splitlines():
+                        lines.append(f"  {jline}")
+            elif tool.name in loaded:
+                line = f"- [loaded] {tool.name}: {tool.description or tool.command}"
+                if tool.examples:
+                    line += f" (e.g. {tool.examples[0]})"
+                lines.append(line)
+            else:
+                line = f"- [unloaded] {tool.name}: {tool.description or tool.command}"
+                if tool.examples:
+                    line += f" (e.g. {tool.examples[0]})"
+                lines.append(line)
         return "\n".join(lines)

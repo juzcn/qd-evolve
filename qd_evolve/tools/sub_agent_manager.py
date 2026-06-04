@@ -61,7 +61,7 @@ def _create_sub_agent(name: str, description: str = "") -> str:
     ctx = parent_agent._template_context or {}
     registry = get_tool_registry()
 
-    # Rebuild skill/CLI preload content for the sub-agent's system prompt
+    # Build type-grouped toolbox sections for sub-agent system prompt
     skill_registry = cli_registry = None
     try:
         from qd_evolve.agent.loader import get_skill_registry, get_cli_registry
@@ -70,24 +70,9 @@ def _create_sub_agent(name: str, description: str = "") -> str:
     except Exception:
         pass
 
-    preloaded_skills_content = ""
-    if skill_registry:
-        for s in skill_registry.get_all_skills():
-            if s.name in inherited_preload_skills and s.content:
-                preloaded_skills_content += s.content + "\n"
-
-    preloaded_cli_content = ""
-    if cli_registry:
-        import json
-        for t in cli_registry.list_tools():
-            if t.name in inherited_preload_cli:
-                detail = cli_registry.get_detail(t.name)
-                if detail:
-                    preloaded_cli_content += json.dumps(detail, ensure_ascii=False) + "\n"
-
-    unloaded_tools = registry.format_tools_summary(loaded=inherited_preload_tools)
-    unloaded_skills = skill_registry.format_for_prompt(loaded=inherited_preload_skills) if skill_registry else ""
-    unloaded_cli = cli_registry.format_for_prompt(loaded=inherited_preload_cli) if cli_registry else ""
+    func_tools_section = registry.format_tools_summary(preloaded=inherited_preload_tools, loaded=set())
+    skills_section = skill_registry.format_for_prompt(preloaded=inherited_preload_skills, loaded=set()) if skill_registry else ""
+    cli_tools_section = cli_registry.format_for_prompt(preloaded=inherited_preload_cli, loaded=set()) if cli_registry else ""
 
     template_mgr = PromptTemplateManager()
     system_prompt = template_mgr.render(
@@ -95,11 +80,9 @@ def _create_sub_agent(name: str, description: str = "") -> str:
         name=name,
         description=description,
         runtime_context=ctx.get("runtime_context", ""),
-        unpreloaded_skills=unloaded_skills,
-        unpreloaded_cli=unloaded_cli,
-        unloaded_tools=unloaded_tools,
-        preloaded_skills=preloaded_skills_content,
-        preloaded_cli=preloaded_cli_content,
+        func_tools_section=func_tools_section,
+        skills_section=skills_section,
+        cli_tools_section=cli_tools_section,
         shell_tool=ctx.get("shell_tool", "run_shell"),
     )
 
