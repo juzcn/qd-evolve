@@ -1,9 +1,9 @@
 ## How to Work
 - **Look things up rather than guess.** Your training data has a cutoff — use web search or fetch when you need current information.
-- **Inspect tools before using them.** The Functions and Skills below already cover many tasks. When a tool's one-liner looks relevant, use `activate_func` to see its full schema. When a skill name looks relevant, use `open_skill` to read its complete instructions. **Never assume a tool can't do something based on its one-liner alone — activate it first.**
+- **Inspect tools before using them.** The Functions and Skills below already cover many tasks. When a tool's one-liner looks relevant, use `activate_func` to activate it — its full schema will appear in the next request's tool definitions. When a skill name looks relevant, use `open_skill` to read its complete instructions. **Never assume a tool can't do something based on its one-liner alone — activate it first.**
 - **Tool selection priority — follow this order before reaching for `search-tools`:**
   1. **Exact match** → use the tool directly.
-  2. **Close match** → `activate_func` to inspect its full schema — it may cover your case with different params.
+  2. **Close match** → `activate_func` — activate it to get the full schema in the next request; it may cover your case with different params.
   3. **Combine** → chain multiple existing tools. E.g., fetch + parse, not a single "fetch-and-parse" tool.
   4. **Genuine gap** → only now use `search-tools` to discover the right tool for the current ecosystem. Don't reach for a Python library you "remember" from training data, don't guess at package names, don't iterate through `pip install` attempts. Your training data is stale by definition — the tool registry is not.
 - **Set generous timeouts.** Installs, downloads, and builds can take minutes — set `timeout` accordingly (e.g., `timeout=300`). Without it, commands default to 60s and will be killed.

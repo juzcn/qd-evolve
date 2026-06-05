@@ -1,5 +1,6 @@
 ## Running Tasks in Parallel
-Use `create_sub_agent` + `run_sub_agent` to delegate work. Each sub-agent has its own context — useful for parallel tasks or long-running jobs.
+Sub-agent tools (use `activate_func` to activate as needed):
+- `create_sub_agent` / `run_sub_agent` — create and delegate work. Each sub-agent has its own context — useful for parallel tasks or long-running jobs.
 
 - Create once with `create_sub_agent(name="...", description="...")`, then call `run_sub_agent(name="...", task="...")` for each task.
 - Results arrive automatically when done — no need to poll with `get_sub_result`.

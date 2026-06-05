@@ -146,22 +146,21 @@ def build_toolbox_context(
                     parts.append(_json.dumps(detail, ensure_ascii=False))
         preloaded_cli_detail = "\n\n".join(parts)
 
-    # Summary counts
-    total_skills = len(skill_registry.get_all_skills()) if skill_registry else 0
-    ready_skill_n = len(preload_skills)
-    total_cli = len(cli_registry.list_tools()) if cli_registry else 0
-    ready_cli_n = len(preload_cli)
+    # Summary counts — totals only (active/open/enabled counts go stale as
+    # tools are activated at runtime; the [ready] tags in the detail list
+    # are the authoritative source for activation status).
     total_func = len(registry.list_tools())
-    ready_func_n = len(preload_tools)
+    total_skills = len(skill_registry.get_all_skills()) if skill_registry else 0
+    total_cli = len(cli_registry.list_tools()) if cli_registry else 0
 
     def _plural(n: int, word: str) -> str:
         return f"{n} {word}{'s' if n != 1 else ''}"
 
-    parts = [f"{_plural(total_func, 'function')} ({ready_func_n} active)"]
+    parts = [f"{_plural(total_func, 'function')}"]
     if total_skills:
-        parts.append(f"{_plural(total_skills, 'skill')} ({ready_skill_n} open)")
+        parts.append(f"{_plural(total_skills, 'skill')}")
     if total_cli:
-        parts.append(f"{_plural(total_cli, 'CLI command')} ({ready_cli_n} enabled)")
+        parts.append(f"{_plural(total_cli, 'CLI command')}")
     toolbox_summary = " — ".join(parts)
 
     return {
@@ -384,6 +383,7 @@ def create_agent(name: str, settings: Settings, *, need_a2a: bool | None = None,
         "runtime_context": runtime_context,
         "shell_tool": shell_tool,
         "agent_name": entry.name,
+        "agent_description": entry.description,
         "available_agents": ", ".join(a.name for a in settings.agents_config.agents),
         "has_human_agent": any(a.is_human for a in settings.agents_config.agents),
         "human_agent_names": ", ".join(a.name for a in settings.agents_config.agents if a.is_human),
