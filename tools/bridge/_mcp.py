@@ -120,7 +120,18 @@ class MCPToolBridge:
 
         self._thread = threading.Thread(target=_run, daemon=True)
         self._thread.start()
-        connected.wait(timeout=60)
+
+        # Calculate worst-case wait: timeout * max_retries + retry_sleeps + buffer
+        transport = self.config.type
+        _remote = transport in ("http", "streamable-http", "sse", "ws", "websocket")
+        max_attempt = 3 if _remote else 1
+        retry_sleep_total = sum(i for i in range(1, max_attempt))  # 1+2=3 for 3 attempts
+        connect_timeout = self.config.timeout * max_attempt + retry_sleep_total + 10
+
+        if not connected.wait(timeout=connect_timeout):
+            raise TimeoutError(
+                f"MCP {self.config.name}: connection timed out after {connect_timeout:.0f}s"
+            )
 
         if error_ref:
             raise error_ref[0]
@@ -132,33 +143,80 @@ class MCPToolBridge:
         from mcp import ClientSession
 
         transport = self.config.type
-        if transport == "stdio":
-            await self._connect_stdio()
-        elif transport == "sse":
-            await self._connect_sse()
-        elif transport in ("http", "streamable-http"):
-            await self._connect_streamable_http()
-        elif transport in ("ws", "websocket"):
-            await self._connect_websocket()
-        else:
-            raise ValueError(f"Unsupported MCP transport: {transport}")
+        _remote = transport in ("http", "streamable-http", "sse", "ws", "websocket")
+        max_attempts = 3 if _remote else 1
+        timeout = self.config.timeout if self.config.timeout > 0 else 30
 
-        self._session_context = ClientSession(self._read_stream, self._write_stream)
-        self._session = await self._session_context.__aenter__()
+        last_err: BaseException | None = None
+        for attempt in range(max_attempts):
+            try:
+                async with asyncio.timeout(timeout):
+                    if transport == "stdio":
+                        await self._connect_stdio()
+                    elif transport == "sse":
+                        await self._connect_sse()
+                    elif transport in ("http", "streamable-http"):
+                        await self._connect_streamable_http()
+                    elif transport in ("ws", "websocket"):
+                        await self._connect_websocket()
+                    else:
+                        raise ValueError(f"Unsupported MCP transport: {transport}")
 
-        await self._session.initialize()
+                    self._session_context = ClientSession(self._read_stream, self._write_stream)
+                    self._session = await self._session_context.__aenter__()
+                    await self._session.initialize()
 
-        result = await self._session.list_tools()
-        for tool in result.tools:
-            self._registry.register(
-                name=tool.name,
-                description=f"[{self.config.name}] {tool.description or tool.name}",
-                input_schema=tool.inputSchema if isinstance(tool.inputSchema, dict)
-                else {"type": "object", "properties": {}},
-                handler=self._make_handler(tool.name),
-            )
-            self.tool_names.append(tool.name)
-            logger.debug("MCP: registered tool %s", tool.name)
+                    result = await self._session.list_tools()
+                    for tool in result.tools:
+                        self._registry.register(
+                            name=tool.name,
+                            description=f"[{self.config.name}] {tool.description or tool.name}",
+                            input_schema=tool.inputSchema if isinstance(tool.inputSchema, dict)
+                            else {"type": "object", "properties": {}},
+                            handler=self._make_handler(tool.name),
+                        )
+                        self.tool_names.append(tool.name)
+                        logger.debug("MCP: registered tool %s", tool.name)
+                return  # Success
+            except asyncio.TimeoutError:
+                last_err = TimeoutError(
+                    f"MCP {self.config.name}: connection timed out after {timeout:.0f}s"
+                )
+            except BaseException as e:
+                last_err = e
+
+            # Clean up partial state before retry
+            try:
+                await self._async_cleanup()
+            except BaseException:
+                pass
+
+            if attempt < max_attempts - 1:
+                logger.warning(
+                    "MCP: %s attempt %d/%d failed: %s, retrying...",
+                    self.config.name, attempt + 1, max_attempts, last_err,
+                )
+                await asyncio.sleep(1 * (attempt + 1))
+
+        raise last_err  # type: ignore[misc]
+
+    async def _async_cleanup(self) -> None:
+        """Release partial session and transport after a failed connect attempt."""
+        if self._session_context:
+            try:
+                await self._session_context.__aexit__(None, None, None)
+            except BaseException:
+                pass
+            self._session_context = None
+            self._session = None
+        if self._transport_ctx:
+            try:
+                await self._transport_ctx.__aexit__(None, None, None)
+            except BaseException:
+                pass
+            self._transport_ctx = None
+            self._read_stream = None
+            self._write_stream = None
 
     async def _connect_stdio(self) -> None:
         from mcp import StdioServerParameters
@@ -199,25 +257,13 @@ class MCPToolBridge:
 
         logger.info("MCP: connecting to %s via StreamableHTTP (%s)", self.config.name, url)
 
-        last_err: BaseException | None = None
-        for attempt in range(3):
-            try:
-                self._transport_ctx = streamablehttp_client(
-                    url, headers=headers,
-                    timeout=self.config.timeout,
-                    sse_read_timeout=self.config.sse_read_timeout,
-                    terminate_on_close=self.config.terminate_on_close,
-                )
-                self._read_stream, self._write_stream, _ = await self._transport_ctx.__aenter__()
-                return
-            except BaseException as e:
-                last_err = e
-                if attempt < 2:
-                    logger.warning("MCP: %s StreamableHTTP attempt %d failed: %s, retrying...",
-                                   self.config.name, attempt + 1, e)
-                    import asyncio as _aio
-                    await _aio.sleep(1 * (attempt + 1))
-        raise last_err  # type: ignore[misc]
+        self._transport_ctx = streamablehttp_client(
+            url, headers=headers,
+            timeout=self.config.timeout,
+            sse_read_timeout=self.config.sse_read_timeout,
+            terminate_on_close=self.config.terminate_on_close,
+        )
+        self._read_stream, self._write_stream, _ = await self._transport_ctx.__aenter__()
 
     async def _connect_websocket(self) -> None:
         from mcp.client.websocket import websocket_client
