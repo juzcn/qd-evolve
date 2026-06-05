@@ -1,6 +1,8 @@
 """Tests for qd_evolve.agent.human_agent — HumanAgent logic."""
 
 
+import asyncio
+
 import pytest
 
 from qd_evolve.agent.human_agent import HumanAgent
@@ -130,3 +132,50 @@ class TestHumanAgentHeartbeat:
     def test_stop_without_start(self, human):
         # Should not raise
         human.stop_heartbeat_loop()
+
+    @pytest.mark.asyncio
+    async def test_start_then_stop(self, human):
+        human.start_heartbeat_loop(idle_seconds=60)
+        assert human._hb_task is not None
+        human.stop_heartbeat_loop()
+
+    @pytest.mark.asyncio
+    async def test_stop_already_cancelled(self, human):
+        """stop_heartbeat_loop on an already-cancelled task should not raise."""
+        human._hb_task = asyncio.ensure_future(asyncio.sleep(0))
+        await human._hb_task  # wait for it to complete
+        human.stop_heartbeat_loop()
+
+
+class TestHumanAgentEdgeCasesExtended:
+    def test_receive_task_default_callback_url(self, human):
+        q = human.subscribe_events()
+        human.receive_task("task-no-cb", "query")
+        task = human.task_store.get("task-no-cb")
+        assert task.metadata.get("callback_url", "") == ""
+        q.get_nowait()  # consume event
+        human.unsubscribe_events(q)
+
+    def test_complete_task_updates_message(self, human):
+        q = human.subscribe_events()
+        human.receive_task("task-msg", "question")
+        q.get_nowait()  # consume receive event
+        human.complete_task("task-msg", "answer text")
+        task = human.task_store.get("task-msg")
+        assert task.status.message is not None
+        assert task.status.message.role == "agent"
+        q.get_nowait()  # consume complete event
+        human.unsubscribe_events(q)
+
+
+class TestHumanAgentRunEdgeCases:
+    def test_run_with_kwargs(self, human):
+        """run() should accept and ignore extra kwargs."""
+        result = human.run("hello", extra_arg="ignored")
+        assert "send_task" in result
+
+    def test_unsubscribe_nonexistent(self, human):
+        """unsubscribe_events on non-subscriber should not raise."""
+        import asyncio
+        q = asyncio.Queue()
+        human.unsubscribe_events(q)  # should not raise

@@ -3,5 +3,17 @@ Use `create_sub_agent` + `run_sub_agent` to delegate work. Each sub-agent has it
 
 - Create once with `create_sub_agent(name="...", description="...")`, then call `run_sub_agent(name="...", task="...")` for each task.
 - Results arrive automatically when done — no need to poll with `get_sub_result`.
-- Use `cancel_sub_task(task_id)` to stop a running task. Pass `reset=True` to `run_sub_agent` to clear a sub-agent's history.
+- Use `cancel_sub_task(task_id)` to stop a running task.
 - Sub-agents live in this session only — they can't modify your tools or state.
+
+**When to reset (reset=True):**
+- Switching to a completely unrelated task (e.g., from "debug a crash" to "write documentation")
+- Previous task failed and you want a clean slate without the error context
+- The sub-agent's conversation history has grown long and you want to avoid context bloat
+
+**When to keep history (reset=False, default):**
+- Multi-turn workflows: investigate → apply fix → verify
+- Iterative refinement: "draft a report" → "add section X" → "fix the tone"
+- Follow-up questions on the same task or topic
+
+**Rule of thumb:** If the new task benefits from knowing what the sub-agent just did, keep history. If it's a fresh start, reset.

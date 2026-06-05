@@ -1,8 +1,7 @@
 """Hot-load an MCP server — spawn process, discover tools, register for immediate use."""
 
-import shutil
-import subprocess
-import sys
+import json
+from pathlib import Path
 
 from qd_evolve.core.config import MCPServerConfig
 from qd_evolve.tools import get_registry
@@ -13,36 +12,24 @@ _bridges: list[MCPToolBridge] = []
 
 def _hot_loading_mcp(
     name: str,
-    config: dict,
-    pip_packages: list[str] | None = None,
+    config_path: str,
     timeout: int | None = None,
 ) -> str:
     if timeout is None:
         from qd_evolve.core.config import DEFAULT_TOOL_TIMEOUT
         timeout = DEFAULT_TOOL_TIMEOUT
-    if pip_packages:
-        try:
-            uv = shutil.which("uv")
-            if uv:
-                subprocess.check_call(
-                    [uv, "pip", "install", *pip_packages],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    timeout=timeout,
-                )
-            else:
-                subprocess.check_call(
-                    [sys.executable, "-m", "pip", "install", *pip_packages],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    timeout=timeout,
-                )
-        except subprocess.CalledProcessError as e:
-            return f"Error: package install failed for {pip_packages} (exit code {e.returncode}). The packages may not exist or be incompatible."
-        except subprocess.TimeoutExpired:
-            return f"Error: package install timed out after {timeout}s"
+
+    try:
+        raw = Path(config_path).read_text(encoding="utf-8")
+        config = json.loads(raw)
+    except FileNotFoundError:
+        return f"Error: config file not found: {config_path}"
+    except json.JSONDecodeError as e:
+        return f"Error: invalid JSON in {config_path}: {e}"
 
     servers = _extract_servers(config, name)
+    if name not in servers:
+        return f"Error: server '{name}' not found in config. Available keys: {', '.join(servers.keys())}"
     srv = servers[name]
     mcp_config = MCPServerConfig(
         name=name,
@@ -57,7 +44,6 @@ def _hot_loading_mcp(
         terminate_on_close=bool(srv.get("terminate_on_close", True)),
     )
 
-    # Hot-load: create bridge and connect
     try:
         bridge = MCPToolBridge(mcp_config)
         bridge.connect()
@@ -71,34 +57,39 @@ def _hot_loading_mcp(
 registry = get_registry()
 registry.register(
     name="hot_loading_mcp",
-    description="Hot-load an MCP server — spawn the process, discover its tools, and register them for immediate use.",
+    description="Hot-load an MCP server from a config file — spawn the process, discover its tools, and register them for immediate use.",
     handler=lambda **kwargs: _hot_loading_mcp(
-        kwargs["name"],
-        kwargs["config"],
-        kwargs.get("pip_packages", None),
-        kwargs.get("timeout", None),
+        name=kwargs["name"],
+        config_path=kwargs["config_path"],
+        timeout=kwargs.get("timeout", None),
     ),
     input_schema={
         "type": "object",
         "properties": {
             "name": {
                 "type": "string",
-                "description": "MCP server name",
+                "description": "MCP server name (must match a key in the config file).",
             },
-            "config": {
-                "type": "object",
-                "description": "MCP server config dict (same format as tools/mcp/*.json). Must include mcpServers key or bare command/args.",
-            },
-            "pip_packages": {
-                "type": "array",
-                "items": {"type": "string"},
-                "description": "Optional pip packages to install (for stdio servers)",
+            "config_path": {
+                "type": "string",
+                "description": (
+                    "Path to the MCP server config JSON file (e.g., 'tools/mcp/my-server.json'). "
+                    "Common forms:\n"
+                    "1. Stdio: "
+                    '{"command": "npx", "args": ["-y", "<package>"], '
+                    '"env": {"API_KEY": "$ENV_VAR"}}\n'
+                    "2. SSE/HTTP: "
+                    '{"type": "sse", "url": "http://localhost:8000/sse", '
+                    '"headers": {"Authorization": "Bearer $TOKEN"}}\n'
+                    "3. Wrapper: "
+                    '{"mcpServers": {"<name>": {"command": "..."}}}'
+                ),
             },
             "timeout": {
                 "type": "integer",
-                "description": "Timeout in seconds. Set higher for servers that need package installs (e.g., timeout=300).",
+                "description": "Timeout in seconds for server connection (default 30). Set higher for slow-starting servers (e.g., timeout=300).",
             },
         },
-        "required": ["name", "config"],
+        "required": ["name", "config_path"],
     },
 )

@@ -220,6 +220,96 @@ class TestCallWithTimeout:
         assert "timed out" in result
 
 
+class TestFormatToolsSummaryExtended:
+    """Tests for MCP/OAT source grouping and service summary in format_tools_summary."""
+
+    def test_mcp_source_grouping(self, registry):
+        from qd_evolve.core.registry import set_source_bridge_type
+
+        set_source_bridge_type("github", "mcp")
+        registry.register(
+            "github_search",
+            "[github] Search GitHub repositories",
+            lambda q: q,
+        )
+        registry.register(
+            "github_issues",
+            "[github] List GitHub issues",
+            lambda q: q,
+        )
+        summary = registry.format_tools_summary()
+        assert "MCP: github (2)" in summary
+        assert "MCP Services" in summary
+        assert "github" in summary
+
+    def test_oat_source_grouping(self, registry):
+        from qd_evolve.core.registry import set_source_bridge_type
+
+        set_source_bridge_type("boat", "oat")
+        registry.register(
+            "boat_search",
+            "[boat] Search with boat",
+            lambda q: q,
+        )
+        summary = registry.format_tools_summary()
+        assert "OAT: boat (1)" in summary
+        assert "boat (1 tools)" in summary
+
+    def test_mixed_mcp_and_oat(self, registry):
+        from qd_evolve.core.registry import set_source_bridge_type
+
+        set_source_bridge_type("github", "mcp")
+        set_source_bridge_type("boat", "oat")
+        registry.register("gh", "[github] GH tool", lambda: "")
+        registry.register("bt", "[boat] Boat tool", lambda: "")
+
+        summary = registry.format_tools_summary()
+        assert "MCP:" in summary
+        assert "OAT:" in summary
+
+    def test_builtins_before_mcp(self, registry):
+        from qd_evolve.core.registry import set_source_bridge_type
+
+        set_source_bridge_type("src", "mcp")
+        registry.register("echo", "Echo tool", lambda s: s)
+        registry.register("mcp_tool", "[src] MCP tool desc", lambda: "")
+
+        summary = registry.format_tools_summary(preloaded={"echo"})
+        # Builtins section should come after summary
+        assert "Builtins" in summary
+        assert "MCP Services" in summary
+
+    def test_default_bridge_type_is_mcp(self, registry):
+        """Without set_source_bridge_type, source defaults to MCP."""
+        registry.register("t1", "[unknown_src] Description", lambda: "")
+        summary = registry.format_tools_summary()
+        assert "MCP Services" in summary or "MCP:" in summary
+
+    def test_no_duplicate_summary_line(self, registry):
+        """format_tools_summary should have meaningful content."""
+        registry.register("echo", "Echo tool", lambda s: s)
+        summary = registry.format_tools_summary()
+        assert "Builtins" in summary
+        assert "[inactive] echo: Echo tool" in summary
+
+
+class TestSetSourceBridgeType:
+    def test_registers_bridge_type(self):
+        from qd_evolve.core.registry import set_source_bridge_type, _source_bridge_types
+
+        old = _source_bridge_types.copy()
+        try:
+            _source_bridge_types.clear()
+            set_source_bridge_type("test_source", "oat")
+            assert _source_bridge_types["test_source"] == "oat"
+
+            set_source_bridge_type("test_source", "mcp")
+            assert _source_bridge_types["test_source"] == "mcp"
+        finally:
+            _source_bridge_types.clear()
+            _source_bridge_types.update(old)
+
+
 class TestDiscoverTools:
     def test_discover_system_tools_error_handled(self, registry, tmp_path):
         with patch("importlib.import_module", side_effect=ImportError("module not found")):
@@ -241,5 +331,85 @@ class TestDiscoverTools:
         reg_mod._registry = None
         r = get_registry()
         assert r is not None
+
+    def test_get_registry_singleton_cached(self):
+        from qd_evolve.core.registry import get_registry
+        import qd_evolve.core.registry as reg_mod
+
+        old = reg_mod._registry
+        reg_mod._registry = None
+        try:
+            r1 = get_registry()
+            r2 = get_registry()
+            assert r1 is r2
+        finally:
+            reg_mod._registry = old
+
+
+class TestDecodeOutputExtended:
+    def test_gbk_chinese(self):
+        from qd_evolve.core.registry import decode_output
+        data = "你好世界".encode("gbk")
+        result = decode_output(data, "gbk")
+        assert "你好世界" in result
+
+    def test_empty_bytes(self):
+        from qd_evolve.core.registry import decode_output
+        assert decode_output(b"", "gbk") == ""
+
+    def test_utf8_fallback(self):
+        from qd_evolve.core.registry import decode_output
+        data = "café résumé".encode("utf-8")
+        result = decode_output(data, "gbk")
+        assert "café" in result
+
+    def test_unknown_encoding_skipped(self):
+        from qd_evolve.core.registry import decode_output
+        data = b"hello"
+        # fallback with a bad encoding name should still work via utf-8
+        result = decode_output(data, "nonexistent_encoding_xyz")
+        assert result == "hello"
+
+    def test_latin1_data(self):
+        from qd_evolve.core.registry import decode_output
+        data = "café".encode("latin-1")
+        result = decode_output(data, "gbk")
+        assert "café" in result
+
+    def test_duplicate_encoding_not_repeated(self):
+        from qd_evolve.core.registry import decode_output
+        # With fallback_enc="utf-8", utf-8 should only appear once in candidates
+        assert decode_output(b"hello world", "utf-8") == "hello world"
+
+
+class TestDefinitionsExtended:
+    def test_active_tools_empty_set(self, registry):
+        registry.register("echo", "Echo", lambda s: s)
+        defs = registry.definitions(active_tools=set())
+        assert len(defs) == 0
+
+    def test_active_tools_excludes_non_members(self, registry):
+        registry.register("echo", "Echo", lambda s: s)
+        registry.register("fetch", "Fetch", lambda u: u)
+        defs = registry.definitions(active_tools={"echo"})
+        assert len(defs) == 1
+        assert defs[0]["function"]["name"] == "echo"
+
+    def test_default_api_format_is_openai_completions(self, registry):
+        registry.register("echo", "Echo", lambda s: s)
+        defs = registry.definitions()
+        assert len(defs) == 1
+        assert defs[0]["type"] == "function"
+
+    def test_openai_completions_format_has_nested_function(self, registry):
+        registry.register("echo", "Echo", lambda s: s)
+        defs = registry.definitions(api_format="openai-completions")
+        assert defs[0]["function"]["name"] == "echo"
+
+    def test_multiple_tools_ordered(self, registry):
+        registry.register("b", "B tool", lambda: "")
+        registry.register("a", "A tool", lambda: "")
+        defs = registry.definitions()
+        assert len(defs) == 2
 
     

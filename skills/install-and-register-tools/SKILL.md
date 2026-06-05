@@ -45,7 +45,7 @@ Determine the tool type and follow the corresponding steps:
   1. Fetch the URL and read the setup guide.
   2. Install every required dependency (same rules as Skill above).
   3. Write the server config JSON to `tools/mcp/<name>.json`.
-  4. Call `hot_loading_mcp` to register the server's tools immediately.
+  4. Call `hot_loading_mcp(name="...", config_path="tools/mcp/<name>.json")` to register the server's tools immediately.
 
 - **CLI tool**
   1. Fetch the URL and read the installation guide.

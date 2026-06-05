@@ -373,3 +373,156 @@ class TestMemoryStoreExtended:
             assert len(entries) == 1
         finally:
             memory_store._db = real_db
+
+
+class TestMemoryStoreDeleteEdgeCases:
+    def test_delete_nonexistent_id(self, memory_store):
+        """SQLite DELETE always succeeds even for nonexistent rows."""
+        result = memory_store.delete(99999)
+        assert result is True  # always returns True
+
+    def test_delete_then_verify_gone(self, memory_store):
+        mid = memory_store.save("q", "a")
+        assert memory_store.delete(mid) is True
+        assert len(memory_store.list_all()) == 0
+
+    def test_save_with_different_content_types(self, memory_store):
+        """Test saving with multiline and special characters."""
+        mid = memory_store.save("question?\nwith newline", "answer!\nwith newline\ttab")
+        assert mid > 0
+        entries = memory_store.list_all()
+        assert entries[0].user_msg == "question?\nwith newline"
+
+
+class TestMemoryStoreSessionEdgeCases:
+    def test_new_session_when_idle(self, memory_store):
+        """new_session returns new ID different from old one."""
+        old = memory_store.session_id
+        with patch("qd_evolve.core.memory.datetime", _ControllableDatetime(datetime.now() + timedelta(seconds=5))):
+            new = memory_store.new_session()
+        assert new != old
+
+    def test_session_id_is_valid_iso_format(self, memory_store):
+        sid = memory_store.session_id
+        # Should be parseable ISO8601
+        datetime.fromisoformat(sid)
+
+    def test_multiple_sessions_same_store(self, memory_store):
+        memory_store.save("s1 q", "s1 a")
+        with patch("qd_evolve.core.memory.datetime",
+                   _ControllableDatetime(datetime.now() + timedelta(seconds=2))):
+            sid2 = memory_store.new_session()
+        memory_store.save("s2 q", "s2 a")
+
+        # Recall across sessions — should see s1 from s2
+        entries = memory_store.recall(keywords=["s1"], limit=5)
+        assert len(entries) >= 1
+
+
+class TestEmbedderCreation:
+    """Test _create_embedder with various backend configurations."""
+
+    def test_sentence_transformers_with_default_params(self):
+        from qd_evolve.core.memory import _create_embedder
+        from qd_evolve.core.config import EmbeddingsBackend
+
+        backend = EmbeddingsBackend(model_path="model-name", dim=384)
+        with patch("qd_evolve.core.memory.SentenceTransformerEmbedder") as mock_st:
+            _create_embedder(backend)
+            mock_st.assert_called_once_with("model-name")
+
+    def test_llama_cpp_with_custom_params(self):
+        from qd_evolve.core.memory import _create_embedder
+        from qd_evolve.core.config import EmbeddingsBackend
+
+        backend = EmbeddingsBackend(
+            model_path="llama-model.gguf",
+            dim=768,
+            backend="llama-cpp-python",
+            llama_n_ctx=2048,
+            llama_n_batch=512,
+        )
+        with patch("qd_evolve.core.memory.LlamaCppEmbedder") as mock_lc:
+            _create_embedder(backend)
+            mock_lc.assert_called_once_with("llama-model.gguf", n_ctx=2048, n_batch=512)
+
+
+class TestSentenceTransformerEmbedder:
+    """Tests for SentenceTransformerEmbedder with mocked dependency."""
+
+    def test_creation_loads_model(self):
+        from qd_evolve.core.memory import SentenceTransformerEmbedder
+        with patch("sentence_transformers.SentenceTransformer") as mock_st:
+            embedder = SentenceTransformerEmbedder("test-model")
+            mock_st.assert_called_once_with("test-model")
+
+    def test_encode_returns_numpy_array(self):
+        import numpy as np
+        from qd_evolve.core.memory import SentenceTransformerEmbedder
+
+        with patch("sentence_transformers.SentenceTransformer") as mock_st:
+            mock_instance = MagicMock()
+            mock_instance.encode.return_value = np.array([0.1, 0.2, 0.3], dtype=np.float32)
+            mock_st.return_value = mock_instance
+
+            embedder = SentenceTransformerEmbedder("test-model")
+            result = embedder.encode("hello")
+            assert isinstance(result, np.ndarray)
+            assert result.dtype == np.float32
+            mock_instance.encode.assert_called_once_with("hello", show_progress_bar=False)
+
+
+class TestLlamaCppEmbedder:
+    """Tests for LlamaCppEmbedder with mocked dependency."""
+
+    def test_creation_loads_model(self):
+        from qd_evolve.core.memory import LlamaCppEmbedder
+        with patch("llama_cpp.Llama") as mock_llama:
+            embedder = LlamaCppEmbedder("model.gguf", n_ctx=512, n_batch=256)
+            mock_llama.assert_called_once_with(
+                model_path="model.gguf", embedding=True, verbose=False,
+                n_ctx=512, n_batch=256, n_ubatch=256,
+            )
+
+    def test_encode_returns_numpy_array(self):
+        import numpy as np
+        from qd_evolve.core.memory import LlamaCppEmbedder
+
+        with patch("llama_cpp.Llama") as mock_llama:
+            mock_instance = MagicMock()
+            mock_instance.create_embedding.return_value = {
+                "data": [{"embedding": [0.1, 0.2, 0.3]}],
+            }
+            mock_llama.return_value = mock_instance
+
+            embedder = LlamaCppEmbedder("model.gguf", n_ctx=512, n_batch=256)
+            result = embedder.encode("hello")
+            assert isinstance(result, np.ndarray)
+            assert result.dtype == np.float32
+            mock_instance.create_embedding.assert_called_once_with("hello")
+
+
+class TestMemoryEntryExtended:
+    def test_complete_entry(self):
+        entry = MemoryEntry(
+            id=1,
+            key="2025-01-01",
+            session_id="s1",
+            user_msg="What is Python?",
+            assistant_msg="Python is a programming language.",
+            content="user: What is Python?\nassistant: Python is a programming language.",
+            accessed_at="2025-01-02",
+            access_count=5,
+            distance=0.123,
+        )
+        assert entry.id == 1
+        assert entry.accessed_at == "2025-01-02"
+        assert entry.access_count == 5
+        assert entry.distance == 0.123
+
+    def test_distance_float(self):
+        entry = MemoryEntry(
+            id=1, key="k", session_id="s", user_msg="q", assistant_msg="a",
+            content="c", distance=0.456,
+        )
+        assert entry.distance == 0.456
