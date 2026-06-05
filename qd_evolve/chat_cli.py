@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import asyncio
+import signal
 import sys
 from asyncio import CancelledError
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
+from qd_evolve.utils.cancellation import CancellationToken, CancelledError as AgentCancelledError
 
 import typer
 from rich.console import Console, Group
@@ -422,7 +425,24 @@ async def _async_chat_loop(
         spinner = Spinner("dots", text=Text("Thinking...", style="bold green"))
         with Live(Group(spinner), console=console, refresh_per_second=10) as live:
             try:
-                response = await asyncio.to_thread(agent_core.run, user_input)
+                token = CancellationToken()
+                loop = asyncio.get_running_loop()
+                current_task = asyncio.current_task()
+
+                def _on_sigint(signum: int, frame: Any) -> None:
+                    token.cancel()
+                    if current_task is not None:
+                        loop.call_soon_threadsafe(current_task.cancel)
+
+                orig_handler = signal.signal(signal.SIGINT, _on_sigint)
+                try:
+                    response = await asyncio.to_thread(
+                        agent_core.run, user_input, cancel_token=token
+                    )
+                finally:
+                    signal.signal(signal.SIGINT, orig_handler)
+            except (asyncio.CancelledError, KeyboardInterrupt, AgentCancelledError):
+                response = "[dim](cancelled by user)[/dim]"
             except Exception as e:
                 logger.warning("Chat: agent.run failed: %s", e)
                 response = f"[red]Error:[/red] {e}"

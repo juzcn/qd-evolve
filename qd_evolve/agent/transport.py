@@ -18,6 +18,7 @@ from qd_evolve.agent.a2a import (
     make_task_with_text,
 )
 from qd_evolve.core.logger import logger
+from qd_evolve.utils.cancellation import CancellationToken, CancelledError as AgentCancelledError
 
 if TYPE_CHECKING:
     from qd_evolve.agent.mqtt_transport import MqttTransport
@@ -83,12 +84,11 @@ class InprocTransport:
         task = make_task_with_text(task_text)
         task.status.state = TaskState.working
 
-        from qd_evolve.utils.cancellation import CancellationToken, CancelledError
         token = CancellationToken()
         self._cancel_tokens[task.id] = token
         try:
             result = await asyncio.to_thread(agent_node.run, task_text, cancel_token=token)
-        except CancelledError:
+        except AgentCancelledError:
             logger.info("InprocTransport: send_task to '%s' cancelled — task=%s", target, task.id[:8])
             task.status = TaskStatus(
                 state=TaskState.canceled,
@@ -159,8 +159,12 @@ class InprocTransport:
         # Subscribe to agent events
         event_queue = agent_node.subscribe_events()
 
-        # Background execution
-        run_task = asyncio.ensure_future(asyncio.to_thread(agent_node.run, task_text))
+        # Background execution with cancellation support
+        token = CancellationToken()
+        self._cancel_tokens[task.id] = token
+        run_task = asyncio.ensure_future(
+            asyncio.to_thread(agent_node.run, task_text, cancel_token=token)
+        )
 
         event_count = 0
         try:
@@ -182,14 +186,22 @@ class InprocTransport:
                         metadata={"type": "ping"},
                     ))
         except (asyncio.CancelledError, GeneratorExit):
-            pass
+            token.cancel()
         finally:
+            self._cancel_tokens.pop(task.id, None)
             agent_node.unsubscribe_events(event_queue)
 
         # Final event
         try:
             result = run_task.result()
-            final_state = TaskState.completed
+            if token.is_cancelled:
+                final_state = TaskState.canceled
+                result = "Task cancelled."
+            else:
+                final_state = TaskState.completed
+        except AgentCancelledError:
+            final_state = TaskState.canceled
+            result = "Task cancelled."
         except Exception as e:
             result = f"{type(e).__name__}: {e}"
             final_state = TaskState.failed

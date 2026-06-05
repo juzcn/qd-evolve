@@ -11,6 +11,7 @@ from qd_evolve.core.logger import logger
 from qd_evolve.core.memory import MemoryStore, RecalledMemoryRegistry
 from qd_evolve.core.providers import ProviderRegistry
 from qd_evolve.core.registry import ToolRegistry
+from qd_evolve.utils.cancellation import CancelledError as AgentCancelledError
 
 
 class Agent:
@@ -266,6 +267,8 @@ class Agent:
                     result = self._run_openai_response(client, system_prompt, max_tokens)
                 else:
                     raise ValueError(f"Unsupported api_type: {self._api_type}")
+            except AgentCancelledError:
+                raise
             except Exception as e:
                 logger.error("Agent: API call failed: %s", e)
                 msg = self._format_api_error(e)
@@ -509,6 +512,8 @@ class Agent:
                 msg_dict["reasoning_content"] = reasoning
             self.messages.append(msg_dict)
             for tc in msg.tool_calls:
+                if self._cancel_token is not None:
+                    self._cancel_token.check()
                 try:
                     args = json.loads(tc.function.arguments)
                 except json.JSONDecodeError as e:
@@ -570,6 +575,8 @@ class Agent:
 
         try:
             for chunk in response:
+                if self._cancel_token is not None:
+                    self._cancel_token.check()
                 if not chunk.choices:
                     continue
                 delta = chunk.choices[0].delta
@@ -597,6 +604,8 @@ class Agent:
 
             if chunk.usage:
                 usage = chunk.usage
+        except AgentCancelledError:
+            raise
         except Exception as e:
             logger.error("Agent: stream processing failed: %s", e)
             return f"Stream error: {type(e).__name__}: {e}"
@@ -630,6 +639,8 @@ class Agent:
                 msg_dict["reasoning_content"] = reasoning
             self.messages.append(msg_dict)
             for tc in tool_calls:
+                if self._cancel_token is not None:
+                    self._cancel_token.check()
                 try:
                     args = json.loads(tc["function"]["arguments"])
                 except json.JSONDecodeError as e:
@@ -696,6 +707,8 @@ class Agent:
 
         for item in response.output:
             if item.type == "function_call":
+                if self._cancel_token is not None:
+                    self._cancel_token.check()
                 try:
                     args = json.loads(item.arguments)
                 except json.JSONDecodeError as e:
@@ -801,6 +814,8 @@ class Agent:
         results: list[dict] = []
         for block in content:
             if block.type == "tool_use":
+                if self._cancel_token is not None:
+                    self._cancel_token.check()
                 logger.info("Agent: tool call: %s(%s)",block.name, json.dumps(block.input, ensure_ascii=False))
                 args_brief = json.dumps(block.input, ensure_ascii=False)[:60]
                 self._update_status(f"Tool: {block.name}({args_brief})")
