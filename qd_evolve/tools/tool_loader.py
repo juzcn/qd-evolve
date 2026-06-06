@@ -33,7 +33,7 @@ registry.register(
         "properties": {
             "name": {
                 "type": "string",
-                "description": "The tool name (as shown in the tools list)",
+                "description": "The tool name — must match exactly as listed in the Functions section of the system prompt (e.g., 'create_sub_agent', 'recall_memory').",
             },
         },
         "required": ["name"],

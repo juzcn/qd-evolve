@@ -57,7 +57,7 @@ def _hot_loading_mcp(
 registry = get_registry()
 registry.register(
     name="hot_loading_mcp",
-    description="Hot-load an MCP server from a config file — spawn the process, discover its tools, and register them for immediate use.",
+    description="Connect to an MCP server at runtime to discover and use its tools. Use when you need tools from an external MCP server that isn't already connected. Provide a config file defining the server's command/URL and it will be started and registered on the fly.",
     handler=lambda **kwargs: _hot_loading_mcp(
         name=kwargs["name"],
         config_path=kwargs["config_path"],
@@ -72,18 +72,7 @@ registry.register(
             },
             "config_path": {
                 "type": "string",
-                "description": (
-                    "Path to the MCP server config JSON file (e.g., 'tools/mcp/my-server.json'). "
-                    "Common forms:\n"
-                    "1. Stdio: "
-                    '{"command": "npx", "args": ["-y", "<package>"], '
-                    '"env": {"API_KEY": "$ENV_VAR"}}\n'
-                    "2. SSE/HTTP: "
-                    '{"type": "sse", "url": "http://localhost:8000/sse", '
-                    '"headers": {"Authorization": "Bearer $TOKEN"}}\n'
-                    "3. Wrapper: "
-                    '{"mcpServers": {"<name>": {"command": "..."}}}'
-                ),
+                "description": "Path to the MCP server config JSON file (e.g., 'tools/mcp/my-server.json'). For stdio servers: {'command': 'npx', 'args': ['-y', '<package>'], 'env': {...}}. For SSE/HTTP servers: {'type': 'sse', 'url': '<url>', 'headers': {...}}. Wrapper form: {'mcpServers': {'<name>': {'command': '...'}}}. Use $ENV_VAR to reference environment variables.",
             },
             "timeout": {
                 "type": "integer",

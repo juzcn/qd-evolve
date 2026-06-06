@@ -7,6 +7,7 @@ discovers tools via MCP list_tools, and registers them in ToolRegistry.
 
 import asyncio
 import json
+import logging
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -109,11 +110,29 @@ class MCPToolBridge:
 
         def _run():
             asyncio.set_event_loop(loop)
+
+            # Prevent background-task tracebacks (e.g., mcp's post_writer)
+            # from leaking to the user terminal during connection.
+            def _quiet_exc_handler(_loop, context):
+                exc = context.get("exception")
+                msg = context.get("message", "")
+                if exc:
+                    logger.debug("MCP: async exception: %s: %s", type(exc).__name__, exc)
+                else:
+                    logger.debug("MCP: async error: %s", msg)
+
+            loop.set_exception_handler(_quiet_exc_handler)
+
+            _mcp_logger = logging.getLogger("mcp")
+            _old_mcp_level = _mcp_logger.level
+            _mcp_logger.setLevel(logging.CRITICAL)
+
             try:
                 loop.run_until_complete(self._async_connect())
             except BaseException as e:
                 error_ref.append(e)
             finally:
+                _mcp_logger.setLevel(_old_mcp_level)
                 connected.set()
             if not error_ref:
                 loop.run_forever()
