@@ -1,9 +1,15 @@
 """Tests for qd_evolve.agent.a2a_tools — delegate_to, send_task, get_task, cancel_task."""
 
+from __future__ import annotations
+
 import json
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+if TYPE_CHECKING:
+    from qd_evolve.agent.registry import AgentRegistry
 
 from qd_evolve.agent.a2a import Task, TaskState, TaskStatus, make_text_message
 
@@ -246,7 +252,8 @@ class TestOwnCallbackUrlHelpers:
 
     def _restore_registry(self):
         from qd_evolve.agent.registry import set_agent_registry
-        set_agent_registry(self._old_reg) if self._old_reg is not None else None
+        if self._old_reg is not None:
+            set_agent_registry(self._old_reg)
 
     def test_current_agent_with_url(self):
         from qd_evolve.agent.a2a_tools import _get_own_callback_url
@@ -256,7 +263,7 @@ class TestOwnCallbackUrlHelpers:
             mock_agent = MagicMock()
             mock_agent.card.name = "test_agent"
             mock_agent.card.url = "http://agent:8000"
-            reg.register(mock_agent)
+            reg.register(mock_agent)  # type: ignore[arg-type]
             reg.current_agent = "test_agent"
             result = _get_own_callback_url()
             assert "agent:8000" in result
@@ -267,7 +274,7 @@ class TestOwnCallbackUrlHelpers:
         from qd_evolve.agent.a2a_tools import _get_own_callback_url
 
         reg = self._init_registry()
-        reg.current_agent = None
+        reg.current_agent = ""
         try:
             with patch("qd_evolve.core.config.load_settings") as mock_load:
                 mock_settings = MagicMock()
@@ -282,7 +289,7 @@ class TestOwnCallbackUrlHelpers:
         from qd_evolve.agent.a2a_tools import _get_own_callback_url
 
         reg = self._init_registry()
-        reg.current_agent = None
+        reg.current_agent = ""
         try:
             with patch("qd_evolve.core.config.load_settings") as mock_load:
                 mock_settings = MagicMock()

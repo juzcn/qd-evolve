@@ -122,6 +122,10 @@ reportUnknownMemberType = "none"
 reportMissingParameterType = "none"
 reportUnknownArgumentType = "none"
 
+[tool.mypy]
+ignore_missing_imports = true
+exclude = ["\\.venv/"]
+
 [dependency-groups]
 test = [
     "aioresponses>=0.7.8",

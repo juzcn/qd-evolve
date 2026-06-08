@@ -310,10 +310,11 @@ class TestCreateSubAgentValidation:
         parent._provider_name = "test"
         parent._model = "m"
 
+        from qd_evolve.tools.sub_agent_manager import _create_sub_agent, _sub_agents
+
         cfg_mod._agent_contexts["p"] = (parent, settings)
         token = cfg_mod._current_agent_var.set("p")
         try:
-            from qd_evolve.tools.sub_agent_manager import _create_sub_agent, _sub_agents
             result = _create_sub_agent("")
             assert "name is required" in result
             result2 = _create_sub_agent("   ")
