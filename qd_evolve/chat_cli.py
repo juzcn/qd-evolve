@@ -319,6 +319,7 @@ async def _async_chat_loop(
         agent_core.set_event_callback(_on_agent_event)
 
     input_task = None
+    user_input: str | None = None
 
     try:
       while True:
@@ -527,16 +528,16 @@ def chat(
         console.print("[red]Error:[/red] No API key configured. Edit config.json")
         raise SystemExit(1)
 
-    # 2. Per-process init (skills, CLI tools, bridges, registry injection)
+    # 2. Validate agent exists before expensive init (MCP connections, etc.)
     chat_agent_name = agent
-    init_process(settings, agent_name=chat_agent_name)
-
-    # 3. Load the specified agent in-process (pure Agent, no A2A)
     chat_agent_entry = next((a for a in settings.agents_config.agents if a.name == chat_agent_name), None)
     if chat_agent_entry is None:
         available = [a.name for a in settings.agents_config.agents]
         console.print(f"[red]Error:[/red] Agent '{chat_agent_name}' not found. Available: {', '.join(available)}")
         raise SystemExit(1)
+
+    # 3. Per-process init (skills, CLI tools, bridges, registry injection)
+    init_process(settings, agent_name=chat_agent_name)
 
     agent_core = create_agent(chat_agent_name, settings=settings, need_a2a=False)
 
