@@ -147,13 +147,16 @@ class A2AAgent:
         self.agent._print(text)
 
     def _track_tokens_anthropic(self, usage: Any) -> None:
-        self.agent._track_tokens_anthropic(usage)
+        from qd_evolve.agent.api_backends import AnthropicBackend
+        AnthropicBackend(self.agent)._track_tokens(usage)
 
     def _track_tokens_openai_completion(self, usage: Any) -> None:
-        self.agent._track_tokens_openai_completion(usage)
+        from qd_evolve.agent.api_backends import OpenAICompletionBackend
+        OpenAICompletionBackend(self.agent)._track_tokens(usage)
 
     def _track_tokens_openai_response(self, usage: Any) -> None:
-        self.agent._track_tokens_openai_response(usage)
+        from qd_evolve.agent.api_backends import OpenAIResponseBackend
+        OpenAIResponseBackend(self.agent)._track_tokens(usage)
 
     # ── Delegate key Agent attributes ────────────────────────────────
 

@@ -130,7 +130,7 @@ Single `config.json` file. Most fields have sensible defaults in the Pydantic mo
 
 ### Templates
 
-Jinja2 system prompts with two-tier fallback: `templates/` (user) overrides `_templates/` (builtin). Mode-specific templates (single-agent, A2A, MQTT, group chat), each including a shared `_core_behavior.j2` and `_system_tail.j2`.
+Jinja2 system prompts with two-tier fallback: `templates/` (user) overrides `_templates/` (builtin). Mode-specific templates (single-agent, A2A, MQTT, group chat, sub-agent), each including shared partials: `_core_behavior.j2`, `_a2a_tools.j2` (A2A modes only), `_sub_agents.j2`, `_runtime.j2`, and `_system_tail.j2`.
 
 ### Heartbeat
 
@@ -140,14 +140,14 @@ Jinja2 system prompts with two-tier fallback: `templates/` (user) overrides `_te
 
 ```
 qd_evolve/
-├── __main__.py              # CLI entry (typer), subcommand registration
-├── chat_cli.py              # Single-agent chat loop
-├── a2a_cli.py               # A2A multi-agent chat + serve
+├── chat_cli.py              # CLI entry (typer), subcommand registration, single-agent chat
+├── a2a_cli.py               # A2A multi-agent chat + serve (HTTP/SSE)
+├── a2a_inproc_cli.py        # A2A in-process multi-agent chat
 ├── mqtt_cli.py              # MQTT multi-agent chat + serve
 ├── gchat_cli.py             # Group chat
 ├── cli_utils.py             # ReplayInput, TeeWriter, AGENT_COLORS
-├── skills.py                # SkillRegistry
-├── cli_tools.py             # CLIRegistry
+├── skills.py                # SkillRegistry (SKILL.md discovery)
+├── cli_tools.py             # CLIRegistry (YAML discovery)
 ├── toolbox_tui.py           # Textual TUI for toolbox management
 ├── memory_tui.py            # Textual TUI for memory browsing and search
 ├── core/
@@ -173,12 +173,13 @@ qd_evolve/
 │   ├── mqtt_transport.py    # MqttTransport — sole-consumer MQTT v5
 │   ├── registry.py          # AgentRegistry — singleton, local agent lookup
 │   ├── loader.py            # init_process + create_agent factory
-│   ├── a2a_tools.py         # delegate_to, send_task, get_task, cancel_task
+│   ├── a2a_tools.py         # delegate_to, send_task, get_task, cancel_task (with cooperative cancellation)
 │   ├── protocol.py          # AgentProtocol ABC (card, task_store, run, subscribe_events)
 │   └── a2a.py               # A2A v1.0 data models (Task, Message, AgentCard, etc.)
 ├── tools/
 │   ├── __init__.py          # Re-exports ToolRegistry
 │   ├── config_manager.py    # config_manager — self-config + in-memory sub-agents
+│   ├── sub_agent_manager.py # Sub-agent creation, execution, cancellation
 │   ├── tool_loader.py       # load_func — on-demand func tool schema loading
 │   ├── skill_loader.py      # load_skill — on-demand skill content loading
 │   ├── cli_loader.py        # load_cli — on-demand CLI tool detail loading
@@ -188,8 +189,10 @@ qd_evolve/
 │   ├── __init__.py
 │   └── wechat_clawbot_client.py  # WeChatClawbotClient — iLink ClawBot protocol
 ├── utils/
+│   ├── __init__.py
 │   ├── adk_schema.py        # Google ADK → OpenAI JSON Schema
-│   └── adk_output.py        # ADK output normalization
+│   ├── adk_output.py        # ADK output normalization
+│   └── cancellation.py      # CancellationToken + CancelledError
 └── _templates/              # Builtin Jinja2 templates
     ├── default.j2           # Single-agent system prompt
     ├── a2a-default.j2       # A2A system prompt
@@ -199,8 +202,11 @@ qd_evolve/
     ├── group-message.j2     # Group chat incoming message format
     ├── subagent.j2          # Sub-agent worker system prompt
     ├── heartbeat.j2         # Heartbeat (shared by all agents)
+    ├── _a2a_tools.j2        # A2A tool descriptions (delegate_to, send_task, etc.)
     ├── _core_behavior.j2    # Shared core behavior rules (included by all templates)
-    └── _system_tail.j2      # Shared tail (runtime env, toolbox, included by all templates)
+    ├── _runtime.j2          # Runtime environment detection (shell, encoding)
+    ├── _sub_agents.j2       # Sub-agent usage instructions (create, run, cancel, reset)
+    └── _system_tail.j2      # Shared tail (toolbox, preloaded tools, appendix)
 ```
 
 ## Class Hierarchy
@@ -249,12 +255,13 @@ _run_inner(user_input, system, provider, model):
     2. Append user message to self.messages
     3. Auto-recall: query memory, inject into system prompt
     4. Loop:
-       a. Create API client (openai or anthropic)
-       b. Build tool definitions from registry (active + preload)
-       c. Call LLM (dispatch by api_type)
-       d. If text response → save to memory (with process capture), compress, return
-       e. If tool calls → record name/params/success via _record_tool_call(), execute via ToolRegistry.call(), append results, continue
-       f. If max_iterations exceeded → return error
+       a. Check cancellation token (CancelledError if set)
+       b. Create API client (openai or anthropic)
+       c. Build tool definitions from registry (active + preload)
+       d. Call LLM (dispatch by api_type)
+       e. If text response → save to memory (with process capture), compress, return
+       f. If tool calls → record name/params/success via _record_tool_call(), execute via ToolRegistry.call(), append results, check cancellation, continue
+       g. If max_iterations exceeded → return error
 ```
 
 The entire loop is guarded by `threading.Lock` (`_run_lock`). Only one `run()` per agent at a time.
@@ -455,6 +462,36 @@ Two backends: `sentence-transformers` (BGE-M3 via `SentenceTransformer`) and `ll
 
 Heartbeat response handling: if LLM returns `"."`, stays silent. Otherwise, the response is pushed as a heartbeat event. Configurable `heartbeat_idle_seconds` per agent; `0` disables.
 
+## Cooperative Task Cancellation
+
+`CancellationToken` (`qd_evolve/utils/cancellation.py`) is a lightweight `threading.Event`-based mechanism that lets a caller signal a running agent to stop at the next safe checkpoint. Used by both the sub-agent system (`cancel_sub_task`) and A2A transport (`cancel_task`) to provide real interruption without killing threads or corrupting state.
+
+### Design
+
+Two-phase feedback:
+
+1. **Request** — `cancel()` sets the event. The caller immediately knows whether cancellation was requested vs the task was already finished.
+2. **Acknowledge** — The running agent calls `check()` at safe boundaries (before each LLM request, after each tool execution), raises `CancelledError`, and the runner pushes a "cancelled" result back.
+
+### Checkpoints
+
+`Agent.run()` accepts an optional `cancel_token: CancellationToken | None`. The three API dispatch paths (`_run_anthropic`, `_run_openai_completion`, `_run_openai_response`) each call `cancel_token.check()` at the top of every iteration — before the LLM call and after tool execution. This means cancellation is cooperative: the agent will finish its current LLM round (or tool execution) before stopping, but will not start a new one.
+
+### Sub-Agent Cancellation
+
+`sub_agent_manager.py` creates a `CancellationToken` per task when `run_sub_agent` is called. `cancel_sub_task(task_id)` calls `token.cancel()`, then immediately pushes a "cancelled" result to the task's result dict. The daemon thread running `agent.run()` raises `CancelledError` at the next checkpoint, unwinds, and the result is already available.
+
+### A2A Transport Cancellation
+
+- **Inproc**: `InprocTransport.send_task()` creates a `CancellationToken` and passes it to `agent.run()`. `cancel_task()` calls `token.cancel()` for real interruption, then sets the task status to cancelled.
+- **HTTP / MQTT**: Since the agent runs in a remote process, cancellation is delegated via `transport.cancel_task()` (JSON-RPC `tasks/cancel` or MQTT cancellation message). The remote server's transport handles the token locally.
+
+### Safety
+
+- **Cooperative, not preemptive.** The agent is never killed mid-operation. It stops at the next checkpoint — after the current LLM call or tool execution completes.
+- **Idempotent.** `cancel()` can be called multiple times safely.
+- **Status protection.** `a2a_tools.py` prevents `cancel_task` from overwriting task status that has already reached a terminal state (completed, failed, already cancelled).
+
 ## Sub-Agent System
 
 In-process worker agents created at runtime by the parent agent. Sub-agents are bare `Agent` instances — no A2A wrapping, no heartbeat, no persistence, no network server. They exist only within the parent process and die with it.
@@ -464,14 +501,16 @@ In-process worker agents created at runtime by the parent agent. Sub-agents are 
 - **Worker, not peer.** Sub-agents are tools for the parent, not autonomous agents. They receive a task, execute it, and return the result.
 - **Inherit, don't configure.** Sub-agents inherit the parent's provider, model, tools, skills, and CLI preload sets. No separate configuration.
 - **Single-task model.** Each sub-agent processes one task at a time (guarded by `_run_lock`). Busy sub-agents reject new tasks. Create multiple sub-agents for parallel work.
+- **Cancellable.** Each task gets a `CancellationToken`. `cancel_sub_task(task_id)` signals cancellation; the sub-agent stops at the next safe checkpoint and pushes a "cancelled" result.
 - **Disposable.** No persistence. Results live in a module-level dict. Sub-agents and their task history are gone when the process exits.
 
 ### Lifecycle
 
 ```
 create_sub_agent(name, description)     → Agent created, inherits parent state
-run_sub_agent(name, task)               → returns task_id immediately, agent.run() in daemon thread
-get_sub_result(task_id)                 → poll: running | done | error
+run_sub_agent(name, task)               → returns task_id immediately, agent.run() in daemon thread with CancellationToken
+get_sub_result(task_id)                 → poll: running | done | error | cancelled
+cancel_sub_task(task_id)                → signals CancellationToken, pushes "cancelled" result
 (process exit)                          → sub-agent destroyed with process
 ```
 

@@ -178,15 +178,29 @@ class TestA2AAgentDelegation:
         assert a2a_agent_mock.agent.default_system_prompt == "New prompt"
 
     def test___track_tokens_methods_delegate(self, a2a_agent_mock):
+        """_track_tokens_* methods update token counters on the underlying agent."""
         usage = MagicMock()
+        usage.input_tokens = 100
+        usage.output_tokens = 50
+        a2a_agent_mock.agent.total_input_tokens = 0
+        a2a_agent_mock.agent.total_output_tokens = 0
+
         a2a_agent_mock._track_tokens_anthropic(usage)
-        a2a_agent_mock.agent._track_tokens_anthropic.assert_called_once_with(usage)
+        assert a2a_agent_mock.agent.last_input_tokens == 100
+        assert a2a_agent_mock.agent.last_output_tokens == 50
 
+        usage.prompt_tokens = 200
+        usage.completion_tokens = 75
         a2a_agent_mock._track_tokens_openai_completion(usage)
-        a2a_agent_mock.agent._track_tokens_openai_completion.assert_called_once_with(usage)
+        assert a2a_agent_mock.agent.last_input_tokens == 200
+        assert a2a_agent_mock.agent.last_output_tokens == 75
 
-        a2a_agent_mock._track_tokens_openai_response(usage)
-        a2a_agent_mock.agent._track_tokens_openai_response.assert_called_once_with(usage)
+        usage2 = MagicMock()
+        usage2.input_tokens = 300
+        usage2.output_tokens = 100
+        a2a_agent_mock._track_tokens_openai_response(usage2)
+        assert a2a_agent_mock.agent.last_input_tokens == 300
+        assert a2a_agent_mock.agent.last_output_tokens == 100
 
     def test__recalled_delegates(self, a2a_agent_mock):
         a2a_agent_mock.agent._recalled = "some-value"

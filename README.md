@@ -355,18 +355,23 @@ Three states: `enabled` (on-demand schema), `preload` (schema at startup), `disa
 | Command | Description |
 |---------|-------------|
 | `/models` | Switch provider/model |
-| `/agents` | Switch agent |
-| `/tools` | List tools |
-| `/load <tool>` | Load tool schema |
-| `/memory` | List saved memories with full content |
-| `/compress` | Force context compression |
-| `/clear` | Clear conversation |
-| `/help` | Show help |
+| `/agents` | List discovered agents |
+| `/tools` | List available tools |
+| `/skills` | List available skills |
+| `/cli` | List registered CLI tools |
+| `/status` | Show runtime status (loaded tools, skills, CLI) |
+| `/memory` | List saved memories |
+| `/reset` | Reset conversation history |
+| `/help` | Show all available commands |
 | `/quit` | Exit |
 
 ### Heartbeat
 
 Agent-managed idle detection. When no activity for `heartbeat_idle_seconds`, sends a heartbeat prompt to the LLM. If LLM responds with `"."`, stays silent. Set `0` to disable. Mode-specific templates selected automatically.
+
+### Task Cancellation
+
+Cooperative cancellation for sub-agents and A2A tasks. `cancel_sub_task(task_id)` and `cancel_task(task_id)` signal the running agent to stop at the next safe checkpoint — after the current LLM call or tool execution. No threads are killed; the agent unwinds gracefully and pushes a "cancelled" result.
 
 ### Replay Mode
 
@@ -399,11 +404,11 @@ WeChat-style multi-agent group via MQTT. All configured agents form a single gro
 
 ```
 qd-evolve/
-├── qd_evolve/       # Main package (agent, core, tools, utils, _templates)
+├── qd_evolve/       # Main package (agent, core, tools, bridge, utils, _templates)
 ├── tools/           # User tools (func, cli, mcp, bridge)
 ├── skills/          # Skills (SKILL.md files)
 ├── templates/       # User Jinja2 template overrides
-├── tests/           # pytest suite
+├── tests/           # pytest suite (~930 tests)
 ├── config.json      # All configuration
 ├── memory.db        # Conversation memory (SQLite + sqlite-vec)
 └── pyproject.toml   # Dependencies and build config

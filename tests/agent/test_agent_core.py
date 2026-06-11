@@ -208,11 +208,13 @@ class TestExtractText:
             type = "tool_use"
             name = "echo"
 
-        result = Agent._extract_text([TextBlock(), ToolBlock()])
+        from qd_evolve.agent.api_backends import AnthropicBackend
+        result = AnthropicBackend._extract_text([TextBlock(), ToolBlock()])
         assert result == "hello"
 
     def test_empty_content(self):
-        result = Agent._extract_text([])
+        from qd_evolve.agent.api_backends import AnthropicBackend
+        result = AnthropicBackend._extract_text([])
         assert result == ""
 
 
@@ -250,10 +252,11 @@ class TestReset:
 
 class TestTrackTokens:
     def test_track_tokens_anthropic(self, agent_core):
+        from qd_evolve.agent.api_backends import AnthropicBackend
         class Usage:
             input_tokens = 500
             output_tokens = 100
-        agent_core._track_tokens_anthropic(Usage())
+        AnthropicBackend(agent_core)._track_tokens(Usage())
         assert agent_core.last_input_tokens == 500
         assert agent_core.last_output_tokens == 100
         assert agent_core.total_input_tokens == 500
@@ -261,34 +264,38 @@ class TestTrackTokens:
         assert agent_core.total_tokens == 600
 
     def test_track_tokens_openai_completion(self, agent_core):
+        from qd_evolve.agent.api_backends import OpenAICompletionBackend
         class Usage:
             prompt_tokens = 800
             completion_tokens = 200
-        agent_core._track_tokens_openai_completion(Usage())
+        OpenAICompletionBackend(agent_core)._track_tokens(Usage())
         assert agent_core.last_input_tokens == 800
         assert agent_core.last_output_tokens == 200
         assert agent_core.total_input_tokens == 800
         assert agent_core.total_output_tokens == 200
 
     def test_track_tokens_openai_response(self, agent_core):
+        from qd_evolve.agent.api_backends import OpenAIResponseBackend
         class Usage:
             input_tokens = 300
             output_tokens = 50
-        agent_core._track_tokens_openai_response(Usage())
+        OpenAIResponseBackend(agent_core)._track_tokens(Usage())
         assert agent_core.last_input_tokens == 300
         assert agent_core.last_output_tokens == 50
         assert agent_core.total_input_tokens == 300
         assert agent_core.total_output_tokens == 50
 
     def test_track_tokens_cumulative(self, agent_core):
+        from qd_evolve.agent.api_backends import OpenAICompletionBackend
         class Usage1:
             prompt_tokens = 100
             completion_tokens = 20
         class Usage2:
             prompt_tokens = 200
             completion_tokens = 30
-        agent_core._track_tokens_openai_completion(Usage1())
-        agent_core._track_tokens_openai_completion(Usage2())
+        backend = OpenAICompletionBackend(agent_core)
+        backend._track_tokens(Usage1())
+        backend._track_tokens(Usage2())
         assert agent_core.last_input_tokens == 200
         assert agent_core.last_output_tokens == 30
         assert agent_core.total_input_tokens == 300
@@ -296,11 +303,12 @@ class TestTrackTokens:
         assert agent_core.total_tokens == 350
 
     def test_track_tokens_pushes_event(self, a2a_agent):
+        from qd_evolve.agent.api_backends import OpenAICompletionBackend
         class Usage:
             prompt_tokens = 100
             completion_tokens = 20
         q = a2a_agent.subscribe_events()
-        a2a_agent._track_tokens_openai_completion(Usage())
+        OpenAICompletionBackend(a2a_agent.agent)._track_tokens(Usage())
         event = q.get_nowait()
         assert event["type"] == "tokens"
         assert event["input"] == 100
@@ -310,11 +318,12 @@ class TestTrackTokens:
         a2a_agent.unsubscribe_events(q)
 
     def test_track_tokens_anthropic_pushes_event(self, a2a_agent):
+        from qd_evolve.agent.api_backends import AnthropicBackend
         class Usage:
             input_tokens = 50
             output_tokens = 10
         q = a2a_agent.subscribe_events()
-        a2a_agent._track_tokens_anthropic(Usage())
+        AnthropicBackend(a2a_agent.agent)._track_tokens(Usage())
         event = q.get_nowait()
         assert event["type"] == "tokens"
         assert event["input"] == 50

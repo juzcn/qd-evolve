@@ -267,16 +267,18 @@ class TestFormatMessagesLog:
 
 class TestFormatCompletionLog:
     def test_anthropic_format(self, agent_core):
+        from qd_evolve.agent.api_backends import AnthropicBackend
         agent_core._api_type = "anthropic"
         response = MagicMock()
         response.content = [MagicMock(type="text", text="hello")]
         response.stop_reason = "end_turn"
 
-        result = agent_core._format_completion_log(response)
+        result = AnthropicBackend(agent_core)._format_completion_log(response)
         assert "hello" in result
         assert "stop_reason=end_turn" in result
 
     def test_openai_completion_format(self, agent_core):
+        from qd_evolve.agent.api_backends import OpenAICompletionBackend
         agent_core._api_type = "openai_completion"
         response = MagicMock()
         response.choices = [MagicMock()]
@@ -284,11 +286,12 @@ class TestFormatCompletionLog:
         response.choices[0].message.tool_calls = None
         response.choices[0].finish_reason = "stop"
 
-        result = agent_core._format_completion_log(response)
+        result = OpenAICompletionBackend(agent_core)._format_completion_log(response)
         assert "hi there" in result
         assert "finish_reason=stop" in result
 
     def test_openai_completion_with_tool_calls(self, agent_core):
+        from qd_evolve.agent.api_backends import OpenAICompletionBackend
         agent_core._api_type = "openai_completion"
         response = MagicMock()
         response.choices = [MagicMock()]
@@ -299,16 +302,17 @@ class TestFormatCompletionLog:
         response.choices[0].message.tool_calls = [tc]
         response.choices[0].finish_reason = "tool_calls"
 
-        result = agent_core._format_completion_log(response)
+        result = OpenAICompletionBackend(agent_core)._format_completion_log(response)
         assert "echo" in result
         assert "finish_reason=tool_calls" in result
 
     def test_empty_choices(self, agent_core):
+        from qd_evolve.agent.api_backends import OpenAICompletionBackend
         agent_core._api_type = "openai_completion"
         response = MagicMock()
         response.choices = []
 
-        agent_core._format_completion_log(response)
+        OpenAICompletionBackend(agent_core)._format_completion_log(response)
         # Should handle gracefully
 
 
