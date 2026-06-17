@@ -220,7 +220,7 @@ qd-evolve toolbox --agent <name>
 qd-evolve memory --agent <name>
 ```
 
-## Four Systems
+## Five Systems
 
 | System | Entry | Transport | Use Case |
 |--------|-------|-----------|----------|
@@ -368,6 +368,17 @@ Three states: `enabled` (on-demand schema), `preload` (schema at startup), `disa
 ### Heartbeat
 
 Agent-managed idle detection. When no activity for `heartbeat_idle_seconds`, sends a heartbeat prompt to the LLM. If LLM responds with `"."`, stays silent. Set `0` to disable. Mode-specific templates selected automatically.
+
+### Sub-Agents
+
+In-process worker agents created at runtime by the parent agent. Sub-agents inherit the parent's provider, model, tools, skills, and CLI — no separate configuration.
+
+- **`create_sub_agent`** — create a named sub-agent that inherits parent state
+- **`run_sub_agent`** — submit a task asynchronously, returns `task_id` immediately
+- **`get_sub_result`** — poll task result (running / done / error / cancelled)
+- **`cancel_sub_task`** — signal cooperative cancellation, pushes "cancelled" result
+
+Single-task model: busy sub-agents reject new tasks; create multiple for parallelism. No persistence, no heartbeat, no network — sub-agents exist only within the parent process.
 
 ### Task Cancellation
 

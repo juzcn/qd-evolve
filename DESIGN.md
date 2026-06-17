@@ -160,6 +160,7 @@ qd_evolve/
 │   └── logger.py            # SharedFileHandler
 ├── agent/
 │   ├── agent.py             # Agent — LLM loop, tool exec, memory, compression, heartbeat
+│   ├── api_backends.py      # AnthropicBackend, OpenAICompletionBackend, OpenAIResponseBackend
 │   ├── a2a_agent.py         # A2AAgent — wraps Agent, adds card + task_store + event fan-out
 │   ├── mqtt_agent.py        # MqttAgent — wraps A2AAgent, MQTT v5 lifecycle
 │   ├── group_chat_agent.py  # GroupChatAgent — wraps MqttAgent, group chat behavior
@@ -258,7 +259,7 @@ _run_inner(user_input, system, provider, model):
        a. Check cancellation token (CancelledError if set)
        b. Create API client (openai or anthropic)
        c. Build tool definitions from registry (active + preload)
-       d. Call LLM (dispatch by api_type)
+       d. Select backend via get_backend(api_type, self), call backend.run()
        e. If text response → save to memory (with process capture), compress, return
        f. If tool calls → record name/params/success via _record_tool_call(), execute via ToolRegistry.call(), append results, check cancellation, continue
        g. If max_iterations exceeded → return error
@@ -268,15 +269,15 @@ The entire loop is guarded by `threading.Lock` (`_run_lock`). Only one `run()` p
 
 ### API Dispatch
 
-Three code paths in `Agent`:
+Three backend classes in `agent/api_backends.py`, each encapsulates provider-specific logic for building calls, parsing responses, executing tools, formatting results, and token tracking:
 
-- `_run_anthropic()` — `client.messages.create()` with Anthropic SDK. Tool use via `stop_reason == "tool_use"`. Content blocks contain `tool_use` items.
-- `_run_openai_completion()` — `client.chat.completions.create()` with OpenAI SDK. Tool calls via `msg.tool_calls`. Supports streaming (`stream=True`) with reasoning content for reasoning models.
-- `_run_openai_response()` — OpenAI Responses API. Separate code path for the newer API shape.
+- **`AnthropicBackend`** — `client.messages.create()` with Anthropic SDK. Tool use via `stop_reason == "tool_use"`. Content blocks contain `tool_use` items.
+- **`OpenAICompletionBackend`** — `client.chat.completions.create()` with OpenAI SDK. Tool calls via `msg.tool_calls`. Supports streaming (`stream=True`) with reasoning content for reasoning models.
+- **`OpenAIResponseBackend`** — OpenAI Responses API. Separate code path for the newer API shape.
 
-Each path recursively calls itself for tool turns, incrementing an `_iter` counter checked against `max_iterations`.
+Each backend's `run()` method recursively calls itself for tool turns, incrementing an `_iter` counter checked against `max_iterations`.
 
-`api_type` is mapped from config's `api` field: `openai-completions` → `openai_completion`, `openai-response` → `openai_response`, `anthropic` → `anthropic`.
+`api_type` is mapped from config's `api` field: `openai-completions` → `openai_completion`, `openai-response` → `openai_response`, `anthropic` → `anthropic`. Backend selection via `get_backend(api_type, agent)` factory.
 
 ### Tool Execution
 
@@ -475,7 +476,7 @@ Two-phase feedback:
 
 ### Checkpoints
 
-`Agent.run()` accepts an optional `cancel_token: CancellationToken | None`. The three API dispatch paths (`_run_anthropic`, `_run_openai_completion`, `_run_openai_response`) each call `cancel_token.check()` at the top of every iteration — before the LLM call and after tool execution. This means cancellation is cooperative: the agent will finish its current LLM round (or tool execution) before stopping, but will not start a new one.
+`Agent.run()` accepts an optional `cancel_token: CancellationToken | None`. Each API backend's `run()` method calls `cancel_token.check()` at the top of every iteration — before the LLM call and after tool execution. This means cancellation is cooperative: the agent will finish its current LLM round (or tool execution) before stopping, but will not start a new one.
 
 ### Sub-Agent Cancellation
 

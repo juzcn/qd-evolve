@@ -1,7 +1,6 @@
-```markdown
 # QD-Evolve User Manual
 
-> **Version**: 0.1.9 | **Author**: Zhang Jun (zhangjun@cueb.edu.cn) | **License**: MIT
+> **Version**: 0.1.14 | **Author**: Zhang Jun (zhangjun@cueb.edu.cn) | **License**: MIT
 
 ---
 
@@ -16,7 +15,7 @@
 7. [Multi-Agent System (A2A)](#7-multi-agent-system-a2a)
 8. [Group Chat System](#8-group-chat-system)
 9. [Human Agent](#9-human-agent)
-10. [Sub-Agent](#10-sub-agent)
+10. [Sub-Agent System](#10-sub-agent-system)
 11. [Memory System](#11-memory-system)
 12. [Heartbeat and Events](#12-heartbeat-and-events)
 13. [Slash Command Reference](#13-slash-command-reference)
@@ -38,9 +37,9 @@ QD-Evolve is a multi-agent AI framework supporting A2A (Agent-to-Agent) protocol
 
 ### 1.2 Design Philosophy
 
-QD-Evolve’s design follows eight core principles (detailed in `manifesto.md`), which deeply influence every design decision of the framework:
+QD-Evolve's design follows eight core principles (detailed in `manifesto.md`), which deeply influence every design decision of the framework:
 
-**Principle 1: One loop, no templates.** The framework does not presuppose ReAct, Plan‑and‑Execute, or any fixed reasoning template. An agent’s execution loop is only: reason → call tools → observe → repeat. Strategy moves from code to model weights.
+**Principle 1: One loop, no templates.** The framework does not presuppose ReAct, Plan‑and‑Execute, or any fixed reasoning template. An agent's execution loop is only: reason → call tools → observe → repeat. Strategy moves from code to model weights.
 
 **Principle 2: Embrace the messy toolbox.** Tools do not need to be polished into perfect, orthogonal Lego bricks. Models can use a set of Swiss army knife‑style tools with overlapping functions and casual descriptions.
 
@@ -48,7 +47,7 @@ QD-Evolve’s design follows eight core principles (detailed in `manifesto.md`),
 
 **Principle 4: Give it meta‑tools and let it evolve itself.** The framework gives the model wrenches (fetch web pages, save knowledge, register tools) so the agent can grow its own capabilities, rather than having humans decide when to update.
 
-**Principle 5: Safety through physical isolation.** It does not rely on software permission checks, sandboxes, or content filtering. If the key is in the model’s hand, any lock can be picked. Real safety comes from not giving dangerous capabilities to the model.
+**Principle 5: Safety through physical isolation.** It does not rely on software permission checks, sandboxes, or content filtering. If the key is in the model's hand, any lock can be picked. Real safety comes from not giving dangerous capabilities to the model.
 
 **Principle 6: Partner, not assistant.** Agents should be able to question, suggest alternatives, reject meaningless requests, and participate in decisions. Conversation is a process where two intelligences think together.
 
@@ -71,6 +70,7 @@ QD-Evolve’s design follows eight core principles (detailed in `manifesto.md`),
 │                     Infrastructure Layer                     │
 │  ProviderRegistry │ ToolRegistry │ MemoryStore │ Templates  │
 │  Transport (inproc/http/mqtt) │ BridgeManager │ Skills      │
+│  API Backends (Anthropic / OpenAI Completions / Responses)   │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -87,61 +87,118 @@ QD-Evolve’s design follows eight core principles (detailed in `manifesto.md`),
 ### 2.2 Installation
 
 ```bash
-# PyPI installation
-pip install qd-evolve
+# PyPI installation (with pre-built wheels)
+pip install qd-evolve --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
 
-# or with uv
+# Optional extras
+pip install qd-evolve[memory] --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
+pip install qd-evolve[boat] --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
+
+# Or with uv
 uv add qd-evolve
 
 # Install from source
-git clone <repo-url>
+git clone https://github.com/juzcn/qd-evolve
 cd qd-evolve
 uv sync
-
-# Optional: install BOAT bridge support
-pip install qd-evolve[boat]
+# Optional: BOAT bridge extras
+uv sync --extra boat
 ```
 
-### 2.3 Minimal Configuration
+### 2.3 Project Initialization
 
-Create `config.json` in the project root:
+```bash
+# Create and activate a virtual environment
+python -m venv .venv
+# Windows:
+.venv\Scripts\activate
+# macOS / Linux:
+source .venv/bin/activate
+
+# Initialize your project
+qd-evolve init
+```
+
+This copies default tools, skills, and config templates into your project folder:
+
+```
+my-agent/
+├── .venv/                 # Virtual environment
+├── tools/                 # User tools — add/delete freely
+│   ├── bridge/            #   Bridge connectors (OAT, MCP)
+│   ├── cli/               #   CLI tool wrappers
+│   ├── func/              #   Python function tools
+│   └── mcp/               #   MCP server configs
+├── skills/                # Skills — add/delete freely
+├── config.minimal.json    # Minimal config — copy to config.json
+└── config.json.example    # Full config reference
+```
+
+Running `init` again is safe: existing files are never overwritten. New default files from package updates are added.
+
+### 2.4 Minimal Configuration
+
+Copy the template and edit `config.json`:
+
+```bash
+copy config.minimal.json config.json    # Windows
+# cp config.minimal.json config.json     # macOS / Linux
+```
+
+Minimal setup for single-agent chat:
 
 ```json
 {
+    "env_vars": {
+        "PYTHONIOENCODING": "utf-8",
+        "PYTHONUTF8": "1",
+        "SERPER_API_KEY": "YOUR_SERPER_API_KEY"
+    },
+    "default_provider": "deepseek",
+    "default_model": "deepseek-v4-pro",
     "providers": [
         {
             "name": "deepseek",
-            "api_key": "sk-your-api-key",
+            "api_key": "YOUR_DEEPSEEK_API_KEY",
             "base_url": "https://api.deepseek.com",
             "api": "openai-completions",
             "models": [
                 {
-                    "name": "deepseek-chat",
-                    "context_window": 131072,
-                    "max_tokens": 8192
+                    "name": "deepseek-v4-pro",
+                    "reasoning": true,
+                    "context_window": 1000000,
+                    "max_tokens": 131072
                 }
             ]
         }
     ],
     "agents_config": {
-        "active_agent": "assistant",
+        "chat_agent": "default",
         "agents": [
             {
-                "name": "assistant",
-                "description": "General assistant",
-                "provider": "deepseek",
-                "model": "deepseek-chat"
+                "name": "default",
+                "toolbox": {
+                    "tools": {
+                        "load_func": "preload",
+                        "load_skill": "preload",
+                        "load_cli": "preload"
+                    }
+                }
             }
         ]
     }
 }
 ```
 
-### 2.4 First Run
+> **API keys you'll need:**
+> - **Provider key** (DeepSeek, OpenAI, Anthropic, etc.) — required for chat
+> - **Serper key** — optional, for web search. Free tier at [serper.dev](https://serper.dev). Without it the agent may open browser windows to search.
+
+### 2.5 First Run
 
 ```bash
 # Start single‑agent chat
-qd-evolve chat
+qd-evolve chat --agent default
 
 # After entering the chat interface, type messages to talk to the AI
 # Type /help to see all available commands
@@ -154,7 +211,7 @@ qd-evolve chat
 
 ### 3.1 Overview
 
-All configuration is concentrated in a single `config.json` file. No `.env` files, no command‑line configuration tools. The configuration is validated using Pydantic models and supports sensible defaults.
+All configuration is concentrated in a single `config.json` file. No `.env` files, no command‑line configuration tools. The configuration is validated using Pydantic models and supports sensible defaults — only overrides need to be specified.
 
 ### 3.2 Detailed Configuration Structure
 
@@ -162,17 +219,20 @@ All configuration is concentrated in a single `config.json` file. No `.env` file
 
 ```json
 {
-    "log_level": "INFO",           // log level: DEBUG/INFO/WARNING/ERROR
-    "compress_threshold": 0.7,     // context compression threshold (70%)
-    "target_threshold": 0.5,       // compression target ratio (50%)
-    "max_iterations": 50,          // max tool call iterations
-    "tool_output_limit": 2000,     // tool output truncation length (characters)
-    "stream": true,                // enable streaming output
-    "heartbeat_idle_seconds": 30,  // heartbeat idle seconds, 0 to disable
-    "providers": [...],            // LLM provider list
-    "agents_config": {...},        // agent configuration
-    "embeddings": {...},           // embedding model configuration
-    "memory_search": {...}         // memory search configuration
+    "log_level": "INFO",              // log level: DEBUG/INFO/WARNING/ERROR
+    "compress_threshold": 0.7,        // context compression threshold (70%)
+    "target_threshold": 0.5,          // compression target ratio (50%)
+    "max_iterations": 20,             // max tool call iterations (default: 20)
+    "tool_output_limit": 50000,       // tool output truncation length (characters)
+    "stream": false,                  // enable streaming output (default: false)
+    "heartbeat_idle_seconds": 0,      // heartbeat idle seconds, 0 disables (default)
+    "env_vars": {},                   // environment variables for tool API keys
+    "default_provider": "",           // default LLM provider name
+    "default_model": "",              // default model name
+    "providers": [...],               // LLM provider list
+    "agents_config": {...},           // agent configuration
+    "embeddings_backends": {...},     // embedding model configuration
+    "memory_search": {...}            // memory search configuration
 }
 ```
 
@@ -204,6 +264,11 @@ All configuration is concentrated in a single `config.json` file. No `.env` file
 | `openai-response` | OpenAI Responses API | newer OpenAI endpoints |
 | `anthropic` | Anthropic Messages API | Claude family models |
 
+API dispatch is handled by backend classes in `agent/api_backends.py`:
+- `AnthropicBackend` — Anthropic Messages API with tool use via `stop_reason`
+- `OpenAICompletionBackend` — Chat Completions API with streaming and reasoning support
+- `OpenAIResponseBackend` — OpenAI Responses API (newer endpoint)
+
 #### 3.2.3 Agent Configuration (AgentEntry)
 
 ```json
@@ -212,6 +277,8 @@ All configuration is concentrated in a single `config.json` file. No `.env` file
     "description": "Description of the agent, influences its behaviour and system prompt",
     "provider": "deepseek",        // specify provider (overrides global default)
     "model": "deepseek-chat",      // specify model (overrides global default)
+    "memory_db": "agent.db",       // per-agent memory database file
+    "heartbeat_idle_seconds": 0,   // override heartbeat; 0 = disabled
     "server": {                    // HTTP server configuration (A2A mode)
         "host": "127.0.0.1",
         "port": 8001
@@ -219,11 +286,11 @@ All configuration is concentrated in a single `config.json` file. No `.env` file
     "toolbox": {                   // toolbox state
         "tools": {},
         "mcp_servers": {},
-        "bridges": {},
+        "bridge": {},
         "cli": {},
         "skills": {}
     },
-    "mqtt": {                      // MQTT configuration
+    "mqtt": {                      // per-agent MQTT overrides
         "broker_host": "127.0.0.1",
         "broker_port": 1883,
         "username": "",
@@ -244,33 +311,51 @@ Defines relationships between agents:
 
 ```json
 {
-    "topology": [
-        {"from": "planner", "to": "executor", "relation": "delegates"},
-        {"from": "executor", "to": "reviewer", "relation": "reports"}
-    ]
+    "agents_config": {
+        "topology": [
+            {"from": "planner", "to": "executor", "relation": "delegates"},
+            {"from": "executor", "to": "reviewer", "relation": "reports"}
+        ]
+    }
 }
 ```
 
-#### 3.2.5 Embedding Model (EmbeddingsBackend)
+#### 3.2.5 Environment Variables (env_vars)
+
+Tool API keys are configured under the top-level `env_vars` section:
 
 ```json
 {
-    "embeddings": [
-        {
-            "name": "bge-m3",
+    "env_vars": {
+        "PYTHONIOENCODING": "utf-8",
+        "PYTHONUTF8": "1",
+        "SERPER_API_KEY": "your-serper-key",
+        "TAVILY_API_KEY": "your-tavily-key"
+    }
+}
+```
+
+These are set as OS environment variables at startup. Supported keys include `SERPER_API_KEY`, `TAVILY_API_KEY`, `BAIDU_API_KEY`, and any other environment variables needed by tools.
+
+#### 3.2.6 Embedding Model (EmbeddingsBackend)
+
+```json
+{
+    "embeddings_backends": {
+        "bge-m3": {
             "model_path": "BAAI/bge-m3",
-            "dimension": 1024,
+            "dim": 1024,
             "backend": "sentence-transformers"
         }
-    ]
+    }
 }
 ```
 
 Two backends supported:
-- `sentence-transformers` — HuggingFace based models
+- `sentence-transformers` — HuggingFace based models (BGE-M3)
 - `llama-cpp-python` — local embeddings based on llama.cpp
 
-#### 3.2.6 Memory Search Configuration (MemorySearchConfig)
+#### 3.2.7 Memory Search Configuration (MemorySearchConfig)
 
 ```json
 {
@@ -278,13 +363,12 @@ Two backends supported:
         "embeddings_backend": "bge-m3",
         "auto_recall": true,
         "auto_recall_top_k": 5,
-        "recall_limit": 20,
-        "list_all_limit": 50
+        "recall_memory_limit": 20
     }
 }
 ```
 
-#### 3.2.7 Group Chat Configuration (GChatConfig)
+#### 3.2.8 Group Chat Configuration (GChatConfig)
 
 ```json
 {
@@ -297,10 +381,25 @@ Two backends supported:
 }
 ```
 
+#### 3.2.9 MQTT Broker Configuration (MqttBrokerConfig)
+
+```json
+{
+    "agents_config": {
+        "mqtt_broker": {
+            "host": "127.0.0.1",
+            "port": 1883
+        }
+    }
+}
+```
+
+Requires external Mosquitto v5 broker.
+
 ### 3.3 Configuration Validation
 
 Configuration is automatically validated via Pydantic on load:
-- Duplicate server ports are detected and cause an error
+- Duplicate server ports are detected and cause an error (`AgentsConfig._validate_ports`)
 - Missing provider/model references are detected
 - Type mismatches cause an immediate error on startup
 
@@ -384,10 +483,11 @@ qd-evolve a2a-mqtt serve [--agent NAME]
 
 | Topic | Purpose |
 |-------|---------|
-| `$a2a/v1/discovery/{name}` | AgentCard discovery (retained message) |
+| `$a2a/v1/discovery/{name}` | AgentCard discovery (retained message + LWT) |
 | `$a2a/v1/request/{name}` | task requests |
-| `$a2a/v1/response/{name}/{req_id}` | per‑request responses |
+| `$a2a/v1/response/{name}/{req_id}` | per‑request responses (MQTT v5 Response Topic) |
 | `$a2a/v1/event/{name}` | streaming events and push notifications |
+| `$a2a/v1/group/{name}/chat` | group chat messages (via GroupChatTransport) |
 
 - MQTT v5 features: Response Topic, Correlation Data, User Properties, LWT, Retained Messages
 - requires external Mosquitto v5 broker
@@ -398,7 +498,7 @@ qd-evolve a2a-mqtt serve [--agent NAME]
 qd-evolve gchat [--agent NAME]
 ```
 
-**Transport**: MQTT v5 group topics
+**Transport**: MQTT v5 group topics (via independent `GroupChatTransport`)
 
 **Use cases**: WeChat‑style group conversations with multiple people + multiple AIs
 
@@ -439,7 +539,7 @@ Reason → Call Tools → Observe → Repeat
 - manages conversation history
 - automatic memory recall and saving
 - context window compression (when history exceeds the threshold, old messages are automatically trimmed)
-- multi‑provider backend support (Anthropic / OpenAI Completions / OpenAI Responses)
+- multi‑provider backend support (Anthropic / OpenAI Completions / OpenAI Responses) via `agent/api_backends.py`
 
 **Agent layering (composite pattern)**:
 
@@ -462,9 +562,9 @@ Each layer adds one concern through composition (not inheritance). External crea
 3. **A2A tools** — registered when A2A is enabled (`delegate_to`, `send_task`, `get_task`, `cancel_task`)
 4. **Bridge tools** — MCP and OAT bridge tools
 5. **CLI tools** — command‑line tools defined by `tools/cli/*.yaml`
-6. **Sub‑agent tools** — `create_sub_agent`, `run_sub_agent`, `get_sub_result`
+6. **Sub‑agent tools** — `create_sub_agent`, `run_sub_agent`, `get_sub_result`, `cancel_sub_task`
 
-**Tool execution mechanism**: tools are executed in daemon threads with a configurable timeout (default 60 seconds, tools can customise timeout + 15 seconds buffer).
+**Tool execution mechanism**: tools are executed in daemon threads with **adaptive timeout**: if the LLM sets a per-call `timeout`, the registry uses `timeout + 15s`; otherwise falls back to 60s default. `run_shell` and `run_python` return stdout + stderr + exit code for all exit codes — the LLM interprets them contextually.
 
 ### 5.3 On‑Demand Loading
 
@@ -473,7 +573,7 @@ To save prompt context, tools adopt an on‑demand loading strategy:
 | State | Meaning | LLM visibility |
 |-------|---------|----------------|
 | `enabled` | enabled | only name and description visible |
-| `preload` | pre‑loaded | full JSON Schema in system prompt |
+| `preload` | pre‑loaded | full JSON Schema in system prompt at startup |
 | `disabled` | disabled | completely invisible |
 
 The LLM can load full definitions via the following tools:
@@ -483,10 +583,10 @@ The LLM can load full definitions via the following tools:
 
 ### 5.4 Provider Registry
 
-Manages all configured LLM providers. Supports three API types:
-- `openai-completions` — OpenAI Chat Completions API
-- `openai-response` — OpenAI Responses API (newer)
-- `anthropic` — Anthropic Messages API
+Manages all configured LLM providers. Supports three API types dispatched via backend classes:
+- `openai-completions` → `OpenAICompletionBackend`
+- `openai-response` → `OpenAIResponseBackend`
+- `anthropic` → `AnthropicBackend`
 
 Each provider can be configured with multiple models, each with its own context window size, maximum tokens, and reasoning/thinking capability configuration.
 
@@ -598,12 +698,13 @@ Built‑in system tools:
 | `load_cli` | on‑demand load CLI tool definition |
 | `list_providers` | list available LLM providers and models |
 | `get_my_config` | view current agent configuration |
-| `update_my_config` | update current agent’s provider/model/description |
+| `update_my_config` | update current agent's provider/model/description |
 | `recall_memory` | search historical conversation memory |
 | `hot_loading_mcp` | activate MCP server at runtime |
 | `create_sub_agent` | create a sub‑agent |
 | `run_sub_agent` | run a sub‑agent task |
 | `get_sub_result` | query sub‑agent result |
+| `cancel_sub_task` | cancel a running sub‑agent task |
 | `delegate_to` | synchronously delegate a task to another agent (A2A) |
 | `send_task` | asynchronously send a task to another agent (A2A) |
 | `get_task` | query asynchronous task status (A2A) |
@@ -621,8 +722,10 @@ Each agent has an independent toolbox configuration stored in `config.json` unde
 **State transitions**:
 ```
 Tools/CLI/Skills: disabled → enabled → preload → disabled
-Bridges/MCP:      disabled → enabled → disabled
+Bridge/MCP:      disabled → enabled → disabled
 ```
+
+**Five toolbox sections**: `tools`, `mcp_servers`, `bridge`, `cli`, `skills`. Bridge uses binary enabled/disabled (no preload).
 
 ---
 
@@ -696,7 +799,7 @@ Returns: {"task_id": "...", "status": "working|completed|failed", "result": "...
 
 #### cancel_task (cancel task)
 
-Cancels an unfinished task.
+Cancels an unfinished task using cooperative cancellation.
 
 ```
 Parameters:
@@ -705,14 +808,17 @@ Parameters:
 Returns: cancellation confirmation
 ```
 
+The task is signaled to stop at the next safe checkpoint (after the current LLM call or tool execution completes). Status protection prevents overwriting already-terminal states (completed, failed, already cancelled).
+
 ### 7.4 Transport Layer
 
 #### InprocTransport (in‑process)
 
-- Directly calls the target agent’s `run()` method
+- Directly calls the target agent's `run()` method
 - Zero network overhead
 - Asynchronous execution for AI agents via `asyncio.to_thread`
 - Immediately returns `input_required` for human agents
+- Creates `CancellationToken` per task, passes it to `agent.run()`
 
 #### HttpTransport (HTTP/SSE)
 
@@ -725,8 +831,14 @@ Returns: cancellation confirmation
 
 - Uses standard A2A JSON‑RPC over MQTT
 - Leverages MQTT v5 Response Topic and Correlation Data for request‑response matching
-- Service discovery via retained messages
-- Offline detection via LWT
+- Service discovery via retained messages + LWT
+- **Sole consumer**: one MQTT connection per agent for A2A operations
+
+#### GroupChatTransport (MQTT v5 group topics)
+
+- Independent `aiomqtt.Client` connection for `/chat` topics
+- Keeps `MqttTransport`'s sole-consumer design intact
+- Used exclusively by group chat for topic subscriptions
 
 #### TransportRouter
 
@@ -781,6 +893,8 @@ MQTT Broker
         └── Human D (WeChat) publishes messages
 ```
 
+Group chat uses an independent `GroupChatTransport` connection — separate from the main `MqttTransport` A2A connection.
+
 ### 8.3 Mention Mechanism
 
 - `@agent_name` — mentions a specific agent
@@ -801,9 +915,11 @@ To simulate a natural group chat feeling, AI agents wait a random delay before r
 
 ```json
 {
-    "gchat": {
-        "reply_delay_min": 1.0,  // minimum delay (seconds)
-        "reply_delay_max": 3.0   // maximum delay (seconds)
+    "agents_config": {
+        "gchat": {
+            "reply_delay_min": 1.0,  // minimum delay (seconds)
+            "reply_delay_max": 3.0   // maximum delay (seconds)
+        }
     }
 }
 ```
@@ -865,27 +981,30 @@ Similar to the terminal human, but communicates over MQTT:
 
 1. Receives a task on the MQTT request topic
 2. Creates an `input_required` task
-3. The human response is pushed back to the caller’s event topic via webhook
+3. The human response is pushed back to the caller's event topic via webhook
 
 ### 9.4 WeChat Human (GroupChatWechatHuman)
 
 Bridges via the WeChat iLink protocol:
-1. Long‑polls WeChat messages
+1. Long‑polls WeChat messages via `WechatClawbotClient.poll_updates()`
 2. Parses `@mentions`
 3. Publishes to the MQTT group chat topic
 4. Receives group messages and forwards them to WeChat
 
+QR login on startup. Session token is persisted to `config.json` (`wechat_session` field) for reuse across restarts (valid for ~23 hours).
+
 ---
 
-## 10. Sub‑Agent
+## 10. Sub‑Agent System
 
 ### 10.1 Overview
 
 Sub‑agents are lightweight in‑process worker agents, created at runtime by a parent agent. They are:
 
 - **Lightweight**: no persistent memory, no heartbeat, no network server
-- **Inheriting**: inherit the parent agent’s provider/model/tools/skills/CLI preload set
-- **Single‑task**: handle only one task at a time (reject new tasks when busy)
+- **Inheriting**: inherit the parent agent's provider/model/tools/skills/CLI preload set
+- **Single‑task**: handle only one task at a time (reject new tasks when busy; guarded by `_run_lock`)
+- **Cancellable**: each task gets a `CancellationToken`; `cancel_sub_task` signals cancellation
 - **Ephemeral**: exist inside the parent process and are destroyed when the parent exits
 
 ### 10.2 Usage
@@ -899,7 +1018,7 @@ Parameters:
   - name: sub‑agent name (required)
   - description: purpose description (optional, used for prompt customisation)
 
-Effect: creates an Agent instance that inherits the parent agent’s configuration
+Effect: creates an Agent instance that inherits the parent agent's configuration
 ```
 
 #### run_sub_agent
@@ -919,14 +1038,33 @@ Returns: {"task_id": "...", "agent": "...", "status": "running"}
 Parameters:
   - task_id: task ID (required)
 
-Returns: {"task_id": "...", "status": "running|done|error", "result": "..."}
+Returns: {"task_id": "...", "status": "running|done|error|cancelled", "result": "..."}
 ```
 
-### 10.3 Result Push Mechanism
+#### cancel_sub_task
 
-When the parent agent enters idle waiting, results completed by sub‑agents are automatically pushed into the parent agent’s conversation flow as a user message. Uses `ContextVar` to ensure thread correctness.
+```
+Parameters:
+  - task_id: task ID (required)
 
-### 10.4 Use Cases
+Effect: signals the CancellationToken, then immediately pushes a "cancelled" result.
+The daemon thread running agent.run() raises CancelledError at the next checkpoint.
+```
+
+### 10.3 Cooperative Cancellation
+
+Sub‑agent cancellation uses the `CancellationToken` mechanism (`qd_evolve/utils/cancellation.py`):
+
+1. **Request** — `cancel_sub_task(task_id)` calls `token.cancel()`, immediately pushes "cancelled" result
+2. **Acknowledge** — The sub‑agent calls `token.check()` at safe boundaries (before each LLM call, after each tool execution), raises `CancelledError`, and unwinds
+
+Cancellation is cooperative: the agent finishes its current LLM call or tool execution before stopping, but will not start a new one.
+
+### 10.4 Result Push Mechanism
+
+When the parent agent enters idle waiting, results completed by sub‑agents are automatically pushed into the parent agent's conversation flow as a user message. Uses `ContextVar` to ensure thread correctness.
+
+### 10.5 Use Cases
 
 - Handling multiple independent tasks in parallel
 - Letting an agent run multiple conversations that require different contexts simultaneously
@@ -942,8 +1080,8 @@ The memory system is based on SQLite + `sqlite-vec` vector extension:
 
 ```
 SQLite database (memory.db)
-  ├── memories table — metadata and content
-  └── memory_vec table — BGE‑M3 vector embeddings
+  ├── conversations table — metadata and content
+  └── vector index — BGE‑M3 vector embeddings on content
 ```
 
 ### 11.2 Operations
@@ -953,7 +1091,7 @@ SQLite database (memory.db)
 Automatically saved after each agent response:
 - `user_msg` — user message
 - `assistant_msg` — assistant response
-- `process` — tool call process
+- `process` — tool call process (name, parameters, success/failure)
 - `content` — combined content (used for vector embedding)
 - `session_id` — session identifier
 - `key` — ISO timestamp
@@ -1002,7 +1140,9 @@ When conversation history exceeds the configured threshold of the context window
 
 1. Remove the oldest groups of user/assistant/tool messages
 2. Continue until the token count falls to the target threshold (default 50%)
-3. Compressed messages are kept in memory as “processed”
+3. Compressed messages are kept in memory as "processed"
+
+Simple truncation, no summarization.
 
 ### 11.5 Browser (Memory TUI)
 
@@ -1027,7 +1167,7 @@ TUI features:
 The heartbeat allows an agent to proactively start a conversation after a long idle period.
 
 **Workflow**:
-1. The agent has been idle for `heartbeat_idle_seconds` (default 30 seconds)
+1. The agent has been idle for `heartbeat_idle_seconds`
 2. A heartbeat prompt is sent to the LLM
 3. The LLM can reply with `"."` to remain silent
 4. The LLM can also reply with a proactive conversation starter
@@ -1035,17 +1175,19 @@ The heartbeat allows an agent to proactively start a conversation after a long i
 **Configuration**:
 ```json
 {
-    "heartbeat_idle_seconds": 30,  // global default
-    "agents": [
-        {
-            "name": "my-agent",
-            "heartbeat_idle_seconds": 60  // agent‑level override
-        }
-    ]
+    "heartbeat_idle_seconds": 0,  // global default (0 = disabled)
+    "agents_config": {
+        "agents": [
+            {
+                "name": "my-agent",
+                "heartbeat_idle_seconds": 60  // agent‑level override
+            }
+        ]
+    }
 }
 ```
 
-Set to `0` to disable the heartbeat.
+Set to `0` to disable. The heartbeat is implemented via `asyncio.Event.wait(timeout)` — only fires on genuine idle.
 
 ### 12.2 Event System
 
@@ -1054,7 +1196,7 @@ Agents generate events during execution:
 | Event type | Trigger |
 |------------|---------|
 | `iteration_start` | start of each LLM call iteration |
-| `status` | status update (e.g. “thinking…”) |
+| `status` | status update (e.g. "thinking…") |
 | `print` | output content |
 | `error` | an error occurs |
 | `completed` | task finished |
@@ -1077,7 +1219,7 @@ Agents generate events during execution:
 
 ## 13. Slash Command Reference
 
-The following commands are available in chat mode:
+The following commands are available in all chat modes:
 
 | Command | Description |
 |---------|-------------|
@@ -1091,10 +1233,6 @@ The following commands are available in chat mode:
 | `/cli` | list CLI tools |
 | `/status` | show current agent status (preload/loaded categories) |
 | `/memory` | show recent memories |
-| `/recall <query>` | search memories |
-| `/compress` | manually trigger context compression |
-| `/load` | manually load tools/skills/CLI |
-| `/clear` | clear screen |
 
 ### Interactive Model Switching (`/models`)
 
@@ -1220,14 +1358,28 @@ Specific templates receive additional variables based on the use case (e.g. agen
 
 ### 15.4 Available Templates
 
+**Main templates**:
+
 | Template name | Purpose |
 |---------------|---------|
-| `system.j2` | default system prompt |
-| `chat.j2` | chat message format |
-| `subagent.j2` | sub‑agent system prompt |
+| `default.j2` | single-agent system prompt |
+| `a2a-default.j2` | A2A system prompt |
+| `inproc-default.j2` | in-process A2A system prompt |
+| `mqtt-default.j2` | MQTT system prompt |
+| `group-default.j2` | group chat system prompt |
+| `group-message.j2` | group chat incoming message format |
+| `subagent.j2` | sub-agent worker system prompt |
 | `heartbeat.j2` | heartbeat prompt |
-| `group-message.j2` | group chat message format |
-| `a2a-heartbeat.j2` | A2A mode heartbeat prompt |
+
+**Shared partials** (included by main templates):
+
+| Partial name | Content |
+|--------------|---------|
+| `_core_behavior.j2` | shared core behavior rules |
+| `_a2a_tools.j2` | A2A tool descriptions |
+| `_sub_agents.j2` | sub-agent usage instructions |
+| `_runtime.j2` | runtime environment detection |
+| `_system_tail.j2` | toolbox, preloaded tools, appendix |
 
 ### 15.5 Custom Templates
 
@@ -1236,8 +1388,8 @@ Create a `templates/` directory in the project root and place `.j2` files with t
 ```
 project/
   templates/
-    system.j2     # override default system prompt
-    chat.j2       # override chat format
+    default.j2     # override default system prompt
+    heartbeat.j2   # override heartbeat prompt
 ```
 
 ---
@@ -1257,7 +1409,7 @@ discover → connect → use tools → disconnect
 - `Bridge` (Protocol) — each Bridge instance manages its configuration and registered tools
 - `BridgeSpec` — named specification containing discover/connect/disconnect
 - `BridgeEntry` — summary for toolbox listings
-- `BridgeManager` — singleton manager
+- `BridgeManager` — singleton manager, auto-discovers bridge modules at startup
 
 ### 16.2 MCP Bridge (Model Context Protocol)
 
@@ -1291,8 +1443,8 @@ Runs external MCP servers as subprocesses, discovers and registers their tools.
 
 **Runtime loading**:
 ```bash
-# can also be done via the LLM‑callable hot_loading_mcp tool
-# in chat, ask the AI to add a new MCP server using hot_loading_mcp
+# Can also be done via the LLM‑callable hot_loading_mcp tool
+# In chat, ask the AI to add a new MCP server using hot_loading_mcp
 ```
 
 ### 16.3 OAT Bridge (Open‑Agent‑Tools)
@@ -1315,8 +1467,8 @@ Imports Python packages in‑process, zero subprocess overhead.
 
 **Features**:
 - directly imports and executes Python functions
-- automatically converts Google ADK Schema to OpenAI Schema
-- automatically normalises return values
+- automatically converts Google ADK Schema to OpenAI Schema (via `adk_schema.py`)
+- automatically normalises return values (via `adk_output.py`)
 
 ### 16.4 OAT JSON Shim
 
@@ -1337,7 +1489,7 @@ delete_json_key_at_path, append_to_json_array
 
 ### 17.1 What is a Skill?
 
-A skill is a Markdown file located at `skills/<name>/SKILL.md`, containing YAML front matter and instructional content. Skills are injected into the agent’s system prompt to guide the LLM on how to handle specific tasks.
+A skill is a Markdown file located at `skills/<name>/SKILL.md`, containing YAML front matter and instructional content. Skills are injected into the agent's system prompt to guide the LLM on how to handle specific tasks.
 
 ### 17.2 Skill Structure
 
@@ -1374,6 +1526,7 @@ Detailed guidance for the skill goes here...
 | `install-and-register-tools` | install and register new tools |
 | `register-cli` | analyse `--help` output and register CLI tools |
 | `self-improvement` | record learnings, errors, and feature requests for continuous improvement |
+| `skill-creator` | create new skills from learnings |
 
 ### 17.4 Using Skills
 
@@ -1421,14 +1574,16 @@ This information is injected into the system prompt as Markdown, letting the LLM
 
 - Tool execution timeout: returns a timeout error string, does not interrupt the loop
 - Tool execution exception: returns the exception information as a string
-- Non‑zero exit code (`run_shell`/`run_python`): not treated as an error, output is returned normally
+- Non‑zero exit code (`run_shell`/`run_python`): not treated as an error, output is returned normally — the LLM interprets exit codes contextually
 - Encoding handling: multi‑level fallback encoding detection (UTF-8 → GBK → GB2312 → Latin‑1)
+- Adaptive tool timeout: tools can specify per-call timeout, registry adds 15s buffer
 
 ### 18.5 Concurrency Safety
 
-- `Agent.run()` uses a `threading.Lock` (reentrant) to serialise concurrent calls
+- `Agent.run()` uses a `threading.Lock` to serialise concurrent calls
 - Tools execute in daemon threads, inheriting context via `contextvars`
 - Sub‑agents maintain thread‑safe current agent name via `ContextVar`
+- MQTT transport uses sole-consumer pattern (one connection per agent)
 
 ### 18.6 Logging
 
@@ -1447,20 +1602,20 @@ logs/qd_evolve_20260115_143052.log
 
 ### 19.1 Common Issues
 
-#### Q: “Provider not configured” on startup
+#### Q: "Provider not configured" on startup
 
 Check `config.json`:
 - ensure the `providers` array is not empty
-- ensure the agent’s `provider` name matches a name in providers
+- ensure the agent's `provider` name matches a name in providers
 - ensure `api_key` is set and valid
 
 #### Q: MQTT mode cannot connect
 
 - Verify that the Mosquitto v5 broker is running: `mosquitto -v`
-- Check the broker_host and broker_port configuration
+- Check the `mqtt_broker.host` and `mqtt_broker.port` configuration
 - If using TLS, ensure certificate paths are correct
 
-#### Q: Tools do not appear in the agent’s tool list
+#### Q: Tools do not appear in the agent's tool list
 
 - Check the toolbox TUI: `qd-evolve toolbox`
 - Verify the tool state is not `disabled`
@@ -1468,16 +1623,21 @@ Check `config.json`:
 
 #### Q: Memory search returns no results
 
-- Verify that the `memory.db` file exists (after at least one conversation)
+- Verify that the memory database file exists (after at least one conversation)
 - Check that the embedding model configuration is correct
 - Try keyword search instead of semantic search
 
 #### Q: Context window overflow
 
 - The framework automatically compresses (when `compress_threshold` is exceeded)
-- Manual trigger: `/compress` in chat
 - Use `/reset` to reset the conversation
 - Adjust the `compress_threshold` and `target_threshold` settings
+
+#### Q: Browser windows open when the agent searches the web
+
+- Set `SERPER_API_KEY` in the `env_vars` section of `config.json`
+- Without it, the agent may fall back to browser MCP tools
+- Get a free key at [serper.dev](https://serper.dev)
 
 ### 19.2 Log Analysis
 
@@ -1508,63 +1668,60 @@ qd-evolve/
 │   ├── a2a_cli.py          # HTTP A2A CLI
 │   ├── a2a_inproc_cli.py   # in‑process A2A CLI
 │   ├── cli_tools.py        # CLI tool registry
-│   ├── cli_utils.py        # CLI utilities
+│   ├── cli_utils.py        # CLI utilities (ReplayInput, TeeWriter)
 │   ├── skills.py           # skill registry
-│   ├── toolbox_tui.py      # toolbox TUI
-│   ├── memory_tui.py       # memory browser TUI
+│   ├── toolbox_tui.py      # toolbox TUI (Textual)
+│   ├── memory_tui.py       # memory browser TUI (Textual)
 │   ├── core/               # core infrastructure
 │   │   ├── config.py       # configuration models (Pydantic)
-│   │   ├── registry.py     # tool registry
-│   │   ├── providers.py    # LLM providers
+│   │   ├── registry.py     # tool registry (ToolDef, on-demand loading)
+│   │   ├── providers.py    # LLM providers (ProviderRegistry)
 │   │   ├── toolbox.py      # toolbox state management
-│   │   ├── memory.py       # memory storage
-│   │   ├── prompts.py      # template management
-│   │   └── logger.py       # logging
+│   │   ├── memory.py       # memory storage (MemoryStore, RecalledMemoryRegistry)
+│   │   ├── prompts.py      # template management (PromptTemplateManager, Jinja2)
+│   │   └── logger.py       # logging (SharedFileHandler)
 │   ├── agent/              # agent layer
-│   │   ├── agent.py        # core Agent class
-│   │   ├── a2a.py          # A2A data models
-│   │   ├── a2a_agent.py    # A2A agent wrapper
-│   │   ├── a2a_tools.py    # A2A tools
-│   │   ├── protocol.py     # agent protocol interface
-│   │   ├── registry.py     # agent registry
-│   │   ├── loader.py       # factory functions
-│   │   ├── server.py       # HTTP A2A server
-│   │   ├── transport.py    # transport layer
-│   │   ├── mqtt_agent.py   # MQTT agent wrapper
-│   │   ├── mqtt_transport.py # MQTT transport
-│   │   ├── mqtt_human_agent.py # MQTT human
-│   │   ├── human_agent.py  # human agent
-│   │   ├── group_chat_agent.py    # group chat AI
-│   │   ├── group_chat_transport.py # group chat transport
-│   │   ├── group_chat_human.py    # group chat terminal human
-│   │   └── group_chat_wechat_human.py # group chat WeChat human
+│   │   ├── agent.py        # core Agent class (LLM loop, compression, heartbeat)
+│   │   ├── api_backends.py # API dispatch backends (Anthropic/OpenAI Completions/Responses)
+│   │   ├── a2a.py          # A2A v1.0 data models (Task, Message, AgentCard, etc.)
+│   │   ├── a2a_agent.py    # A2A agent wrapper (identity + event fan-out)
+│   │   ├── a2a_tools.py    # A2A tools (delegate_to, send_task, get_task, cancel_task)
+│   │   ├── protocol.py     # agent protocol interface (AgentProtocol ABC)
+│   │   ├── registry.py     # agent registry (AgentRegistry singleton)
+│   │   ├── loader.py       # factory functions (init_process, create_agent)
+│   │   ├── server.py       # HTTP A2A server (aiohttp JSON-RPC + SSE)
+│   │   ├── transport.py    # transport layer (InprocTransport, HttpTransport, TransportRouter)
+│   │   ├── mqtt_agent.py   # MQTT agent wrapper (MQTT v5 lifecycle)
+│   │   ├── mqtt_transport.py   # MQTT transport (sole-consumer MQTT v5)
+│   │   ├── mqtt_human_agent.py # MQTT human agent wrapper
+│   │   ├── human_agent.py  # human agent (no LLM, async webhook completion)
+│   │   ├── group_chat_agent.py    # group chat AI (MQTT topics, dedup, @mentions)
+│   │   ├── group_chat_transport.py # independent MQTT connection for /chat topics
+│   │   ├── group_chat_human.py    # group chat terminal human (interactive prompt)
+│   │   └── group_chat_wechat_human.py # group chat WeChat human (iLink bridge)
 │   ├── tools/              # tool modules
-│   │   ├── tool_loader.py      # func tool loader
+│   │   ├── tool_loader.py      # func tool loader (load_func)
 │   │   ├── hot_loading_mcp.py  # MCP hot‑loading
-│   │   ├── skill_loader.py     # skill loader
-│   │   ├── cli_loader.py       # CLI loader
-│   │   ├── config_manager.py   # configuration management + sub‑agents
+│   │   ├── skill_loader.py     # skill loader (load_skill)
+│   │   ├── cli_loader.py       # CLI loader (load_cli)
+│   │   ├── config_manager.py   # configuration management + sub-agent factory
+│   │   ├── sub_agent_manager.py # sub-agent creation, execution, cancellation
 │   │   └── recall_memory.py    # memory recall tool
 │   ├── bridge/             # WeChat bridge
-│   │   └── wechat_clawbot_client.py # iLink client
+│   │   └── wechat_clawbot_client.py # iLink ClawBot client (QR login, polling, messaging)
 │   ├── utils/              # utility functions
 │   │   ├── adk_output.py   # ADK output normalisation
-│   │   └── adk_schema.py   # ADK Schema conversion
+│   │   ├── adk_schema.py   # ADK Schema → OpenAI JSON Schema conversion
+│   │   └── cancellation.py # CancellationToken + CancelledError
 │   └── _templates/         # built‑in Jinja2 templates
-├── tools/                  # user tools
-│   ├── func/               # Python function tools
-│   │   ├── fetch.py
-│   │   ├── file_rw.py
-│   │   ├── run_python.py
-│   │   ├── run_shell.py
-│   │   └── search.py
-│   ├── cli/                # CLI tool definitions
-│   │   └── yt-dlp.yaml
+│       ├── default.j2, a2a-default.j2, inproc-default.j2, mqtt-default.j2
+│       ├── group-default.j2, group-message.j2, subagent.j2, heartbeat.j2
+│       └── _a2a_tools.j2, _core_behavior.j2, _runtime.j2, _sub_agents.j2, _system_tail.j2
+├── tools/                  # user tools (created by qd-evolve init)
+│   ├── func/               # Python function tools (fetch, file_rw, run_python, run_shell, search)
+│   ├── cli/                # CLI tool definitions (yt-dlp.yaml)
 │   ├── mcp/                # MCP server configurations
-│   └── bridge/             # Bridge configurations
-│       ├── _mcp.py
-│       ├── _oat.py
-│       └── _oat_json.py
+│   └── bridge/             # Bridge configurations (_mcp.py, _oat.py, _oat_json.py, oat.json)
 ├── skills/                 # skills
 │   ├── baidu-search/
 │   ├── search-tools/
@@ -1573,13 +1730,15 @@ qd-evolve/
 │   ├── self-improvement/
 │   └── skill-creator/
 ├── templates/              # user‑customised templates (override built‑in)
-├── tests/                  # tests
-├── config.json             # configuration file
-├── memory.db               # memory database (auto‑generated)
+├── tests/                  # tests (~930 pytest cases)
+├── config.json             # configuration file (all settings in one place)
+├── memory.db               # memory database (auto‑generated, SQLite + sqlite-vec)
 ├── pyproject.toml          # project build configuration
 ├── README.md               # English README
 ├── README_zh.md            # Chinese README
 ├── DESIGN.md               # design document
+├── USER_MANUAL.md          # this manual
+├── USER_MANUAL_zh.md       # Chinese manual
 ├── manifesto.md            # design philosophy manifesto
 └── CLAUDE.md               # AI assistant behaviour specification
 ```
@@ -1591,10 +1750,16 @@ qd-evolve/
     "log_level": "INFO",
     "compress_threshold": 0.7,
     "target_threshold": 0.5,
-    "max_iterations": 50,
-    "tool_output_limit": 2000,
-    "stream": true,
-    "heartbeat_idle_seconds": 30,
+    "max_iterations": 20,
+    "tool_output_limit": 50000,
+    "stream": false,
+    "heartbeat_idle_seconds": 0,
+    "env_vars": {
+        "SERPER_API_KEY": "...",
+        "TAVILY_API_KEY": "..."
+    },
+    "default_provider": "...",
+    "default_model": "...",
     "providers": [{
         "name": "...",
         "api_key": "...",
@@ -1607,20 +1772,20 @@ qd-evolve/
             "max_tokens": 8192
         }]
     }],
-    "default_provider": "...",
-    "default_model": "...",
     "agents_config": {
-        "active_agent": "...",
+        "chat_agent": "...",
         "agents": [{
             "name": "...",
             "description": "...",
             "provider": "...",
             "model": "...",
+            "memory_db": "...",
+            "heartbeat_idle_seconds": 0,
             "server": {"host": "127.0.0.1", "port": 8001},
             "toolbox": {
                 "tools": {"tool_name": "enabled|preload|disabled"},
                 "mcp_servers": {"server_name": "enabled|disabled"},
-                "bridges": {"bridge_name": "enabled|disabled"},
+                "bridge": {"bridge_name": "enabled|disabled"},
                 "cli": {"cli_name": "enabled|preload|disabled"},
                 "skills": {"skill_name": "enabled|preload|disabled"}
             },
@@ -1632,23 +1797,27 @@ qd-evolve/
         "topology": [
             {"from": "agentA", "to": "agentB", "relation": "delegates"}
         ],
+        "mqtt_broker": {
+            "host": "127.0.0.1",
+            "port": 1883
+        },
         "gchat": {
             "reply_delay_min": 1.0,
             "reply_delay_max": 3.0
         }
     },
-    "embeddings": [{
-        "name": "...",
-        "model_path": "...",
-        "dimension": 1024,
-        "backend": "sentence-transformers | llama-cpp-python"
-    }],
+    "embeddings_backends": {
+        "bge-m3": {
+            "model_path": "BAAI/bge-m3",
+            "dim": 1024,
+            "backend": "sentence-transformers"
+        }
+    },
     "memory_search": {
-        "embeddings_backend": "...",
+        "embeddings_backend": "bge-m3",
         "auto_recall": true,
         "auto_recall_top_k": 5,
-        "recall_limit": 20,
-        "list_all_limit": 50
+        "recall_memory_limit": 20
     }
 }
 ```
@@ -1703,7 +1872,6 @@ qd-evolve memory --tui [--agent NAME]     # TUI interface
 
 ---
 
-> **Epilogue**: QD-Evolve is a framework about “letting go”. It trusts the capabilities of models, trusts emergent intelligence, and trusts the ultimate constraints of the physical world. Using it means choosing to be a partner to agents, not a master. Give them tools, then step back and see what happens.
+> **Epilogue**: QD-Evolve is a framework about "letting go". It trusts the capabilities of models, trusts emergent intelligence, and trusts the ultimate constraints of the physical world. Using it means choosing to be a partner to agents, not a master. Give them tools, then step back and see what happens.
 >
-> *“Let go of control. Embrace emergence. Let the agent become itself.”*
-```
+> *"Let go of control. Embrace emergence. Let the agent become itself."*

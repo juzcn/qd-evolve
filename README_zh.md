@@ -354,13 +354,14 @@ qd-evolve memory --agent <name>
 | 命令 | 描述 |
 |------|------|
 | `/models` | 切换提供商/模型 |
-| `/agents` | 切换智能体 |
-| `/tools` | 列出工具 |
-| `/load <tool>` | 加载工具 schema |
-| `/memory` | 列出已保存的记忆及完整内容 |
-| `/compress` | 强制压缩上下文 |
-| `/clear` | 清空对话 |
-| `/help` | 显示帮助 |
+| `/agents` | 列出已发现的智能体 |
+| `/tools` | 列出可用工具 |
+| `/skills` | 列出可用技能 |
+| `/cli` | 列出已注册的 CLI 工具 |
+| `/status` | 显示运行时状态（已加载的工具、技能、CLI） |
+| `/memory` | 列出已保存的记忆 |
+| `/reset` | 重置对话历史 |
+| `/help` | 显示所有可用命令 |
 | `/quit` | 退出 |
 
 ### 心跳检测
@@ -373,9 +374,14 @@ Agent 可在运行时创建内存中的 worker 子智能体，用于并行处理
 
 - **`create_sub_agent`** — 创建子智能体，继承父 Agent 的 provider/model/tools/skills/CLI
 - **`run_sub_agent`** — 异步提交任务，立即返回 task_id
-- **`get_sub_result`** — 轮询任务结果（running / done / error）
+- **`get_sub_result`** — 轮询任务结果（running / done / error / cancelled）
+- **`cancel_sub_task`** — 发送协作取消信号，推送 "cancelled" 结果
 
-子智能体无持久化、无心跳、无网络服务器——仅在父进程内存中存活。每个子智能体同时只能处理一个任务（繁忙时拒绝新任务），创建多个子智能体即可并行。Agent 可通过 `update_my_config` 在运行时切换自身的 provider/model。
+子智能体无持久化、无心跳、无网络服务器——仅在父进程内存中存活。每个子智能体同时只能处理一个任务（繁忙时拒绝新任务），创建多个子智能体即可并行。
+
+### 任务取消
+
+协作式取消：`cancel_sub_task(task_id)` 和 `cancel_task(task_id)` 通知正在运行中的智能体在下一个安全检查点停止——在当前 LLM 调用或工具执行完成后。不会杀死线程；智能体优雅退出并推送 "cancelled" 结果。
 
 ### 重放模式
 

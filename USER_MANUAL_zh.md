@@ -1,6 +1,6 @@
 # QD-Evolve 用户手册
 
-> **版本**: 0.1.9 | **作者**: 张俊 (zhangjun@cueb.edu.cn) | **许可证**: MIT
+> **版本**: 0.1.14 | **作者**: 张俊 (zhangjun@cueb.edu.cn) | **许可证**: MIT
 
 ---
 
@@ -15,7 +15,7 @@
 7. [多智能体系统 (A2A)](#7-多智能体系统-a2a)
 8. [群聊系统](#8-群聊系统)
 9. [人类智能体](#9-人类智能体)
-10. [子智能体](#10-子智能体)
+10. [子智能体系统](#10-子智能体系统)
 11. [记忆系统](#11-记忆系统)
 12. [心跳与事件](#12-心跳与事件)
 13. [斜杠命令参考](#13-斜杠命令参考)
@@ -70,6 +70,7 @@ QD-Evolve 的设计遵循八条核心原则（详见 `manifesto.md`），这些�
 │                      基础设施层                               │
 │  ProviderRegistry │ ToolRegistry │ MemoryStore │ Templates  │
 │  Transport (inproc/http/mqtt) │ BridgeManager │ Skills      │
+│  API Backends (Anthropic / OpenAI Completions / Responses)   │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -86,61 +87,118 @@ QD-Evolve 的设计遵循八条核心原则（详见 `manifesto.md`），这些�
 ### 2.2 安装
 
 ```bash
-# PyPI 安装
-pip install qd-evolve
+# PyPI 安装（使用预编译包）
+pip install qd-evolve --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
+
+# 可选扩展
+pip install qd-evolve[memory] --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
+pip install qd-evolve[boat] --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
 
 # 或使用 uv
 uv add qd-evolve
 
 # 从源码安装
-git clone <repo-url>
+git clone https://github.com/juzcn/qd-evolve
 cd qd-evolve
 uv sync
-
-# 可选：安装 BOAT 桥接支持
-pip install qd-evolve[boat]
+# 可选：BOAT 桥接扩展
+uv sync --extra boat
 ```
 
-### 2.3 最小配置
+### 2.3 项目初始化
 
-在项目根目录创建 `config.json`：
+```bash
+# 创建并激活虚拟环境
+python -m venv .venv
+# Windows:
+.venv\Scripts\activate
+# macOS / Linux:
+source .venv/bin/activate
+
+# 初始化项目
+qd-evolve init
+```
+
+将默认工具、技能和配置模板复制到项目文件夹中：
+
+```
+my-agent/
+├── .venv/                 # 虚拟环境
+├── tools/                 # 用户工具 — 可自由增删
+│   ├── bridge/            #   桥接连接器（OAT、MCP）
+│   ├── cli/               #   CLI 工具封装
+│   ├── func/              #   Python 函数工具
+│   └── mcp/               #   MCP 服务器配置
+├── skills/                # 技能 — 可自由增删
+├── config.minimal.json    # 最小配置 — 复制为 config.json
+└── config.json.example    # 完整配置参考
+```
+
+重复运行 `init` 是安全的：已存在的文件不会被覆盖。包更新带来的新默认文件会被添加。
+
+### 2.4 最小配置
+
+复制模板并编辑 `config.json`：
+
+```bash
+copy config.minimal.json config.json    # Windows
+# cp config.minimal.json config.json     # macOS / Linux
+```
+
+单智能体对话的最小配置：
 
 ```json
 {
+    "env_vars": {
+        "PYTHONIOENCODING": "utf-8",
+        "PYTHONUTF8": "1",
+        "SERPER_API_KEY": "你的_SERPER_API_密钥"
+    },
+    "default_provider": "deepseek",
+    "default_model": "deepseek-v4-pro",
     "providers": [
         {
             "name": "deepseek",
-            "api_key": "sk-your-api-key",
+            "api_key": "你的_DEEPSEEK_API_密钥",
             "base_url": "https://api.deepseek.com",
             "api": "openai-completions",
             "models": [
                 {
-                    "name": "deepseek-chat",
-                    "context_window": 131072,
-                    "max_tokens": 8192
+                    "name": "deepseek-v4-pro",
+                    "reasoning": true,
+                    "context_window": 1000000,
+                    "max_tokens": 131072
                 }
             ]
         }
     ],
     "agents_config": {
-        "active_agent": "assistant",
+        "chat_agent": "default",
         "agents": [
             {
-                "name": "assistant",
-                "description": "通用助手",
-                "provider": "deepseek",
-                "model": "deepseek-chat"
+                "name": "default",
+                "toolbox": {
+                    "tools": {
+                        "load_func": "preload",
+                        "load_skill": "preload",
+                        "load_cli": "preload"
+                    }
+                }
             }
         ]
     }
 }
 ```
 
-### 2.4 第一次运行
+> **需要的 API 密钥：**
+> - **提供商密钥**（DeepSeek、OpenAI、Anthropic 等）— 对话必需
+> - **Serper 密钥** — 可选，用于网页搜索。免费额度在 [serper.dev](https://serper.dev)。不配的话 agent 可能会打开浏览器窗口来搜索。
+
+### 2.5 第一次运行
 
 ```bash
 # 启动单智能体聊天
-qd-evolve chat
+qd-evolve chat --agent default
 
 # 进入聊天界面后，输入消息即可与 AI 对话
 # 输入 /help 查看所有可用命令
@@ -153,7 +211,7 @@ qd-evolve chat
 
 ### 3.1 概述
 
-所有配置集中在单个 `config.json` 文件中。没有 `.env` 文件，没有命令行配置工具。配置使用 Pydantic 模型进行验证，支持合理的默认值。
+所有配置集中在单个 `config.json` 文件中。没有 `.env` 文件，没有命令行配置工具。配置使用 Pydantic 模型进行验证，支持合理的默认值——只需指定需要覆盖的项。
 
 ### 3.2 配置结构详解
 
@@ -161,17 +219,20 @@ qd-evolve chat
 
 ```json
 {
-    "log_level": "INFO",           // 日志级别: DEBUG/INFO/WARNING/ERROR
-    "compress_threshold": 0.7,    // 上下文压缩阈值（70%）
-    "target_threshold": 0.5,      // 压缩目标比例（50%）
-    "max_iterations": 50,         // 最大工具调用迭代次数
-    "tool_output_limit": 2000,    // 工具输出截断长度（字符）
-    "stream": true,               // 是否启用流式输出
-    "heartbeat_idle_seconds": 30, // 心跳检测空闲秒数，0 禁用
-    "providers": [...],           // LLM 提供商列表
-    "agents_config": {...},       // 智能体配置
-    "embeddings": {...},          // 嵌入模型配置
-    "memory_search": {...}        // 记忆搜索配置
+    "log_level": "INFO",              // 日志级别: DEBUG/INFO/WARNING/ERROR
+    "compress_threshold": 0.7,        // 上下文压缩阈值（70%）
+    "target_threshold": 0.5,          // 压缩目标比例（50%）
+    "max_iterations": 20,             // 最大工具调用迭代次数（默认: 20）
+    "tool_output_limit": 50000,       // 工具输出截断长度（字符）
+    "stream": false,                  // 是否启用流式输出（默认: false）
+    "heartbeat_idle_seconds": 0,      // 心跳检测空闲秒数，0 禁用（默认）
+    "env_vars": {},                   // 工具 API 密钥环境变量
+    "default_provider": "",           // 默认 LLM 提供商名称
+    "default_model": "",              // 默认模型名称
+    "providers": [...],               // LLM 提供商列表
+    "agents_config": {...},           // 智能体配置
+    "embeddings_backends": {...},     // 嵌入模型配置
+    "memory_search": {...}            // 记忆搜索配置
 }
 ```
 
@@ -203,6 +264,11 @@ qd-evolve chat
 | `openai-response` | OpenAI Responses API | 较新的 OpenAI 端点 |
 | `anthropic` | Anthropic Messages API | Claude 系列模型 |
 
+API 调度由 `agent/api_backends.py` 中的后端类处理：
+- `AnthropicBackend` — Anthropic Messages API，通过 `stop_reason` 处理工具调用
+- `OpenAICompletionBackend` — Chat Completions API，支持流式输出和推理内容
+- `OpenAIResponseBackend` — OpenAI Responses API（较新端点）
+
 #### 3.2.3 智能体配置 (AgentEntry)
 
 ```json
@@ -211,6 +277,8 @@ qd-evolve chat
     "description": "智能体的描述，影响其行为和系统提示",
     "provider": "deepseek",        // 指定提供商（覆盖全局默认）
     "model": "deepseek-chat",      // 指定模型（覆盖全局默认）
+    "memory_db": "agent.db",       // 每个智能体的独立记忆数据库
+    "heartbeat_idle_seconds": 0,   // 覆盖心跳设置；0 = 禁用
     "server": {                    // HTTP 服务器配置（A2A 模式）
         "host": "127.0.0.1",
         "port": 8001
@@ -218,11 +286,11 @@ qd-evolve chat
     "toolbox": {                   // 工具箱状态
         "tools": {},
         "mcp_servers": {},
-        "bridges": {},
+        "bridge": {},
         "cli": {},
         "skills": {}
     },
-    "mqtt": {                      // MQTT 配置
+    "mqtt": {                      // 每个智能体的 MQTT 覆盖设置
         "broker_host": "127.0.0.1",
         "broker_port": 1883,
         "username": "",
@@ -243,33 +311,51 @@ qd-evolve chat
 
 ```json
 {
-    "topology": [
-        {"from": "planner", "to": "executor", "relation": "delegates"},
-        {"from": "executor", "to": "reviewer", "relation": "reports"}
-    ]
+    "agents_config": {
+        "topology": [
+            {"from": "planner", "to": "executor", "relation": "delegates"},
+            {"from": "executor", "to": "reviewer", "relation": "reports"}
+        ]
+    }
 }
 ```
 
-#### 3.2.5 嵌入模型 (EmbeddingsBackend)
+#### 3.2.5 环境变量 (env_vars)
+
+工具 API 密钥配置在顶层 `env_vars` 部分：
 
 ```json
 {
-    "embeddings": [
-        {
-            "name": "bge-m3",
+    "env_vars": {
+        "PYTHONIOENCODING": "utf-8",
+        "PYTHONUTF8": "1",
+        "SERPER_API_KEY": "你的-serper-密钥",
+        "TAVILY_API_KEY": "你的-tavily-密钥"
+    }
+}
+```
+
+这些在启动时被设置为操作系统环境变量。支持的键包括 `SERPER_API_KEY`、`TAVILY_API_KEY`、`BAIDU_API_KEY` 以及工具所需的任何其他环境变量。
+
+#### 3.2.6 嵌入模型 (EmbeddingsBackend)
+
+```json
+{
+    "embeddings_backends": {
+        "bge-m3": {
             "model_path": "BAAI/bge-m3",
-            "dimension": 1024,
+            "dim": 1024,
             "backend": "sentence-transformers"
         }
-    ]
+    }
 }
 ```
 
 支持两种后端：
-- `sentence-transformers` — 基于 HuggingFace 模型
+- `sentence-transformers` — 基于 HuggingFace 模型（BGE-M3）
 - `llama-cpp-python` — 基于 llama.cpp 的本地嵌入
 
-#### 3.2.6 记忆搜索配置 (MemorySearchConfig)
+#### 3.2.7 记忆搜索配置 (MemorySearchConfig)
 
 ```json
 {
@@ -277,13 +363,12 @@ qd-evolve chat
         "embeddings_backend": "bge-m3",
         "auto_recall": true,
         "auto_recall_top_k": 5,
-        "recall_limit": 20,
-        "list_all_limit": 50
+        "recall_memory_limit": 20
     }
 }
 ```
 
-#### 3.2.7 群聊配置 (GChatConfig)
+#### 3.2.8 群聊配置 (GChatConfig)
 
 ```json
 {
@@ -296,10 +381,25 @@ qd-evolve chat
 }
 ```
 
+#### 3.2.9 MQTT Broker 配置 (MqttBrokerConfig)
+
+```json
+{
+    "agents_config": {
+        "mqtt_broker": {
+            "host": "127.0.0.1",
+            "port": 1883
+        }
+    }
+}
+```
+
+需要外部 Mosquitto v5 broker。
+
 ### 3.3 配置验证
 
 配置在加载时通过 Pydantic 自动验证：
-- 重复的服务器端口会被检测并报错
+- 重复的服务器端口会被检测并报错（`AgentsConfig._validate_ports`）
 - 缺少的 provider/model 引用会被检测
 - 类型不匹配会在启动时立即报错
 
@@ -383,10 +483,11 @@ qd-evolve a2a-mqtt serve [--agent NAME]
 
 | 主题 | 用途 |
 |-----|------|
-| `$a2a/v1/discovery/{name}` | AgentCard 发现（保留消息） |
+| `$a2a/v1/discovery/{name}` | AgentCard 发现（保留消息 + LWT） |
 | `$a2a/v1/request/{name}` | 任务请求 |
-| `$a2a/v1/response/{name}/{req_id}` | 每请求响应 |
+| `$a2a/v1/response/{name}/{req_id}` | 每请求响应（MQTT v5 Response Topic） |
 | `$a2a/v1/event/{name}` | 流式事件和推送通知 |
+| `$a2a/v1/group/{name}/chat` | 群聊消息（通过 GroupChatTransport） |
 
 - MQTT v5 特性: Response Topic, Correlation Data, User Properties, LWT, Retained Messages
 - 需要外部 Mosquitto v5 broker
@@ -397,7 +498,7 @@ qd-evolve a2a-mqtt serve [--agent NAME]
 qd-evolve gchat [--agent NAME]
 ```
 
-**传输方式**: MQTT v5 群组话题
+**传输方式**: MQTT v5 群组话题（通过独立的 `GroupChatTransport`）
 
 **适用场景**: 微信风格的多人+多 AI 群组对话
 
@@ -438,7 +539,7 @@ qd-evolve gchat [--agent NAME]
 - 管理对话历史
 - 自动记忆回忆和保存
 - 上下文窗口压缩（当历史超出阈值时自动裁剪旧消息）
-- 多提供商后端支持（Anthropic / OpenAI Completions / OpenAI Responses）
+- 多提供商后端支持（Anthropic / OpenAI Completions / OpenAI Responses）通过 `agent/api_backends.py`
 
 **智能体分层（组合模式）**:
 
@@ -461,9 +562,9 @@ Agent (纯 LLM 循环，无网络)
 3. **A2A 工具** — 当 A2A 启用时注册（`delegate_to`, `send_task`, `get_task`, `cancel_task`）
 4. **Bridge 工具** — MCP 和 OAT 桥接工具
 5. **CLI 工具** — `tools/cli/*.yaml` 定义的命令行工具
-6. **子智能体工具** — `create_sub_agent`, `run_sub_agent`, `get_sub_result`
+6. **子智能体工具** — `create_sub_agent`, `run_sub_agent`, `get_sub_result`, `cancel_sub_task`
 
-**工具调用机制**: 工具在守护线程中执行，带有可配置的超时（默认 60 秒，工具可自定义超时 + 15 秒缓冲）。
+**工具调用机制**: 工具在守护线程中执行，带有**自适应超时**：如果 LLM 设置了每次调用的 `timeout`，注册表使用 `timeout + 15s`；否则使用 60s 默认值。`run_shell` 和 `run_python` 返回所有退出码的 stdout + stderr + exit code — LLM 根据上下文解释退出码。
 
 ### 5.3 按需加载 (On-Demand Loading)
 
@@ -482,10 +583,10 @@ LLM 可以通过以下工具加载完整定义：
 
 ### 5.4 提供商注册表 (ProviderRegistry)
 
-管理所有配置的 LLM 提供商。支持三种 API 类型：
-- `openai-completions` — OpenAI Chat Completions API
-- `openai-response` — OpenAI Responses API（较新）
-- `anthropic` — Anthropic Messages API
+管理所有配置的 LLM 提供商。支持三种 API 类型，通过后端类调度：
+- `openai-completions` → `OpenAICompletionBackend`
+- `openai-response` → `OpenAIResponseBackend`
+- `anthropic` → `AnthropicBackend`
 
 每个提供商可以配置多个模型，每个模型有自己的上下文窗口大小、最大 token 数和推理/思考能力配置。
 
@@ -603,6 +704,7 @@ examples:
 | `create_sub_agent` | 创建子智能体 |
 | `run_sub_agent` | 运行子智能体任务 |
 | `get_sub_result` | 查询子智能体结果 |
+| `cancel_sub_task` | 取消正在运行的子智能体任务 |
 | `delegate_to` | 同步委托任务给其他智能体（A2A） |
 | `send_task` | 异步发送任务给其他智能体（A2A） |
 | `get_task` | 查询异步任务状态（A2A） |
@@ -623,6 +725,8 @@ examples:
 Bridge/MCP:    disabled → enabled → disabled
 ```
 
+**五个工具箱部分**：`tools`、`mcp_servers`、`bridge`、`cli`、`skills`。Bridge 使用二元启用/禁用（无预加载）。
+
 ---
 
 ## 7. 多智能体系统 (A2A)
@@ -637,7 +741,7 @@ QD-Evolve 实现了 A2A v1.0 协议。智能体通过统一的接口通信，AI 
 ```json
 {
     "name": "agent-name",
-    "description": "What this agent does",
+    "description": "智能体的功能描述",
     "url": "http://host:port/",
     "capabilities": {
         "streaming": true,
@@ -695,7 +799,7 @@ submitted → working → completed
 
 #### cancel_task (取消任务)
 
-取消一个未完成的任务。
+使用协作取消机制取消未完成的任务。
 
 ```
 参数:
@@ -703,6 +807,8 @@ submitted → working → completed
 
 返回: 取消确认
 ```
+
+任务被通知在下一个安全检查点停止（当前 LLM 调用或工具执行完成后）。状态保护防止覆盖已到达终态的任务（completed、failed、已取消）。
 
 ### 7.4 Transport 传输层
 
@@ -712,6 +818,7 @@ submitted → working → completed
 - 零网络开销
 - 对 AI 智能体通过 `asyncio.to_thread` 异步执行
 - 对人类智能体立即返回 `input_required`
+- 为每个任务创建 `CancellationToken`，传递给 `agent.run()`
 
 #### HttpTransport（HTTP/SSE）
 
@@ -724,8 +831,14 @@ submitted → working → completed
 
 - 使用标准 A2A JSON-RPC over MQTT
 - 利用 MQTT v5 的 Response Topic 和 Correlation Data 实现请求-响应匹配
-- 通过保留消息实现服务发现
-- 通过 LWT 实现离线检测
+- 通过保留消息 + LWT 实现服务发现
+- **独占消费者**：每个智能体一个 MQTT 连接用于 A2A 操作
+
+#### GroupChatTransport（MQTT v5 群组话题）
+
+- 独立的 `aiomqtt.Client` 连接，用于 `/chat` 话题
+- 保持 `MqttTransport` 的独占消费者设计不变
+- 仅供群聊使用，负责话题订阅
 
 #### TransportRouter
 
@@ -744,7 +857,7 @@ qd-evolve a2a-http serve --agent my-agent
 ```
 
 启动一个独立的 HTTP 服务器，将指定智能体暴露为 A2A 服务：
-- `POST /` — JSON-RPC 端點
+- `POST /` — JSON-RPC 端点
 - `GET /.well-known/agent.json` — AgentCard 发现
 - 支持 SSE 流式响应
 - 支持 webhook 推送通知
@@ -780,6 +893,8 @@ MQTT Broker
         └── Human D (微信) 发布消息
 ```
 
+群聊使用独立的 `GroupChatTransport` 连接——与主 `MqttTransport` A2A 连接分开。
+
 ### 8.3 提及机制
 
 - `@agent_name` — 提及特定智能体
@@ -800,9 +915,11 @@ MQTT Broker
 
 ```json
 {
-    "gchat": {
-        "reply_delay_min": 1.0,  // 最小延迟（秒）
-        "reply_delay_max": 3.0   // 最大延迟（秒）
+    "agents_config": {
+        "gchat": {
+            "reply_delay_min": 1.0,  // 最小延迟（秒）
+            "reply_delay_max": 3.0   // 最大延迟（秒）
+        }
     }
 }
 ```
@@ -869,14 +986,16 @@ qd-evolve gchat --agent my-bot
 ### 9.4 微信人类 (GroupChatWechatHuman)
 
 通过 WeChat iLink 协议桥接：
-1. 长轮询微信消息
+1. 长轮询微信消息（通过 `WechatClawbotClient.poll_updates()`）
 2. 解析 `@mentions`
 3. 发布到 MQTT 群聊主题
 4. 接收群消息并转发到微信
 
+启动时 QR 码登录。会话令牌持久化到 `config.json`（`wechat_session` 字段），重启时复用（有效期约 23 小时）。
+
 ---
 
-## 10. 子智能体
+## 10. 子智能体系统
 
 ### 10.1 概述
 
@@ -884,7 +1003,8 @@ qd-evolve gchat --agent my-bot
 
 - **轻量**: 无持久记忆、无心跳、无网络服务器
 - **继承式**: 继承父智能体的 provider/model/tools/skills/CLI 预加载集
-- **单任务**: 一次只处理一个任务（忙碌时拒绝新任务）
+- **单任务**: 一次只处理一个任务（忙碌时拒绝新任务；由 `_run_lock` 保护）
+- **可取消**: 每个任务有 `CancellationToken`；`cancel_sub_task` 发出取消信号
 - **临时的**: 存在于父进程内，随父进程退出而销毁
 
 ### 10.2 使用方式
@@ -918,14 +1038,33 @@ qd-evolve gchat --agent my-bot
 参数:
   - task_id: 任务 ID（必填）
 
-返回: {"task_id": "...", "status": "running|done|error", "result": "..."}
+返回: {"task_id": "...", "status": "running|done|error|cancelled", "result": "..."}
 ```
 
-### 10.3 结果推送机制
+#### cancel_sub_task
+
+```
+参数:
+  - task_id: 任务 ID（必填）
+
+效果: 发出 CancellationToken 信号，然后立即推送 "cancelled" 结果。
+运行 agent.run() 的守护线程在下一个检查点抛出 CancelledError。
+```
+
+### 10.3 协作取消机制
+
+子智能体取消使用 `CancellationToken` 机制（`qd_evolve/utils/cancellation.py`）：
+
+1. **请求** — `cancel_sub_task(task_id)` 调用 `token.cancel()`，立即推送 "cancelled" 结果
+2. **确认** — 子智能体在安全边界调用 `token.check()`（每次 LLM 调用前、每次工具执行后），抛出 `CancelledError` 并退出
+
+取消是协作式的：智能体在停止前完成当前的 LLM 调用或工具执行，但不会开始新的。
+
+### 10.4 结果推送机制
 
 当父智能体进入空闲等待时，子智能体完成的结果会自动推送到父智能体的对话流中作为用户消息。使用 `ContextVar` 确保线程正确性。
 
-### 10.4 使用场景
+### 10.5 使用场景
 
 - 并行处理多个独立任务
 - 让一个智能体同时运行需要不同上下文的对话
@@ -941,8 +1080,8 @@ qd-evolve gchat --agent my-bot
 
 ```
 SQLite 数据库 (memory.db)
-  ├── memories 表 — 元数据和内容
-  └── memory_vec 表 — BGE-M3 向量嵌入
+  ├── conversations 表 — 元数据和内容
+  └── 向量索引 — 对 content 的 BGE-M3 向量嵌入
 ```
 
 ### 11.2 操作
@@ -952,7 +1091,7 @@ SQLite 数据库 (memory.db)
 每次智能体响应完成后自动保存：
 - `user_msg` — 用户消息
 - `assistant_msg` — 助手响应
-- `process` — 工具调用过程
+- `process` — 工具调用过程（名称、参数、成功/失败）
 - `content` — 组合内容（用于向量嵌入）
 - `session_id` — 会话标识
 - `key` — ISO 时间戳
@@ -1003,6 +1142,8 @@ SQLite 数据库 (memory.db)
 2. 直到 token 数降至目标阈值（默认 50%）
 3. 被压缩的消息作为"已处理"保留在 memory 中
 
+简单的截断方式，不做摘要。
+
 ### 11.5 浏览器 (Memory TUI)
 
 ```bash
@@ -1026,7 +1167,7 @@ TUI 功能：
 心跳允许智能体在长时间空闲后主动发起对话。
 
 **工作流程**:
-1. 智能体空闲达到 `heartbeat_idle_seconds`（默认 30 秒）
+1. 智能体空闲达到 `heartbeat_idle_seconds`
 2. 发送心跳提示给 LLM
 3. LLM 可以回复 `"."` 表示保持沉默
 4. LLM 也可以回复主动的对话开头
@@ -1034,17 +1175,19 @@ TUI 功能：
 **配置**:
 ```json
 {
-    "heartbeat_idle_seconds": 30,  // 全局默认
-    "agents": [
-        {
-            "name": "my-agent",
-            "heartbeat_idle_seconds": 60  // 智能体级别覆盖
-        }
-    ]
+    "heartbeat_idle_seconds": 0,  // 全局默认（0 = 禁用）
+    "agents_config": {
+        "agents": [
+            {
+                "name": "my-agent",
+                "heartbeat_idle_seconds": 60  // 智能体级别覆盖
+            }
+        ]
+    }
 }
 ```
 
-设为 `0` 禁用心跳。
+设为 `0` 禁用。心跳通过 `asyncio.Event.wait(timeout)` 实现——仅在真正空闲时触发。
 
 ### 12.2 事件系统
 
@@ -1076,7 +1219,7 @@ TUI 功能：
 
 ## 13. 斜杠命令参考
 
-以下命令在聊天模式中可用：
+以下命令在所有聊天模式中可用：
 
 | 命令 | 描述 |
 |-----|------|
@@ -1090,10 +1233,6 @@ TUI 功能：
 | `/cli` | 列出 CLI 工具 |
 | `/status` | 显示当前智能体状态（preload/loaded 分类） |
 | `/memory` | 显示最近的记忆 |
-| `/recall <query>` | 搜索记忆 |
-| `/compress` | 手动触发上下文压缩 |
-| `/load` | 手动加载工具/技能/CLI |
-| `/clear` | 清屏 |
 
 ### 交互式模型切换 (`/models`)
 
@@ -1219,14 +1358,28 @@ qd-evolve toolbox
 
 ### 15.4 可用模板
 
+**主模板**:
+
 | 模板名称 | 用途 |
 |---------|------|
-| `system.j2` | 默认系统提示 |
-| `chat.j2` | 聊天消息格式 |
+| `default.j2` | 单智能体系统提示 |
+| `a2a-default.j2` | A2A 系统提示 |
+| `inproc-default.j2` | 进程内 A2A 系统提示 |
+| `mqtt-default.j2` | MQTT 系统提示 |
+| `group-default.j2` | 群聊系统提示 |
+| `group-message.j2` | 群聊消息格式 |
 | `subagent.j2` | 子智能体系统提示 |
 | `heartbeat.j2` | 心跳提示 |
-| `group-message.j2` | 群聊消息格式 |
-| `a2a-heartbeat.j2` | A2A 模式心跳提示 |
+
+**共享片段**（被主模板引用）:
+
+| 片段名称 | 内容 |
+|---------|------|
+| `_core_behavior.j2` | 共享核心行为规则 |
+| `_a2a_tools.j2` | A2A 工具描述 |
+| `_sub_agents.j2` | 子智能体使用说明 |
+| `_runtime.j2` | 运行时环境检测 |
+| `_system_tail.j2` | 工具箱、预加载工具、附录 |
 
 ### 15.5 自定义模板
 
@@ -1235,8 +1388,8 @@ qd-evolve toolbox
 ```
 project/
   templates/
-    system.j2     # 覆盖默认系统提示
-    chat.j2       # 覆盖聊天格式
+    default.j2     # 覆盖默认系统提示
+    heartbeat.j2   # 覆盖心跳提示
 ```
 
 ---
@@ -1256,7 +1409,7 @@ discover → connect → 使用工具 → disconnect
 - `Bridge` (Protocol) — 每个 Bridge 实例管理其配置和已注册工具
 - `BridgeSpec` — 命名的规范，包含 discover/connect/disconnect
 - `BridgeEntry` — 工具箱列表的摘要
-- `BridgeManager` — 单例管理器
+- `BridgeManager` — 单例管理器，启动时自动发现 bridge 模块
 
 ### 16.2 MCP Bridge (Model Context Protocol)
 
@@ -1314,8 +1467,8 @@ discover → connect → 使用工具 → disconnect
 
 **特性**:
 - 直接导入和执行 Python 函数
-- 自动转换 Google ADK Schema 到 OpenAI Schema
-- 返回值自动规范化
+- 自动转换 Google ADK Schema 到 OpenAI Schema（通过 `adk_schema.py`）
+- 返回值自动规范化（通过 `adk_output.py`）
 
 ### 16.4 OAT JSON Shim
 
@@ -1373,6 +1526,7 @@ tags: [web, search]
 | `install-and-register-tools` | 安装并注册新工具 |
 | `register-cli` | 分析 `--help` 输出并注册 CLI 工具 |
 | `self-improvement` | 记录学习、错误和功能请求，持续改进 |
+| `skill-creator` | 从学习中创建新技能 |
 
 ### 17.4 技能的使用
 
@@ -1420,14 +1574,16 @@ qd-evolve chat --replay session.txt
 
 - 工具执行超时：返回超时错误字符串，不中断循环
 - 工具执行异常：返回异常信息字符串
-- 非零退出码（`run_shell`/`run_python`）：不视为错误，正常返回输出
-- 编码处理：多级回退编码检测（UTF-8 → GBK → GB2312 → 拉丁-1）
+- 非零退出码（`run_shell`/`run_python`）：不视为错误，正常返回输出——LLM 根据上下文解释退出码
+- 编码处理：多级回退编码检测（UTF-8 → GBK → GB2312 → Latin-1）
+- 自适应工具超时：工具可以指定每次调用的超时时间，注册表添加 15s 缓冲
 
 ### 18.5 并发安全
 
-- `Agent.run()` 使用 `threading.Lock`（可重入）序列化并发调用
+- `Agent.run()` 使用 `threading.Lock` 序列化并发调用
 - 工具执行在守护线程中，通过 `contextvars` 继承上下文
 - 子智能体通过 `ContextVar` 维护线程安全的当前智能体名称
+- MQTT 传输使用独占消费者模式（每个智能体一个连接）
 
 ### 18.6 日志
 
@@ -1456,7 +1612,7 @@ logs/qd_evolve_20260115_143052.log
 #### Q: MQTT 模式无法连接
 
 - 确认 Mosquitto v5 broker 正在运行：`mosquitto -v`
-- 检查 broker_host 和 broker_port 配置
+- 检查 `mqtt_broker.host` 和 `mqtt_broker.port` 配置
 - 如果使用 TLS，确保证书路径正确
 
 #### Q: 工具没有出现在智能体的工具列表中
@@ -1467,16 +1623,21 @@ logs/qd_evolve_20260115_143052.log
 
 #### Q: 记忆搜索无结果
 
-- 确认 `memory.db` 文件存在（至少进行过一次对话后）
+- 确认记忆数据库文件存在（至少进行过一次对话后）
 - 检查嵌入模型配置是否正确
 - 尝试使用关键词搜索代替语义搜索
 
 #### Q: 上下文窗口溢出
 
 - 框架会自动压缩（当超出 `compress_threshold` 时）
-- 手动触发：在聊天中使用 `/compress`
 - 使用 `/reset` 重置对话
 - 调整 `compress_threshold` 和 `target_threshold` 配置
+
+#### Q: Agent 搜索网页时打开了浏览器窗口
+
+- 在 `config.json` 的 `env_vars` 中设置 `SERPER_API_KEY`
+- 没有密钥时 agent 可能回退到浏览器 MCP 工具
+- 在 [serper.dev](https://serper.dev) 免费注册获取密钥
 
 ### 19.2 日志分析
 
@@ -1507,63 +1668,60 @@ qd-evolve/
 │   ├── a2a_cli.py          # HTTP A2A CLI
 │   ├── a2a_inproc_cli.py   # 进程内 A2A CLI
 │   ├── cli_tools.py        # CLI 工具注册表
-│   ├── cli_utils.py        # CLI 公共工具
+│   ├── cli_utils.py        # CLI 公共工具（ReplayInput, TeeWriter）
 │   ├── skills.py           # 技能注册表
-│   ├── toolbox_tui.py      # 工具箱 TUI
-│   ├── memory_tui.py       # 记忆浏览器 TUI
+│   ├── toolbox_tui.py      # 工具箱 TUI（Textual）
+│   ├── memory_tui.py       # 记忆浏览器 TUI（Textual）
 │   ├── core/               # 核心基础设施
 │   │   ├── config.py       # 配置模型（Pydantic）
-│   │   ├── registry.py     # 工具注册表
-│   │   ├── providers.py    # LLM 提供商
+│   │   ├── registry.py     # 工具注册表（ToolDef，按需加载）
+│   │   ├── providers.py    # LLM 提供商（ProviderRegistry）
 │   │   ├── toolbox.py      # 工具箱状态管理
-│   │   ├── memory.py       # 记忆存储
-│   │   ├── prompts.py      # 模板管理
-│   │   └── logger.py       # 日志
+│   │   ├── memory.py       # 记忆存储（MemoryStore, RecalledMemoryRegistry）
+│   │   ├── prompts.py      # 模板管理（PromptTemplateManager, Jinja2）
+│   │   └── logger.py       # 日志（SharedFileHandler）
 │   ├── agent/              # 智能体层
-│   │   ├── agent.py        # 核心 Agent 类
-│   │   ├── a2a.py          # A2A 数据模型
-│   │   ├── a2a_agent.py    # A2A 智能体包装
-│   │   ├── a2a_tools.py    # A2A 工具
-│   │   ├── protocol.py     # 智能体协议接口
-│   │   ├── registry.py     # 智能体注册表
-│   │   ├── loader.py       # 工厂函数
-│   │   ├── server.py       # HTTP A2A 服务器
-│   │   ├── transport.py    # 传输层
-│   │   ├── mqtt_agent.py   # MQTT 智能体包装
-│   │   ├── mqtt_transport.py # MQTT 传输
-│   │   ├── mqtt_human_agent.py # MQTT 人类
-│   │   ├── human_agent.py  # 人类智能体
-│   │   ├── group_chat_agent.py    # 群聊 AI
-│   │   ├── group_chat_transport.py # 群聊传输
-│   │   ├── group_chat_human.py    # 群聊终端人类
-│   │   └── group_chat_wechat_human.py # 群聊微信人类
+│   │   ├── agent.py        # 核心 Agent 类（LLM 循环、压缩、心跳）
+│   │   ├── api_backends.py # API 调度后端（Anthropic/OpenAI Completions/Responses）
+│   │   ├── a2a.py          # A2A v1.0 数据模型（Task, Message, AgentCard 等）
+│   │   ├── a2a_agent.py    # A2A 智能体包装（身份 + 事件扇出）
+│   │   ├── a2a_tools.py    # A2A 工具（delegate_to, send_task, get_task, cancel_task）
+│   │   ├── protocol.py     # 智能体协议接口（AgentProtocol ABC）
+│   │   ├── registry.py     # 智能体注册表（AgentRegistry 单例）
+│   │   ├── loader.py       # 工厂函数（init_process, create_agent）
+│   │   ├── server.py       # HTTP A2A 服务器（aiohttp JSON-RPC + SSE）
+│   │   ├── transport.py    # 传输层（InprocTransport, HttpTransport, TransportRouter）
+│   │   ├── mqtt_agent.py   # MQTT 智能体包装（MQTT v5 生命周期）
+│   │   ├── mqtt_transport.py   # MQTT 传输（独占消费者 MQTT v5）
+│   │   ├── mqtt_human_agent.py # MQTT 人类智能体包装
+│   │   ├── human_agent.py  # 人类智能体（无 LLM，异步 webhook 完成）
+│   │   ├── group_chat_agent.py    # 群聊 AI（MQTT 话题、去重、@提及）
+│   │   ├── group_chat_transport.py # 独立 MQTT 连接用于 /chat 话题
+│   │   ├── group_chat_human.py    # 群聊终端人类（交互式提示）
+│   │   └── group_chat_wechat_human.py # 群聊微信人类（iLink 桥接）
 │   ├── tools/              # 工具模块
-│   │   ├── tool_loader.py      # func 工具加载器
+│   │   ├── tool_loader.py      # func 工具加载器（load_func）
 │   │   ├── hot_loading_mcp.py  # MCP 热加载
-│   │   ├── skill_loader.py     # 技能加载器
-│   │   ├── cli_loader.py       # CLI 加载器
-│   │   ├── config_manager.py   # 配置管理+子智能体
+│   │   ├── skill_loader.py     # 技能加载器（load_skill）
+│   │   ├── cli_loader.py       # CLI 加载器（load_cli）
+│   │   ├── config_manager.py   # 配置管理 + 子智能体工厂
+│   │   ├── sub_agent_manager.py # 子智能体创建、执行、取消
 │   │   └── recall_memory.py    # 记忆回忆工具
 │   ├── bridge/             # WeChat 桥接
-│   │   └── wechat_clawbot_client.py # iLink 客户端
+│   │   └── wechat_clawbot_client.py # iLink ClawBot 客户端（QR 登录、轮询、消息）
 │   ├── utils/              # 工具函数
 │   │   ├── adk_output.py   # ADK 输出规范化
-│   │   └── adk_schema.py   # ADK Schema 转换
+│   │   ├── adk_schema.py   # ADK Schema → OpenAI JSON Schema 转换
+│   │   └── cancellation.py # CancellationToken + CancelledError
 │   └── _templates/         # 内置 Jinja2 模板
-├── tools/                  # 用户工具
-│   ├── func/               # Python 函数工具
-│   │   ├── fetch.py
-│   │   ├── file_rw.py
-│   │   ├── run_python.py
-│   │   ├── run_shell.py
-│   │   └── search.py
-│   ├── cli/                # CLI 工具定义
-│   │   └── yt-dlp.yaml
+│       ├── default.j2, a2a-default.j2, inproc-default.j2, mqtt-default.j2
+│       ├── group-default.j2, group-message.j2, subagent.j2, heartbeat.j2
+│       └── _a2a_tools.j2, _core_behavior.j2, _runtime.j2, _sub_agents.j2, _system_tail.j2
+├── tools/                  # 用户工具（由 qd-evolve init 创建）
+│   ├── func/               # Python 函数工具（fetch, file_rw, run_python, run_shell, search）
+│   ├── cli/                # CLI 工具定义（yt-dlp.yaml）
 │   ├── mcp/                # MCP 服务器配置
-│   └── bridge/             # Bridge 配置
-│       ├── _mcp.py
-│       ├── _oat.py
-│       └── _oat_json.py
+│   └── bridge/             # Bridge 配置（_mcp.py, _oat.py, _oat_json.py, oat.json）
 ├── skills/                 # 技能
 │   ├── baidu-search/
 │   ├── search-tools/
@@ -1572,13 +1730,15 @@ qd-evolve/
 │   ├── self-improvement/
 │   └── skill-creator/
 ├── templates/              # 用户自定义模板（覆盖内置）
-├── tests/                  # 测试
-├── config.json             # 配置文件
-├── memory.db               # 记忆数据库（自动生成）
+├── tests/                  # 测试（~930 个 pytest 用例）
+├── config.json             # 配置文件（所有设置集中在一处）
+├── memory.db               # 记忆数据库（自动生成，SQLite + sqlite-vec）
 ├── pyproject.toml          # 项目构建配置
 ├── README.md               # 英文 README
 ├── README_zh.md            # 中文 README
 ├── DESIGN.md               # 设计文档
+├── USER_MANUAL.md          # 本手册
+├── USER_MANUAL_zh.md       # 中文手册
 ├── manifesto.md            # 设计哲学宣言
 └── CLAUDE.md               # AI 助手行为规范
 ```
@@ -1590,10 +1750,16 @@ qd-evolve/
     "log_level": "INFO",
     "compress_threshold": 0.7,
     "target_threshold": 0.5,
-    "max_iterations": 50,
-    "tool_output_limit": 2000,
-    "stream": true,
-    "heartbeat_idle_seconds": 30,
+    "max_iterations": 20,
+    "tool_output_limit": 50000,
+    "stream": false,
+    "heartbeat_idle_seconds": 0,
+    "env_vars": {
+        "SERPER_API_KEY": "...",
+        "TAVILY_API_KEY": "..."
+    },
+    "default_provider": "...",
+    "default_model": "...",
     "providers": [{
         "name": "...",
         "api_key": "...",
@@ -1606,20 +1772,20 @@ qd-evolve/
             "max_tokens": 8192
         }]
     }],
-    "default_provider": "...",
-    "default_model": "...",
     "agents_config": {
-        "active_agent": "...",
+        "chat_agent": "...",
         "agents": [{
             "name": "...",
             "description": "...",
             "provider": "...",
             "model": "...",
+            "memory_db": "...",
+            "heartbeat_idle_seconds": 0,
             "server": {"host": "127.0.0.1", "port": 8001},
             "toolbox": {
                 "tools": {"tool_name": "enabled|preload|disabled"},
                 "mcp_servers": {"server_name": "enabled|disabled"},
-                "bridges": {"bridge_name": "enabled|disabled"},
+                "bridge": {"bridge_name": "enabled|disabled"},
                 "cli": {"cli_name": "enabled|preload|disabled"},
                 "skills": {"skill_name": "enabled|preload|disabled"}
             },
@@ -1631,23 +1797,27 @@ qd-evolve/
         "topology": [
             {"from": "agentA", "to": "agentB", "relation": "delegates"}
         ],
+        "mqtt_broker": {
+            "host": "127.0.0.1",
+            "port": 1883
+        },
         "gchat": {
             "reply_delay_min": 1.0,
             "reply_delay_max": 3.0
         }
     },
-    "embeddings": [{
-        "name": "...",
-        "model_path": "...",
-        "dimension": 1024,
-        "backend": "sentence-transformers | llama-cpp-python"
-    }],
+    "embeddings_backends": {
+        "bge-m3": {
+            "model_path": "BAAI/bge-m3",
+            "dim": 1024,
+            "backend": "sentence-transformers"
+        }
+    },
     "memory_search": {
-        "embeddings_backend": "...",
+        "embeddings_backend": "bge-m3",
         "auto_recall": true,
         "auto_recall_top_k": 5,
-        "recall_limit": 20,
-        "list_all_limit": 50
+        "recall_memory_limit": 20
     }
 }
 ```
